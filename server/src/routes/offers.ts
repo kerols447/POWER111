@@ -9,11 +9,6 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
   try {
     const user = (req.session as any).user;
     const offers = await prisma.offer.findMany({
-      include: {
-        branch: {
-          select: { id: true, name: true, code: true }
-        }
-      },
       orderBy: { createdAt: 'desc' }
     });
     res.json(offers);
