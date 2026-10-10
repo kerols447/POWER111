@@ -65,7 +65,7 @@ function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 className="w-full px-4 py-3 bg-dark border border-dark-border rounded-lg text-white focus:outline-none focus:border-primary transition-colors"
-                placeholder="admin@power111.com"
+                placeholder="owner@power111.com"
               />
             </div>
 
@@ -93,9 +93,9 @@ function LoginPage() {
           </form>
 
           <div className="mt-6 p-4 bg-dark border border-dark-border rounded-lg">
-            <p className="text-xs text-gray-400 mb-2">بيانات تجريبية:</p>
-            <p className="text-xs text-gray-300">Email: admin@power111.com</p>
-            <p className="text-xs text-gray-300">Password: admin123</p>
+            <p className="text-xs text-gray-400 mb-2">بيانات الدخول الافتراضية:</p>
+            <p className="text-xs text-gray-300">Email: owner@power111.com</p>
+            <p className="text-xs text-gray-300">Password: power1112026</p>
           </div>
         </div>
       </div>

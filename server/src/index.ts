@@ -31,6 +31,9 @@ export const prisma = new PrismaClient();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Railway terminates TLS upstream; trust the proxy so secure cookies work
+app.set('trust proxy', 1);
+
 // Middleware
 app.use(helmet());
 const allowedOrigins = (process.env.WEB_URL || 'http://localhost:5173').split(',');
