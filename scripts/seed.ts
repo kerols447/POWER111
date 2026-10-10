@@ -1,6 +1,10 @@
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
+
+const OWNER_EMAIL = 'owner@power111.com';
+const OWNER_PASSWORD = 'power1112026';
 
 async function main() {
   console.log('Seeding database...');
@@ -51,6 +55,40 @@ async function main() {
     }
   });
   console.log(`Created member: ${member.memberCode}`);
+
+  // Create owner account if missing (idempotent)
+  const existingOwner = await prisma.user.findUnique({ where: { email: OWNER_EMAIL } });
+  if (!existingOwner) {
+    const passwordHash = await bcrypt.hash(OWNER_PASSWORD, 10);
+    const owner = await prisma.user.create({
+      data: {
+        email: OWNER_EMAIL,
+        passwordHash,
+        name: 'المالك',
+        role: 'OWNER'
+      }
+    });
+    const ownerPermissions = [
+      'VIEW_MEMBERS', 'CREATE_MEMBERS', 'EDIT_MEMBERS', 'DELETE_MEMBERS',
+      'VIEW_SUBSCRIPTIONS', 'CREATE_SUBSCRIPTIONS', 'EDIT_SUBSCRIPTIONS', 'RENEW_SUBSCRIPTIONS', 'FREEZE_SUBSCRIPTIONS',
+      'VIEW_ATTENDANCE', 'CHECKIN_MEMBERS',
+      'VIEW_PRODUCTS', 'CREATE_PRODUCTS', 'EDIT_PRODUCTS', 'DELETE_PRODUCTS',
+      'VIEW_SALES', 'CREATE_SALES', 'MANAGE_DISCOUNTS',
+      'VIEW_EXPENSES', 'CREATE_EXPENSES', 'EDIT_EXPENSES', 'DELETE_EXPENSES',
+      'VIEW_REPORTS', 'VIEW_FINANCIAL_REPORTS',
+      'VIEW_BRANCHES', 'EDIT_BRANCHES',
+      'VIEW_USERS', 'CREATE_USERS', 'EDIT_USERS', 'DELETE_USERS',
+      'MANAGE_SETTINGS',
+      'VIEW_DASHBOARD', 'VIEW_ALL_BRANCHES_DASHBOARD',
+      'VIEW_DASHBOARD_REVENUE', 'VIEW_DASHBOARD_EXPENSES', 'VIEW_DASHBOARD_PROFIT', 'VIEW_DASHBOARD_OUTSTANDING'
+    ];
+    await prisma.userPermission.createMany({
+      data: ownerPermissions.map(permission => ({ userId: owner.id, permission: permission as any }))
+    });
+    console.log(`Created owner: ${owner.email}`);
+  } else {
+    console.log('Owner already exists, skipping');
+  }
 
   console.log('Seed completed!');
 }
