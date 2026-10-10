@@ -1,0 +1,538 @@
+// POWER 111 — Prisma Schema
+// All money stored as integer piasters (EGP × 100)
+// Timestamps stored in UTC, displayed in Africa/Cairo timezone
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ========== Core ==========
+
+enum Role {
+  OWNER
+  BRANCH_MANAGER
+  RECEPTIONIST
+  ACCOUNTANT
+  TRAINER
+  CONTENT_MANAGER
+}
+
+// Permission types for fine-grained access control
+enum Permission {
+  // Members
+  VIEW_MEMBERS
+  CREATE_MEMBERS
+  EDIT_MEMBERS
+  DELETE_MEMBERS
+  
+  // Subscriptions
+  VIEW_SUBSCRIPTIONS
+  CREATE_SUBSCRIPTIONS
+  EDIT_SUBSCRIPTIONS
+  RENEW_SUBSCRIPTIONS
+  FREEZE_SUBSCRIPTIONS
+  
+  // Attendance
+  VIEW_ATTENDANCE
+  CHECKIN_MEMBERS
+  
+  // Products
+  VIEW_PRODUCTS
+  CREATE_PRODUCTS
+  EDIT_PRODUCTS
+  DELETE_PRODUCTS
+  
+  // Sales
+  VIEW_SALES
+  CREATE_SALES
+  MANAGE_DISCOUNTS
+  
+  // Expenses
+  VIEW_EXPENSES
+  CREATE_EXPENSES
+  EDIT_EXPENSES
+  DELETE_EXPENSES
+  
+  // Reports
+  VIEW_REPORTS
+  VIEW_FINANCIAL_REPORTS
+  
+  // Branches
+  VIEW_BRANCHES
+  EDIT_BRANCHES
+  
+  // Users
+  VIEW_USERS
+  CREATE_USERS
+  EDIT_USERS
+  DELETE_USERS
+  
+  // Settings
+  MANAGE_SETTINGS
+  
+  // Dashboard
+  VIEW_DASHBOARD
+  VIEW_ALL_BRANCHES_DASHBOARD
+  VIEW_DASHBOARD_REVENUE
+  VIEW_DASHBOARD_EXPENSES
+  VIEW_DASHBOARD_PROFIT
+  VIEW_DASHBOARD_OUTSTANDING
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String
+  name          String
+  role          Role
+  phone         String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Branch assignments (for branch-scoped roles)
+  branchAccess  BranchAccess[]
+  
+  // Fine-grained permissions
+  permissions   UserPermission[]
+  
+  auditLogs     AuditLog[]
+
+  @@map("users")
+}
+
+model Branch {
+  id            String    @id @default(cuid())
+  name          String
+  code          String    @unique // e.g. "BR01"
+  address       String?
+  locationUrl   String?   // Google Maps link
+  phone         String?
+  whatsapp      String?
+  image         String?   // branch photo
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  staffAccess   BranchAccess[]
+  members       Member[]
+  plans         Plan[]
+  subscriptions Subscription[]
+  attendances   Attendance[]
+  payments      Payment[]
+  products      Product[]
+  sales         Sale[]
+  expenses      Expense[]
+  settings      BranchSettings?
+
+  @@map("branches")
+}
+
+model BranchAccess {
+  id        String   @id @default(cuid())
+  userId    String
+  branchId  String
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, branchId])
+  @@map("branch_access")
+}
+
+model UserPermission {
+  id         String     @id @default(cuid())
+  userId     String
+  permission Permission
+  createdAt  DateTime   @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, permission])
+  @@map("user_permissions")
+}
+
+model BranchSettings {
+  id                  String  @id @default(cuid())
+  branchId            String  @unique
+  taxEnabled          Boolean @default(false)
+  taxRatePercent      Int     @default(0) // stored as basis points (e.g. 1400 = 14%)
+  maxFreezeDays       Int     @default(30)
+  freezeRequiresApproval Boolean @default(true)
+  allowCrossBranchCheckin  Boolean @default(true)
+  lowStockThreshold   Int     @default(5)
+  currency            String  @default("EGP")
+  timezone            String  @default("Africa/Cairo")
+
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@map("branch_settings")
+}
+
+// ========== Members ==========
+
+model Person {
+  id            String    @id @default(cuid())
+  name          String
+  phone         String
+  phoneNormalized String  @unique // normalized for duplicate detection
+  email         String?
+  dateOfBirth   DateTime?
+  gender        String?   // Male, Female
+  address       String?
+  photoPath     String?
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // One person can have memberships at multiple branches
+  memberships   Member[]
+
+  @@map("persons")
+}
+
+model Member {
+  id            String    @id @default(cuid())
+  personId      String
+  branchId      String
+  memberCode    String    @unique // random, non-sequential, 8 chars
+  status        MemberStatus @default(ACTIVE)
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  person        Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  branch        Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  subscriptions Subscription[]
+  attendances   Attendance[]
+
+  @@index([memberCode])
+  @@index([personId])
+  @@index([branchId, status])
+  @@map("members")
+}
+
+enum MemberStatus {
+  ACTIVE
+  EXPIRED
+  SUSPENDED
+  FROZEN
+  INACTIVE
+}
+
+// ========== Plans & Subscriptions ==========
+
+model Plan {
+  id              String    @id @default(cuid())
+  branchId        String
+  name            String
+  nameAr          String    // Arabic name
+  durationDays    Int       // e.g. 30, 90, 365
+  pricePiasters   Int       // price in piasters (EGP × 100)
+  description     String?
+  descriptionAr   String?
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  branch          Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  subscriptions   Subscription[]
+
+  @@index([branchId, isActive])
+  @@map("plans")
+}
+
+model Subscription {
+  id              String    @id @default(cuid())
+  memberId        String
+  planId          String
+  branchId        String
+  startDate       DateTime
+  endDate         DateTime
+  pricePiasters   Int       // total price
+  paidPiasters    Int       @default(0) // amount paid so far
+  status          SubscriptionStatus @default(ACTIVE)
+  isFrozen        Boolean   @default(false)
+  frozenAt        DateTime?
+  frozenDaysUsed  Int       @default(0)
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  member          Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  plan            Plan     @relation(fields: [planId], references: [id], onDelete: Restrict)
+  branch          Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  payments        Payment[]
+
+  @@index([memberId, status])
+  @@index([branchId, status, endDate])
+  @@map("subscriptions")
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  FROZEN
+  CANCELLED
+  PENDING_REVIEW // for offline renewals awaiting manager approval
+}
+
+// ========== Payments ==========
+
+model Payment {
+  id              String    @id @default(cuid())
+  subscriptionId  String
+  branchId        String
+  amountPiasters  Int
+  method          PaymentMethod
+  reference       String?   // transaction reference
+  notes           String?
+  createdAt       DateTime  @default(now())
+
+  subscription    Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  branch          Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId])
+  @@index([branchId, createdAt])
+  @@map("payments")
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CARD
+  OTHER
+}
+
+// ========== Attendance ==========
+
+model Attendance {
+  id              String    @id @default(cuid())
+  memberId        String
+  branchId        String
+  checkInTime     DateTime  @default(now())
+  checkOutTime    DateTime?
+  method          CheckInMethod @default(MANUAL)
+  flagged         Boolean   @default(false) // e.g. expired member, needs review
+  flagReason      String?
+  notes           String?
+
+  member          Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  branch          Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@index([memberId, checkInTime])
+  @@index([branchId, checkInTime])
+  @@map("attendances")
+}
+
+enum CheckInMethod {
+  MANUAL
+  QR_CODE
+  BARCODE
+  OFFLINE_SYNC
+}
+
+// ========== Products & Inventory ==========
+
+model Product {
+  id              String    @id @default(cuid())
+  branchId        String
+  name            String
+  nameAr          String?
+  sku             String?   // stock keeping unit
+  barcode         String?
+  image           String?
+  pricePiasters   Int       // selling price
+  costPiasters    Int?      // cost price (optional)
+  quantity        Int       @default(0)
+  lowStockThreshold Int     @default(5)
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  branch          Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  saleItems       SaleItem[]
+  stockMovements  StockMovement[]
+
+  @@index([branchId, isActive])
+  @@index([barcode])
+  @@map("products")
+}
+
+model StockMovement {
+  id              String    @id @default(cuid())
+  productId       String
+  branchId        String
+  type            StockMovementType
+  quantity        Int       // positive for in, negative for out
+  reference       String?   // e.g. transfer ID
+  notes           String?
+  createdAt       DateTime  @default(now())
+  createdBy       String?   // user ID
+
+  product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, createdAt])
+  @@map("stock_movements")
+}
+
+enum StockMovementType {
+  INCOMING
+  SALE
+  RETURN
+  ADJUSTMENT
+  TRANSFER_IN
+  TRANSFER_OUT
+}
+
+// ========== Sales ==========
+
+model Sale {
+  id              String    @id @default(cuid())
+  branchId        String
+  invoiceNumber   String    @unique
+  totalPiasters   Int
+  discountPiasters Int      @default(0)
+  taxPiasters     Int       @default(0)
+  finalTotalPiasters Int
+  paymentMethod   PaymentMethod
+  notes           String?
+  createdAt       DateTime  @default(now())
+  createdBy       String?   // user ID
+
+  branch          Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  items           SaleItem[]
+
+  @@index([branchId, createdAt])
+  @@map("sales")
+}
+
+model SaleItem {
+  id              String    @id @default(cuid())
+  saleId          String
+  productId       String
+  quantity        Int
+  unitPricePiasters Int
+  totalPiasters   Int
+
+  sale            Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product         Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@map("sale_items")
+}
+
+// ========== Expenses ==========
+
+model Expense {
+  id              String    @id @default(cuid())
+  branchId        String
+  category        String
+  description     String
+  amountPiasters  Int
+  date            DateTime  @default(now())
+  createdBy       String?   // user ID
+  createdAt       DateTime  @default(now())
+
+  branch          Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@index([branchId, date])
+  @@map("expenses")
+}
+
+// ========== Audit Log ==========
+
+model AuditLog {
+  id              String    @id @default(cuid())
+  userId          String?
+  action          String    // e.g. "member.create", "subscription.renew"
+  entityType      String    // e.g. "Member", "Subscription"
+  entityId        String?
+  branchId        String?
+  data            Json?     // before/after snapshot
+  ipAddress       String?
+  createdAt       DateTime  @default(now())
+
+  user            User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([branchId, createdAt])
+  @@index([userId, createdAt])
+  @@map("audit_logs")
+}
+
+// ========== Website Content ==========
+
+model WebsiteContent {
+  id              String    @id @default(cuid())
+  key             String    @unique // e.g. "home.hero.title"
+  value           String    // content value (can be HTML)
+  valueAr         String?   // Arabic content
+  updatedAt       DateTime  @updatedAt
+  updatedBy       String?
+
+  @@map("website_content")
+}
+
+model Offer {
+  id              String    @id @default(cuid())
+  branchId        String?   // null = all branches
+  title           String
+  titleAr         String?
+  description     String?
+  descriptionAr   String?
+  imagePath       String?   // offer image
+  discountPercent Int?
+  startDate       DateTime
+  endDate         DateTime
+  isPublished     Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([isPublished, startDate, endDate])
+  @@map("offers")
+}
+
+model ContactMessage {
+  id              String    @id @default(cuid())
+  name            String
+  phone           String
+  email           String?
+  message         String
+  isRead          Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+
+  @@map("contact_messages")
+}
+
+// ========== Offline Sync ==========
+
+model PendingOperation {
+  id              String    @id @default(cuid())
+  operationId     String    @unique // client-generated UUID for idempotency
+  branchId        String
+  type            String    // e.g. "attendance.checkin", "sale.create"
+  payload         Json
+  status          SyncStatus @default(PENDING)
+  result          Json?
+  createdAt       DateTime  @default(now())
+  processedAt     DateTime?
+
+  @@index([status, createdAt])
+  @@map("pending_operations")
+}
+
+enum SyncStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
