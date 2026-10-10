@@ -35,9 +35,11 @@ async function main() {
   }
   console.log('Created plans for all branches');
 
-  // Create a test member
-  const person = await prisma.person.create({
-    data: {
+  // Create a test member (idempotent)
+  const person = await prisma.person.upsert({
+    where: { phoneNormalized: '201555123456' },
+    update: {},
+    create: {
       name: 'أحمد محمد',
       phone: '01555123456',
       phoneNormalized: '201555123456',
@@ -46,15 +48,17 @@ async function main() {
     }
   });
 
-  const member = await prisma.member.create({
-    data: {
+  const member = await prisma.member.upsert({
+    where: { memberCode: 'AB12CD34' },
+    update: {},
+    create: {
       personId: person.id,
       branchId: branchList[0].id,
       memberCode: 'AB12CD34',
       status: 'ACTIVE'
     }
   });
-  console.log(`Created member: ${member.memberCode}`);
+  console.log(`Member ready: ${member.memberCode}`);
 
   // Create owner account if missing (idempotent)
   const existingOwner = await prisma.user.findUnique({ where: { email: OWNER_EMAIL } });
