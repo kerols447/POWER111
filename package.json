@@ -16,7 +16,7 @@
     "build": "npm run build --workspace=shared && npm run build --workspace=server && npm run build --workspace=web",
     "build:server": "npm run build --workspace=server",
     "build:web": "npm run build --workspace=web",
-    "start": "node server/dist/index.js",
+    "start": "npx prisma migrate deploy --schema=prisma/schema.prisma && npx tsx scripts/seed.ts && node server/dist/index.js",
     "db:migrate": "npx prisma migrate dev --schema=prisma/schema.prisma",
     "db:migrate:prod": "npx prisma migrate deploy --schema=prisma/schema.prisma",
     "db:seed": "npx tsx scripts/seed.ts",
