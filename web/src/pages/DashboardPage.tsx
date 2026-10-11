@@ -54,7 +54,11 @@ function DashboardPage() {
   const [selectedBranch, setSelectedBranch] = useState<string>('all');
   const { user, hasPermission, isOwner } = useAuth();
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date();
+  const toStr = today.toISOString().split('T')[0];
+  const weekAgo = new Date(today);
+  weekAgo.setDate(weekAgo.getDate() - 6);
+  const fromStr = weekAgo.toISOString().split('T')[0];
 
   useEffect(() => {
     fetchData();
@@ -63,8 +67,8 @@ function DashboardPage() {
   const fetchData = async () => {
     try {
       const [branchRes, financialRes, expiringRes] = await Promise.all([
-        fetch(`/api/reports/branches?from=${today}&to=${today}`, { credentials: 'include' }),
-        fetch(`/api/reports/financial?from=${today}&to=${today}`, { credentials: 'include' }),
+        fetch(`/api/reports/branches?from=${fromStr}&to=${toStr}`, { credentials: 'include' }),
+        fetch(`/api/reports/financial?from=${fromStr}&to=${toStr}`, { credentials: 'include' }),
         fetch('/api/subscriptions/expiring?days=7', { credentials: 'include' })
       ]);
 
@@ -231,7 +235,7 @@ function DashboardPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
-                <span className="text-xs text-emerald-400/70 font-medium">إيرادات اليوم</span>
+                <span className="text-xs text-emerald-400/70 font-medium">الإيرادات</span>
               </div>
               <p className="text-xl sm:text-2xl font-black text-emerald-400 tracking-tight">{formatPiasters(totalRevenue)}</p>
               <div className="mt-2 flex items-center gap-1">
@@ -252,7 +256,7 @@ function DashboardPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" />
                   </svg>
                 </div>
-                <span className="text-xs text-rose-400/70 font-medium">مصروفات اليوم</span>
+                <span className="text-xs text-rose-400/70 font-medium">المصروفات</span>
               </div>
               <p className="text-xl sm:text-2xl font-black text-rose-400 tracking-tight">{formatPiasters(totalExpenses)}</p>
               <div className="mt-2 flex items-center gap-1">
@@ -487,7 +491,7 @@ function DashboardPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 10.5H21A7.5 7.5 0 0013.5 3v7.5z" />
                   </svg>
                 </div>
-                <p className="text-gray-500 text-sm">لا توجد إيرادات اليوم</p>
+                <p className="text-gray-500 text-sm">لا توجد إيرادات خلال الفترة</p>
               </div>
             )}
           </div>
