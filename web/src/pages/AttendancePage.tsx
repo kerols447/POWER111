@@ -264,7 +264,7 @@ export default function AttendancePage() {
       payload: {
         memberCode,
         branchId: selectedBranch,
-        method: 'OFFLINE_SCAN',
+        method: 'OFFLINE_SYNC',
         checkInTime: new Date().toISOString()
       },
       timestamp: Date.now(),

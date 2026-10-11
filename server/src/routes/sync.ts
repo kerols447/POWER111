@@ -150,6 +150,9 @@ async function processCheckin(op: SyncOperation): Promise<Record<string, unknown
     checkInTime?: string;
   };
 
+  const validMethods = ['MANUAL', 'QR_CODE', 'BARCODE', 'OFFLINE_SYNC'];
+  const normalizedMethod = validMethods.includes(method) ? method : 'OFFLINE_SYNC';
+
   const member = await prisma.member.findUnique({
     where: { memberCode },
     include: {
@@ -198,7 +201,7 @@ async function processCheckin(op: SyncOperation): Promise<Record<string, unknown
     data: {
       memberId: member.id,
       branchId,
-      method: method as any || 'OFFLINE_SYNC',
+      method: normalizedMethod,
       flagged,
       flagReason,
       checkInTime: originalTime
