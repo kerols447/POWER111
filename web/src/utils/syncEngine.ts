@@ -6,7 +6,6 @@ import {
   PendingOperation
 } from './offlineDb';
 
-const MAX_RETRIES = 3;
 const SYNC_BATCH_SIZE = 50;
 
 let isSyncing = false;
@@ -32,7 +31,7 @@ export async function syncPendingOperations(branchId?: string): Promise<{
   try {
     const operations = await getPendingOperations(branchId);
     const pendingOps = operations.filter(
-      op => (op.status === 'pending' || op.status === 'failed') && op.retryCount < MAX_RETRIES
+      op => op.status === 'pending' || op.status === 'failed'
     );
 
     if (pendingOps.length === 0) {
@@ -58,11 +57,7 @@ export async function syncPendingOperations(branchId?: string): Promise<{
           await removeOperation(op.id);
           success++;
         } else {
-          if (op.retryCount >= MAX_RETRIES - 1) {
-            await updateOperationStatus(op.id, 'failed', result.error);
-          } else {
-            await updateOperationStatus(op.id, 'failed', result.error);
-          }
+          await updateOperationStatus(op.id, 'failed', result.error);
           failed++;
         }
       }

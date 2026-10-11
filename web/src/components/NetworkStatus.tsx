@@ -1,6 +1,7 @@
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useEffect, useState } from 'react';
 import { getPendingOperationsCount } from '../utils/offlineDb';
+import { syncPendingOperations } from '../utils/syncEngine';
 
 export function NetworkStatus() {
   const isOnline = useOnlineStatus();
@@ -29,6 +30,11 @@ export function NetworkStatus() {
       window.removeEventListener('sync-end', handleSyncEnd);
     };
   }, []);
+
+  const handleManualSync = async () => {
+    if (isSyncing || !isOnline) return;
+    await syncPendingOperations();
+  };
 
   if (isOnline && pendingCount === 0) return null;
 
@@ -62,9 +68,18 @@ export function NetworkStatus() {
             <>
               <span>متصل</span>
               {pendingCount > 0 && (
-                <span className="bg-green-800 px-2 py-0.5 rounded-full text-xs">
-                  {pendingCount} عملية في الانتظار
-                </span>
+                <>
+                  <span className="bg-green-800 px-2 py-0.5 rounded-full text-xs">
+                    {pendingCount} عملية في الانتظار
+                  </span>
+                  <button
+                    onClick={handleManualSync}
+                    className="ml-2 px-2 py-0.5 bg-white/20 hover:bg-white/30 rounded text-xs transition-colors"
+                    title="مزامنة الآن"
+                  >
+                    ↻
+                  </button>
+                </>
               )}
             </>
           )}
