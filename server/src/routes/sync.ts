@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { PaymentMethod } from '@prisma/client';
+import { PaymentMethod, CheckInMethod } from '@prisma/client';
 import { prisma } from '../index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { normalizePhone, isValidEgyptianPhone, generateMemberCode } from 'shared';
@@ -159,8 +159,8 @@ async function processCheckin(op: SyncOperation): Promise<Record<string, unknown
     checkInTime?: string;
   };
 
-  const validMethods = ['MANUAL', 'QR_CODE', 'BARCODE', 'OFFLINE_SYNC'];
-  const normalizedMethod = validMethods.includes(method) ? method : 'OFFLINE_SYNC';
+  const validMethods = ['MANUAL', 'QR_CODE', 'BARCODE', 'OFFLINE_SYNC'] as const;
+  const normalizedMethod: CheckInMethod = validMethods.includes(method as any) ? (method as CheckInMethod) : 'OFFLINE_SYNC';
   const resolvedBranchId = await resolveBranchId(branchId);
 
   const member = await prisma.member.findUnique({
