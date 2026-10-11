@@ -7,6 +7,13 @@ import { createAuditLog } from './audit.js';
 
 const router = Router();
 
+async function resolveBranchId(branchIdOrCode: string): Promise<string> {
+  if (/^[0-9a-f]{20,}/i.test(branchIdOrCode)) return branchIdOrCode;
+  const branch = await prisma.branch.findUnique({ where: { code: branchIdOrCode } });
+  if (branch) return branch.id;
+  return branchIdOrCode;
+}
+
 interface SyncOperation {
   operationId: string;
   type: string;
@@ -36,6 +43,8 @@ router.post('/batch', requireAuth, async (req: Request, res: Response) => {
         results.push({ success: false, error: 'بيانات العملية ناقصة' });
         continue;
       }
+
+      op.branchId = await resolveBranchId(op.branchId);
 
       if (user.role !== 'OWNER' && !user.branchIds?.includes(op.branchId)) {
         results.push({ success: false, error: 'ليس لديك صلاحية لهذا الفرع' });
@@ -152,6 +161,7 @@ async function processCheckin(op: SyncOperation): Promise<Record<string, unknown
 
   const validMethods = ['MANUAL', 'QR_CODE', 'BARCODE', 'OFFLINE_SYNC'];
   const normalizedMethod = validMethods.includes(method) ? method : 'OFFLINE_SYNC';
+  const resolvedBranchId = await resolveBranchId(branchId);
 
   const member = await prisma.member.findUnique({
     where: { memberCode },
@@ -166,7 +176,7 @@ async function processCheckin(op: SyncOperation): Promise<Record<string, unknown
   });
 
   if (!member) throw new Error('العضو غير موجود');
-  if (member.branchId !== branchId) throw new Error('هذا العضو غير مسجل في هذا الفرع');
+  if (member.branchId !== resolvedBranchId) throw new Error('هذا العضو غير مسجل في هذا الفرع');
 
   const originalTime = checkInTime ? new Date(checkInTime) : new Date(op.timestamp);
   const dayStart = new Date(originalTime);
@@ -200,7 +210,7 @@ async function processCheckin(op: SyncOperation): Promise<Record<string, unknown
   const attendance = await prisma.attendance.create({
     data: {
       memberId: member.id,
-      branchId,
+      branchId: resolvedBranchId,
       method: normalizedMethod,
       flagged,
       flagReason,
@@ -573,6 +583,8 @@ async function processNewMember(op: SyncOperation, user: any): Promise<Record<st
 
   if (!name || !phone || !branchId) throw new Error('بيانات العضو ناقصة');
 
+  const resolvedBranchId = await resolveBranchId(branchId);
+
   const normalizedPhone = normalizePhone(phone);
   if (!isValidEgyptianPhone(normalizedPhone)) throw new Error('رقم الهاتف غير صحيح');
 
@@ -580,7 +592,7 @@ async function processNewMember(op: SyncOperation, user: any): Promise<Record<st
 
   if (existingPerson) {
     const existingMember = await prisma.member.findFirst({
-      where: { personId: existingPerson.id, branchId }
+      where: { personId: existingPerson.id, branchId: resolvedBranchId }
     });
     if (existingMember) {
       return { memberId: existingMember.id, duplicate: true };
@@ -588,7 +600,7 @@ async function processNewMember(op: SyncOperation, user: any): Promise<Record<st
 
     const memberCode = await generateUniqueCode();
     const member = await prisma.member.create({
-      data: { personId: existingPerson.id, branchId, memberCode, notes }
+      data: { personId: existingPerson.id, branchId: resolvedBranchId, memberCode, notes }
     });
     return { memberId: member.id };
   }
@@ -605,7 +617,7 @@ async function processNewMember(op: SyncOperation, user: any): Promise<Record<st
   });
 
   const member = await prisma.member.create({
-    data: { personId: person.id, branchId, memberCode, notes }
+    data: { personId: person.id, branchId: resolvedBranchId, memberCode, notes }
   });
 
   return { memberId: member.id };
@@ -644,9 +656,11 @@ async function processNewPlan(op: SyncOperation): Promise<Record<string, unknown
     throw new Error('بيانات الخطة ناقصة');
   }
 
+  const resolvedBranchId = await resolveBranchId(branchId);
+
   const plan = await prisma.plan.create({
     data: {
-      branchId,
+      branchId: resolvedBranchId,
       name,
       nameAr,
       durationDays,
