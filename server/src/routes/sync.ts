@@ -8,7 +8,7 @@ import { createAuditLog } from './audit.js';
 const router = Router();
 
 async function resolveBranchId(branchIdOrCode: string): Promise<string> {
-  if (/^[0-9a-f]{20,}/i.test(branchIdOrCode)) return branchIdOrCode;
+  if (branchIdOrCode.length >= 20) return branchIdOrCode;
   const branch = await prisma.branch.findUnique({ where: { code: branchIdOrCode } });
   if (branch) return branch.id;
   return branchIdOrCode;
