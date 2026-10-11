@@ -43,6 +43,7 @@ interface PortalData {
   payments: PortalPayment[];
   attendances: PortalAttendance[];
   totalVisits: number;
+  currentlyInBranch: number;
 }
 
 const STATUS_TEXT: Record<string, string> = {
@@ -56,13 +57,13 @@ const STATUS_TEXT: Record<string, string> = {
 };
 
 const STATUS_STYLE: Record<string, string> = {
-  ACTIVE: 'bg-green-500/15 text-green-400 border-green-500/40',
-  EXPIRED: 'bg-red-500/15 text-red-400 border-red-500/40',
-  SUSPENDED: 'bg-red-500/15 text-red-400 border-red-500/40',
-  FROZEN: 'bg-blue-500/15 text-blue-400 border-blue-500/40',
+  ACTIVE: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/40',
+  EXPIRED: 'bg-rose-500/15 text-rose-400 border-rose-500/40',
+  SUSPENDED: 'bg-rose-500/15 text-rose-400 border-rose-500/40',
+  FROZEN: 'bg-primary/15 text-primary border-primary/40',
   INACTIVE: 'bg-gray-500/15 text-gray-400 border-gray-500/40',
   CANCELLED: 'bg-gray-500/15 text-gray-400 border-gray-500/40',
-  PENDING_REVIEW: 'bg-yellow-500/15 text-yellow-500 border-yellow-500/40'
+  PENDING_REVIEW: 'bg-amber-500/15 text-amber-500 border-amber-500/40'
 };
 
 const METHOD_TEXT: Record<string, string> = {
@@ -184,7 +185,7 @@ export default function PortalPage() {
 
         <form onSubmit={handleLogin} className="relative mt-8 w-full max-w-sm bg-dark-card border border-white/10 rounded-2xl p-6 space-y-5">
           {error && (
-            <div className="p-3 bg-red-500/10 border border-red-500/40 rounded-lg text-red-400 text-sm text-center">{error}</div>
+            <div className="p-3 bg-rose-500/10 border border-rose-500/40 rounded-lg text-rose-400 text-sm text-center">{error}</div>
           )}
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">رقم الموبايل</label>
@@ -229,7 +230,7 @@ export default function PortalPage() {
   }
 
   // ===== Dashboard =====
-  const { member, currentSubscription, totalVisits } = data;
+  const { member, currentSubscription, totalVisits, currentlyInBranch } = data;
   const remaining = currentSubscription ? daysRemaining(currentSubscription.endDate) : 0;
   const start = currentSubscription ? new Date(currentSubscription.startDate).getTime() : 0;
   const end = currentSubscription ? new Date(currentSubscription.endDate).getTime() : 1;
@@ -295,14 +296,14 @@ export default function PortalPage() {
 
             <div className="mt-4 flex items-baseline justify-between">
               <div className="text-xl font-extrabold text-yellow-500">{currentSubscription.plan.nameAr}</div>
-              <div className={`text-sm font-bold ${remaining > 0 ? 'text-green-400' : 'text-red-400'}`}>
+              <div className={`text-sm font-bold ${remaining > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                 {remaining > 0 ? `متبقي ${remaining} يوم` : 'انتهى الاشتراك'}
               </div>
             </div>
 
             <div className="mt-3 h-2.5 bg-dark rounded-full overflow-hidden border border-white/5">
               <div
-                className={`h-full rounded-full ${remaining > 7 ? 'bg-gradient-to-l from-yellow-600 to-yellow-500' : 'bg-gradient-to-l from-red-600 to-red-500'}`}
+                className={`h-full rounded-full ${remaining > 7 ? 'bg-gradient-to-l from-yellow-600 to-yellow-500' : 'bg-gradient-to-l from-rose-600 to-rose-500'}`}
                 style={{ width: `${progress}%` }}
               />
             </div>
@@ -319,15 +320,15 @@ export default function PortalPage() {
               </div>
               <div className="rounded-xl bg-dark border border-white/5 p-3">
                 <div className="text-xs text-gray-500">{duePiasters > 0 ? 'المتبقي عليك' : 'مدفوع بالكامل'}</div>
-                <div className={`mt-1 font-bold ${duePiasters > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                <div className={`mt-1 font-bold ${duePiasters > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
                   {duePiasters > 0 ? formatEGP(duePiasters) : '✓'}
                 </div>
               </div>
             </div>
           </section>
         ) : (
-          <section className="rounded-2xl border border-red-500/30 bg-red-500/5 p-6 text-center">
-            <h2 className="text-lg font-bold text-red-400">لا يوجد اشتراك نشط</h2>
+          <section className="rounded-2xl border border-rose-500/30 bg-rose-500/5 p-6 text-center">
+            <h2 className="text-lg font-bold text-rose-400">لا يوجد اشتراك نشط</h2>
             <p className="text-sm text-gray-400 mt-2">راجع موظف الاستقبال في فرع {member.branch.name} لتجديد اشتراكك</p>
             {member.branch.phone && (
               <a href={`tel:${member.branch.phone}`} dir="ltr" className="inline-block mt-4 px-6 py-2.5 rounded-full bg-yellow-500 text-black font-bold text-sm hover:bg-yellow-400">
@@ -338,16 +339,20 @@ export default function PortalPage() {
         )}
 
         {/* Visits summary */}
-        <section className="grid grid-cols-2 gap-4">
+        <section className="grid grid-cols-3 gap-4">
           <div className="rounded-2xl border border-white/10 bg-dark-card p-5 text-center">
             <div className="text-3xl font-extrabold text-yellow-500">{totalVisits}</div>
             <div className="mt-1 text-sm text-gray-400">إجمالي الزيارات</div>
           </div>
           <div className="rounded-2xl border border-white/10 bg-dark-card p-5 text-center">
-            <div className={`text-3xl font-extrabold ${isActive ? 'text-green-400' : 'text-red-400'}`}>
+            <div className="text-3xl font-extrabold text-primary">{currentlyInBranch}</div>
+            <div className="mt-1 text-sm text-gray-400">في الفرع حالياً</div>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-dark-card p-5 text-center">
+            <div className={`text-3xl font-extrabold ${isActive ? 'text-emerald-400' : 'text-rose-400'}`}>
               {member.status === 'ACTIVE' ? '✓' : '!'}
             </div>
-            <div className="mt-1 text-sm text-gray-400">حالة العضوية: {STATUS_TEXT[member.status] || member.status}</div>
+            <div className="mt-1 text-sm text-gray-400">حالة العضوية</div>
           </div>
         </section>
 
@@ -388,7 +393,7 @@ export default function PortalPage() {
                     <div className="text-sm font-medium">{pay.subscription.plan.nameAr}</div>
                     <div className="text-xs text-gray-500 mt-0.5">{formatDate(pay.createdAt)} • {METHOD_TEXT[pay.method] || pay.method}</div>
                   </div>
-                  <div className="text-sm font-bold text-green-400">{formatEGP(pay.amountPiasters)}</div>
+                  <div className="text-sm font-bold text-emerald-400">{formatEGP(pay.amountPiasters)}</div>
                 </li>
               ))}
             </ul>

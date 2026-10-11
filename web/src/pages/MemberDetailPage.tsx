@@ -38,6 +38,7 @@ interface Subscription {
   plan: {
     id: string;
     name: string;
+    nameAr?: string;
     durationDays: number;
     pricePiasters: number;
   };
@@ -132,10 +133,10 @@ function MemberDetailPage() {
 
   const getStatusBadge = (status: string) => {
     const colors: Record<string, string> = {
-      ACTIVE: 'bg-green-500/20 text-green-400 border-green-500/50',
-      EXPIRED: 'bg-red-500/20 text-red-400 border-red-500/50',
-      SUSPENDED: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50',
-      FROZEN: 'bg-blue-500/20 text-blue-400 border-blue-500/50',
+      ACTIVE: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50',
+      EXPIRED: 'bg-rose-500/20 text-rose-400 border-rose-500/50',
+      SUSPENDED: 'bg-amber-500/20 text-amber-400 border-amber-500/50',
+      FROZEN: 'bg-primary/10 text-primary border-primary/50',
     };
     const labels: Record<string, string> = {
       ACTIVE: 'نشط',
@@ -200,7 +201,7 @@ function MemberDetailPage() {
           {hasPermission('DELETE_MEMBERS') && (
             <button
               onClick={handleDelete}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg transition-colors"
+              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-sm rounded-lg transition-colors"
             >
               حذف العضو
             </button>
@@ -281,7 +282,7 @@ function MemberDetailPage() {
               </div>
               <div>
                 <label className="block text-sm text-gray-400 mb-1">إجمالي المدفوعات</label>
-                <p className="text-green-400 font-bold">{formatPrice(totalPaid)}</p>
+                <p className="text-emerald-400 font-bold">{formatPrice(totalPaid)}</p>
               </div>
             </div>
           </div>
@@ -340,15 +341,15 @@ function MemberDetailPage() {
         <div className="space-y-4">
           {/* Active Subscription Summary */}
           {activeSubscription && (
-            <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-6">
+            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-green-400">الاشتراك النشط</h3>
+                <h3 className="text-lg font-bold text-emerald-400">الاشتراك النشط</h3>
                 {getStatusBadge(activeSubscription.status)}
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-sm text-gray-400 mb-1">الخطة</label>
-                  <p className="text-white font-bold">{activeSubscription.plan.name}</p>
+                  <p className="text-white font-bold">{activeSubscription.plan.nameAr || activeSubscription.plan.name}</p>
                 </div>
                 <div>
                   <label className="block text-sm text-gray-400 mb-1">تاريخ البدء</label>
@@ -383,7 +384,7 @@ function MemberDetailPage() {
                   <div key={sub.id} className="p-4 hover:bg-dark/50 transition-colors">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-3">
-                        <span className="font-bold text-white">{sub.plan.name}</span>
+                        <span className="font-bold text-white">{sub.plan.nameAr || sub.plan.name}</span>
                         {getStatusBadge(sub.status)}
                       </div>
                       <span className="text-sm text-gray-400">
@@ -434,7 +435,7 @@ function MemberDetailPage() {
                   <div className="text-left">
                     <span className={`px-2 py-1 rounded text-xs ${
                       att.method === 'QR_CODE' ? 'bg-purple-500/20 text-purple-400' :
-                      att.method === 'BARCODE' ? 'bg-blue-500/20 text-blue-400' :
+                      att.method === 'BARCODE' ? 'bg-primary/20 text-primary' :
                       'bg-gray-500/20 text-gray-400'
                     }`}>
                       {att.method === 'QR_CODE' ? 'QR' : att.method === 'BARCODE' ? 'باركود' : 'يدوي'}

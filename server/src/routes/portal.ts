@@ -143,6 +143,10 @@ router.get('/me', requireMemberAuth, async (req: Request, res: Response) => {
 
     const totalVisits = await prisma.attendance.count({ where: { memberId: member.id } });
 
+    const currentlyInBranch = await prisma.attendance.count({
+      where: { branchId: member.branchId, checkOutTime: null }
+    });
+
     res.json({
       success: true,
       data: {
@@ -159,7 +163,8 @@ router.get('/me', requireMemberAuth, async (req: Request, res: Response) => {
         pastSubscriptions: subscriptions.filter(s => s.id !== currentSubscription?.id),
         payments,
         attendances,
-        totalVisits
+        totalVisits,
+        currentlyInBranch
       }
     });
   } catch (error) {

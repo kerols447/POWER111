@@ -345,4 +345,67 @@ router.get('/history', requireAuth, requirePermission('VIEW_ATTENDANCE'), async 
   }
 });
 
+// GET /api/attendance/now — Get currently checked-in count per branch
+router.get('/now', requireAuth, requirePermission('VIEW_ATTENDANCE'), async (req: Request, res: Response) => {
+  try {
+    const user = (req.session as any).user;
+    const { branchId } = req.query;
+
+    const where: any = { checkOutTime: null };
+
+    if (branchId) {
+      if (user.role !== 'OWNER' && !user.branchIds.includes(branchId as string)) {
+        return res.status(403).json({ error: 'Forbidden', message: 'ليس لديك صلاحية الوصول لهذا الفرع' });
+      }
+      where.branchId = branchId;
+    } else if (user.role !== 'OWNER') {
+      where.branchId = { in: user.branchIds };
+    }
+
+    const count = await prisma.attendance.count({ where });
+
+    res.json({ count, branchId: branchId || 'all' });
+  } catch (error) {
+    console.error('Error fetching current attendance:', error);
+    res.status(500).json({ error: 'Failed to fetch current attendance' });
+  }
+});
+
 export default router;
+
+async function getAutoCheckoutMinutes(branchId: string): Promise<number> {
+  const row: any = await prisma.$queryRaw`
+    SELECT value FROM app_settings WHERE key = 'autoCheckoutMinutes' AND branch_id = ${branchId}
+  `;
+  return row?.[0] ? parseInt(row[0].value) : 120;
+}
+
+async function runAutoCheckout() {
+  try {
+    const openAttendances: any[] = await prisma.$queryRaw`
+      SELECT id, "branchId", "checkInTime"
+      FROM attendances
+      WHERE "checkOutTime" IS NULL
+    `;
+
+    for (const att of openAttendances) {
+      const minutes = await getAutoCheckoutMinutes(att.branchId);
+      if (minutes <= 0) continue;
+
+      const checkIn = new Date(att.checkInTime);
+      const elapsed = (Date.now() - checkIn.getTime()) / (1000 * 60);
+
+      if (elapsed >= minutes) {
+        await prisma.attendance.update({
+          where: { id: att.id },
+          data: { checkOutTime: new Date() }
+        });
+        console.log(`Auto-checkout: ${att.id} (elapsed: ${Math.round(elapsed)}min, limit: ${minutes}min)`);
+      }
+    }
+  } catch (error) {
+    console.error('Auto-checkout error:', error);
+  }
+}
+
+setInterval(runAutoCheckout, 60_000);

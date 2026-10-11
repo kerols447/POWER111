@@ -33,7 +33,7 @@ interface PublicOffer {
   endDate: string;
 }
 
-const SUPPORT_WHATSAPP = '201280368119';
+const SUPPORT_WHATSAPP = '201055002069';
 
 const goldGradient: React.CSSProperties = {
   background: 'linear-gradient(135deg, #FCD34D, #F59E0B, #D97706)',
@@ -72,6 +72,44 @@ function useScrollReveal(): RefObject<HTMLDivElement | null> {
   return ref;
 }
 
+function CountUp({ end, suffix }: { end: number; suffix?: string }) {
+  const [value, setValue] = useState(0);
+  const ref = useRef<HTMLSpanElement>(null);
+  const started = useRef(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !started.current) {
+          started.current = true;
+          const duration = 1600;
+          const start = performance.now();
+          const tick = (now: number) => {
+            const progress = Math.min((now - start) / duration, 1);
+            const eased = 1 - Math.pow(1 - progress, 3);
+            setValue(Math.round(end * eased));
+            if (progress < 1) requestAnimationFrame(tick);
+          };
+          requestAnimationFrame(tick);
+          observer.unobserve(el);
+        }
+      },
+      { threshold: 0.4 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [end]);
+
+  return (
+    <span ref={ref} dir="ltr">
+      {value.toLocaleString('ar-EG')}
+      {suffix}
+    </span>
+  );
+}
+
 export default function LandingPage() {
   const [data, setData] = useState<PublicBranch[]>([]);
   const [offers, setOffers] = useState<PublicOffer[]>([]);
@@ -79,7 +117,7 @@ export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const heroRef = useScrollReveal();
+  const statsRef = useScrollReveal();
   const servicesRef = useScrollReveal();
   const servicesGridRef = useScrollReveal();
   const offersRef = useScrollReveal();
@@ -182,38 +220,38 @@ export default function LandingPage() {
       </nav>
 
       {/* ===== Hero ===== */}
-      <section id="top" className="relative min-h-screen flex flex-col items-center justify-center px-6 text-center">
+      <section id="top" className="relative min-h-screen flex flex-col items-center justify-center px-5 sm:px-6 text-center">
         {/* Gold glow behind logo */}
-        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(245,158,11,0.12) 0%, transparent 70%)' }} />
+        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] sm:w-[400px] sm:h-[400px] md:w-[500px] md:h-[500px] rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(245,158,11,0.12) 0%, transparent 70%)' }} />
 
-        <div ref={heroRef as React.RefObject<HTMLDivElement>} className="reveal relative">
+        <div className="relative">
           {/* Large centered logo */}
-          <div className="mb-10">
+          <div className="mb-10 hero-anim d1">
             <img
               src="/power-logo.jpg"
               alt="POWER 111"
-              className="w-48 h-48 sm:w-64 sm:h-64 mx-auto rounded-3xl shadow-2xl"
+              className="w-36 h-36 sm:w-48 sm:h-48 md:w-64 md:h-64 mx-auto rounded-3xl shadow-2xl float-logo"
               style={{ border: '2px solid rgba(245,158,11,0.2)' }}
             />
           </div>
 
           {/* Heading */}
-          <h1 className="text-4xl sm:text-5xl lg:text-7xl font-black leading-tight">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-7xl font-black leading-tight hero-anim d2">
             لياقتك تبدأ{' '}
-            <span style={goldGradient}>من هنا</span>
+            <span className="gold-shimmer">من هنا</span>
           </h1>
 
           {/* Subtitle */}
-          <p className="mt-6 text-gray-400 text-lg sm:text-xl max-w-2xl mx-auto leading-relaxed">
+          <p className="mt-6 text-gray-400 text-lg sm:text-xl max-w-2xl mx-auto leading-relaxed hero-anim d3">
             جيم، صحة، وتغذية — منظومة متكاملة لرعاية جسمك في مكان واحد.
           </p>
 
           {/* CTA Buttons */}
-          <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
+          <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4 hero-anim d4">
             <a
               href="#plans"
-              className="w-full sm:w-auto px-10 py-4 rounded-full text-black font-bold text-lg transition-all duration-300 hover:scale-105"
-              style={{ background: 'linear-gradient(135deg, #FCD34D, #F59E0B)', boxShadow: '0 8px 30px rgba(245,158,11,0.3)' }}
+              className="w-full sm:w-auto px-10 py-4 rounded-full text-black font-bold text-lg transition-all duration-300 hover:scale-105 cta-pulse"
+              style={{ background: 'linear-gradient(135deg, #FCD34D, #F59E0B)' }}
             >
               انضم الآن
             </a>
@@ -227,10 +265,32 @@ export default function LandingPage() {
         </div>
 
         {/* Scroll indicator */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2">
-          <svg className="w-6 h-6 text-gray-500 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 scroll-bounce">
+          <svg className="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
           </svg>
+        </div>
+      </section>
+
+      {/* ===== Stats ===== */}
+      <section className="py-14 sm:py-16 px-5 sm:px-6 border-y border-white/5" style={{ backgroundColor: 'rgba(20,20,20,0.4)' }}>
+        <div ref={statsRef as React.RefObject<HTMLDivElement>} className="stagger max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+          <div>
+            <div className="text-4xl sm:text-5xl font-black gold-shimmer"><CountUp end={500} suffix="+" /></div>
+            <div className="mt-2 text-sm text-gray-400">عضو نشط</div>
+          </div>
+          <div>
+            <div className="text-4xl sm:text-5xl font-black gold-shimmer"><CountUp end={2} /></div>
+            <div className="mt-2 text-sm text-gray-400">فروع مجهزة</div>
+          </div>
+          <div>
+            <div className="text-4xl sm:text-5xl font-black gold-shimmer"><CountUp end={15} suffix="+" /></div>
+            <div className="mt-2 text-sm text-gray-400">مدرب محترف</div>
+          </div>
+          <div>
+            <div className="text-4xl sm:text-5xl font-black gold-shimmer"><CountUp end={12} /></div>
+            <div className="mt-2 text-sm text-gray-400">ساعة يومياً</div>
+          </div>
         </div>
       </section>
 
@@ -242,7 +302,7 @@ export default function LandingPage() {
               خدماتنا
             </span>
             <h2 className="mt-4 text-3xl sm:text-5xl font-black">
-              ثلاث ركائز… <span style={goldGradient}>هدف واحد</span>
+              ثلاث ركائز… <span className="gold-shimmer">هدف واحد</span>
             </h2>
             <p className="mt-4 text-gray-400 max-w-xl mx-auto">
               نقدم لك تجربة متكاملة تجمع بين القوة والصحة والتغذية
@@ -282,7 +342,7 @@ export default function LandingPage() {
             ].map((service) => (
               <div
                 key={service.title}
-                className="rounded-2xl border border-white/10 p-6 sm:p-8 hover:border-yellow-500/30 hover:-translate-y-2 transition-all duration-300"
+                className="glow-card rounded-2xl border border-white/10 p-6 sm:p-8"
                 style={{ backgroundColor: '#141414' }}
               >
                 <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-yellow-500" style={{ backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)' }}>
@@ -306,7 +366,7 @@ export default function LandingPage() {
                 عروض حصرية
               </span>
               <h2 className="mt-4 text-3xl sm:text-5xl font-black">
-                عروض <span style={goldGradient}>لا تفوت</span>
+                عروض <span className="gold-shimmer">لا تفوت</span>
               </h2>
             </div>
 
@@ -374,21 +434,21 @@ export default function LandingPage() {
               فروعنا
             </span>
             <h2 className="mt-4 text-3xl sm:text-5xl font-black">
-              على بعد <span style={goldGradient}>خطوات</span> منك
+              على بعد <span className="gold-shimmer">خطوات</span> منك
             </h2>
             <p className="mt-4 text-gray-400 max-w-xl mx-auto">
-              4 فروع مجهزة بأحدث الأجهزة لتصلك في أي مكان
+              فرعين مجهزة بأحدث الأجهزة لتصلك في أي مكان
             </p>
           </div>
 
           {data.length === 0 ? (
             <p className="mt-12 text-center text-gray-500">جاري التحميل…</p>
           ) : (
-            <div ref={branchesGridRef as React.RefObject<HTMLDivElement>} className="stagger mt-14 grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div ref={branchesGridRef as React.RefObject<HTMLDivElement>} className="stagger mt-14 grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-3xl mx-auto">
               {data.map((b) => (
                 <div
                   key={b.id}
-                  className="rounded-2xl border border-white/10 p-6 hover:border-yellow-500/30 hover:-translate-y-1 transition-all duration-300"
+                  className="glow-card rounded-2xl border border-white/10 p-6"
                   style={{ backgroundColor: '#141414' }}
                 >
                   <div
@@ -430,7 +490,7 @@ export default function LandingPage() {
                     )}
                     {b.whatsapp && (
                       <a
-                        href={`https://wa.me/${b.whatsapp.replace(/^0/, '2')}`}
+                        href={`https://wa.me/${b.whatsapp.replace(/^0/, '20')}`}
                         target="_blank"
                         rel="noreferrer"
                         className="inline-flex items-center gap-2 text-sm text-green-400 hover:text-green-300 transition-colors"
@@ -457,7 +517,7 @@ export default function LandingPage() {
               الخطط والأسعار
             </span>
             <h2 className="mt-4 text-3xl sm:text-5xl font-black">
-              اختر <span style={goldGradient}>خطتك</span> المناسبة
+              اختر <span className="gold-shimmer">خطتك</span> المناسبة
             </h2>
           </div>
 
@@ -495,7 +555,7 @@ export default function LandingPage() {
               {branch.plans.map((plan, i) => (
                 <div
                   key={plan.id}
-                  className="group relative rounded-2xl border border-white/10 p-8 flex flex-col hover:border-yellow-500/30 hover:-translate-y-1 transition-all duration-300"
+                  className="group glow-card relative rounded-2xl border border-white/10 p-8 flex flex-col"
                   style={{ backgroundColor: '#141414' }}
                 >
                   {i === 1 && branch.plans.length > 2 && (
@@ -523,7 +583,7 @@ export default function LandingPage() {
                       </div>
                     </div>
                     <a
-                      href={`https://wa.me/${branch.whatsapp?.replace(/^0/, '2') || SUPPORT_WHATSAPP}?text=${encodeURIComponent(`أريد الاشتراك في خطة ${plan.nameAr} - فرع ${branch.name}`)}`}
+                      href={`https://wa.me/${branch.whatsapp?.replace(/^0/, '20') || SUPPORT_WHATSAPP}?text=${encodeURIComponent(`أريد الاشتراك في خطة ${plan.nameAr} - فرع ${branch.name}`)}`}
                       target="_blank"
                       rel="noreferrer"
                       className="px-6 py-3 rounded-full text-black text-sm font-black hover:scale-105 transition-all duration-200"
@@ -547,7 +607,7 @@ export default function LandingPage() {
               ليه POWER 111؟
             </span>
             <h2 className="mt-4 text-3xl sm:text-5xl font-black">
-              مش مجرد <span style={goldGradient}>جيم</span>
+              مش مجرد <span className="gold-shimmer">جيم</span>
             </h2>
           </div>
 
@@ -631,13 +691,13 @@ export default function LandingPage() {
             className="relative rounded-3xl border border-yellow-500/20 p-8 sm:p-12 lg:p-16 text-center overflow-hidden"
             style={{ background: 'linear-gradient(135deg, rgba(245,158,11,0.06), #141414, rgba(245,158,11,0.04))' }}
           >
-            <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-80 h-80 rounded-full blur-3xl pointer-events-none" style={{ backgroundColor: 'rgba(245,158,11,0.08)' }} />
+            <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-60 h-60 sm:w-80 sm:h-80 rounded-full blur-3xl pointer-events-none" style={{ backgroundColor: 'rgba(245,158,11,0.08)' }} />
 
             <div className="relative">
               <img src="/power-logo.jpg" alt="POWER 111" className="w-20 h-20 rounded-2xl mx-auto mb-6" style={{ border: '1px solid rgba(245,158,11,0.2)' }} />
 
               <h2 className="text-3xl sm:text-4xl font-black">
-                جاهز تبدأ <span style={goldGradient}>رحلتك؟</span>
+                جاهز تبدأ <span className="gold-shimmer">رحلتك؟</span>
               </h2>
               <p className="mt-4 text-gray-400 max-w-lg mx-auto">
                 كلمنا على واتساب وفريقنا هيساعدك تختار الخطة المناسبة ليك وتبدأ حياتك الصحية النهاردة
@@ -648,7 +708,8 @@ export default function LandingPage() {
                   href={`https://wa.me/${SUPPORT_WHATSAPP}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-3 px-8 py-4 rounded-full bg-green-500 text-white font-bold text-lg shadow-xl hover:bg-green-400 hover:scale-105 transition-all duration-300"
+                  className="inline-flex items-center gap-3 px-8 py-4 rounded-full text-black font-bold text-lg shadow-xl hover:scale-105 transition-all duration-300"
+                  style={{ background: 'linear-gradient(135deg, #FCD34D, #F59E0B)', boxShadow: '0 8px 30px rgba(245,158,11,0.3)' }}
                 >
                   <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
                     <path d="M12.04 2a9.9 9.9 0 0 0-8.51 14.94L2 22l5.2-1.49A9.9 9.9 0 1 0 12.04 2zm5.77 14.06c-.24.68-1.4 1.3-1.93 1.35-.52.05-1.01.24-3.4-.71-2.87-1.13-4.68-4.06-4.82-4.25-.14-.19-1.15-1.53-1.15-2.92 0-1.39.73-2.07.99-2.35.26-.28.57-.35.76-.35h.55c.18 0 .41-.07.64.49.24.57.81 1.97.88 2.11.07.14.12.31.02.5-.1.19-.14.3-.29.47-.14.16-.3.36-.43.49-.14.14-.29.3-.12.58.16.28.73 1.2 1.57 1.95 1.08.96 1.99 1.26 2.27 1.4.28.14.45.12.61-.07.17-.19.7-.81.89-1.09.19-.28.38-.23.63-.14.26.09 1.63.77 1.91.91.28.14.47.21.54.33.07.12.07.68-.17 1.36z" />
@@ -656,7 +717,7 @@ export default function LandingPage() {
                   تواصل واتساب
                 </a>
                 <a
-                  href="tel:+201280368119"
+                  href="tel:+201055002069"
                   className="inline-flex items-center gap-2 px-8 py-4 rounded-full border border-white/15 text-white font-bold text-lg hover:bg-white/5 transition-all duration-300"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -683,7 +744,7 @@ export default function LandingPage() {
                 </div>
               </div>
               <p className="text-sm text-gray-400 leading-relaxed">
-                منظومة متكاملة لرعاية جسمك وصحتك في 4 فروع على مستوى الجمهورية
+                منظومة متكاملة لرعاية جسمك وصحتك في فرعين على مستوى الجمهورية
               </p>
             </div>
 
@@ -715,7 +776,7 @@ export default function LandingPage() {
                   <path d="M12.04 2a9.9 9.9 0 0 0-8.51 14.94L2 22l5.2-1.49A9.9 9.9 0 1 0 12.04 2z" />
                 </svg>
               </a>
-              <a href="tel:+201280368119" className="text-gray-500 hover:text-yellow-500 transition-colors">
+              <a href="tel:+201055002069" className="text-gray-500 hover:text-yellow-500 transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                 </svg>

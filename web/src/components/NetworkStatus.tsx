@@ -42,17 +42,17 @@ export function NetworkStatus() {
     <div
       className={`fixed bottom-4 left-4 z-50 flex items-center gap-2 px-4 py-2 rounded-lg shadow-lg text-sm font-medium transition-all ${
         isOnline
-          ? 'bg-green-600 text-white'
-          : 'bg-red-600 text-white'
+          ? 'bg-emerald-600 text-white'
+          : 'bg-rose-600 text-white'
       }`}
     >
-      <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-300' : 'bg-red-300 animate-pulse'}`} />
+      <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-300' : 'bg-rose-300 animate-pulse'}`} />
 
       {!isOnline ? (
         <>
           <span>غير متصل</span>
           {pendingCount > 0 && (
-            <span className="bg-red-800 px-2 py-0.5 rounded-full text-xs">
+            <span className="bg-rose-800 px-2 py-0.5 rounded-full text-xs">
               {pendingCount} عملية معلقة
             </span>
           )}
@@ -69,7 +69,7 @@ export function NetworkStatus() {
               <span>متصل</span>
               {pendingCount > 0 && (
                 <>
-                  <span className="bg-green-800 px-2 py-0.5 rounded-full text-xs">
+                  <span className="bg-emerald-800 px-2 py-0.5 rounded-full text-xs">
                     {pendingCount} عملية في الانتظار
                   </span>
                   <button

@@ -2,8 +2,43 @@ import { Router, Request, Response } from 'express';
 import { prisma } from '../index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/permissions.js';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 
 const router = Router();
+
+// Setup multer for image uploads
+const uploadDir = path.join(process.cwd(), 'uploads', 'products');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    cb(null, `product-${uniqueSuffix}${ext}`);
+  }
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png|gif|webp/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    if (extname && mimetype) {
+      cb(null, true);
+    } else {
+      cb(new Error('نوع الصورة غير مدعوم'));
+    }
+  }
+});
 
 // List products with filters
 router.get('/', requireAuth, requirePermission('VIEW_PRODUCTS'), async (req: Request, res: Response) => {
@@ -91,6 +126,24 @@ router.get('/:id', requireAuth, requirePermission('VIEW_PRODUCTS'), async (req: 
   }
 });
 
+// Generate automatic barcode (EAN-13 format)
+function generateEAN13(): string {
+  const digits: number[] = [];
+  for (let i = 0; i < 12; i++) {
+    digits.push(Math.floor(Math.random() * 10));
+  }
+
+  // Calculate check digit
+  let sum = 0;
+  for (let i = 0; i < 12; i++) {
+    sum += digits[i] * (i % 2 === 0 ? 1 : 3);
+  }
+  const checkDigit = (10 - (sum % 10)) % 10;
+  digits.push(checkDigit);
+
+  return digits.join('');
+}
+
 // Create product
 router.post('/', requireAuth, requirePermission('CREATE_PRODUCTS'), async (req: Request, res: Response) => {
   try {
@@ -116,9 +169,21 @@ router.post('/', requireAuth, requirePermission('CREATE_PRODUCTS'), async (req: 
       return res.status(403).json({ error: 'لا تملك صلاحية لهذا الفرع' });
     }
 
-    if (barcode) {
+    // Generate barcode if not provided
+    let finalBarcode = barcode;
+    if (!finalBarcode) {
+      let attempts = 0;
+      do {
+        finalBarcode = generateEAN13();
+        const existing = await prisma.product.findFirst({
+          where: { barcode: finalBarcode }
+        });
+        if (!existing) break;
+        attempts++;
+      } while (attempts < 10);
+    } else {
       const existing = await prisma.product.findFirst({
-        where: { branchId, barcode }
+        where: { branchId, barcode: finalBarcode }
       });
       if (existing) {
         return res.status(400).json({ error: 'الباركود مستخدم بالفعل' });
@@ -131,7 +196,7 @@ router.post('/', requireAuth, requirePermission('CREATE_PRODUCTS'), async (req: 
         name,
         nameAr,
         sku,
-        barcode,
+        barcode: finalBarcode,
         image,
         pricePiasters,
         costPiasters: costPiasters || null,
@@ -361,6 +426,14 @@ router.delete('/:id', requireAuth, requirePermission('DELETE_PRODUCTS'), async (
       });
     }
 
+    // Delete image file if exists
+    if (product.image) {
+      const imagePath = path.join(process.cwd(), product.image);
+      if (fs.existsSync(imagePath)) {
+        fs.unlinkSync(imagePath);
+      }
+    }
+
     await prisma.product.delete({
       where: { id }
     });
@@ -369,6 +442,55 @@ router.delete('/:id', requireAuth, requirePermission('DELETE_PRODUCTS'), async (
   } catch (error) {
     console.error('Error deleting product:', error);
     res.status(500).json({ error: 'فشل في حذف المنتج' });
+  }
+});
+
+// Upload product image
+router.post('/:id/image', requireAuth, requirePermission('EDIT_PRODUCTS'), upload.single('image'), async (req: Request, res: Response) => {
+  try {
+    const user = (req.session as any).user;
+    const { id } = req.params;
+
+    const product = await prisma.product.findUnique({
+      where: { id }
+    });
+
+    if (!product) {
+      return res.status(404).json({ error: 'المنتج غير موجود' });
+    }
+
+    if (user.role !== 'OWNER' && !user.branchIds.includes(product.branchId)) {
+      return res.status(403).json({ error: 'لا تملك صلاحية لهذا الفرع' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'لم يتم رفع صورة' });
+    }
+
+    // Delete old image if exists
+    if (product.image) {
+      const oldImagePath = path.join(process.cwd(), product.image);
+      if (fs.existsSync(oldImagePath)) {
+        fs.unlinkSync(oldImagePath);
+      }
+    }
+
+    const imagePath = `/uploads/products/${req.file.filename}`;
+
+    const updatedProduct = await prisma.product.update({
+      where: { id },
+      data: { image: imagePath },
+      include: {
+        branch: {
+          select: { name: true, code: true }
+        }
+      }
+    });
+
+    res.json({ success: true, data: updatedProduct });
+  } catch (error) {
+    console.error('Error uploading image:', error);
+    res.status(500).json({ error: 'فشل في رفع الصورة' });
   }
 });
 

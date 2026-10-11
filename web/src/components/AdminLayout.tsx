@@ -96,17 +96,15 @@ function AdminLayout() {
           isMobile
             ? `fixed top-0 right-0 h-full z-50 transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : 'translate-x-full'}`
             : sidebarOpen ? 'w-64' : 'w-20'
-        } w-64 bg-dark-card border-l border-dark-border flex flex-col`}
+        } w-64 bg-dark-card border-l border-white/10 flex flex-col`}
       >
         {/* Logo */}
-        <div className="p-4 border-b border-dark-border">
+        <div className="p-4 border-b border-white/10">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center text-white font-bold text-xl shrink-0">
-              P
-            </div>
+            <img src="/power-logo.jpg" alt="POWER 111" className="w-10 h-10 rounded-lg object-cover shrink-0 ring-1 ring-yellow-500/30" />
             <div className="min-w-0">
-              <h1 className="text-lg font-bold text-white truncate">POWER 111</h1>
-              <p className="text-xs text-gray-400">نظام إدارة الجيم</p>
+              <h1 className="text-lg font-black text-white truncate">POWER <span style={{ background: 'linear-gradient(135deg, #FCD34D, #F59E0B)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>111</span></h1>
+              <p className="text-xs text-gray-500">لوحة التحكم</p>
             </div>
           </div>
         </div>
@@ -117,11 +115,12 @@ function AdminLayout() {
             <button
               key={item.path}
               onClick={() => handleNavigate(item.path)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sm ${
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 text-sm ${
                 location.pathname === item.path
-                  ? 'bg-primary text-white'
-                  : 'text-gray-300 hover:bg-dark-hover'
+                  ? 'text-black font-bold shadow-lg'
+                  : 'text-gray-300 hover:bg-white/5 hover:text-white'
               }`}
+              style={location.pathname === item.path ? { background: 'linear-gradient(135deg, #FCD34D, #F59E0B)' } : undefined}
             >
               <span className="text-lg shrink-0">{item.icon}</span>
               <span className="font-medium truncate">{item.label}</span>
@@ -130,19 +129,19 @@ function AdminLayout() {
         </nav>
 
         {/* User info */}
-        <div className="p-3 border-t border-dark-border">
+        <div className="p-3 border-t border-white/10">
           <div className="mb-2">
             <p className="text-sm font-medium text-white truncate">{user?.name || 'المستخدم'}</p>
-            <p className="text-xs text-gray-400 truncate">{user?.email}</p>
+            <p className="text-xs text-gray-500 truncate">{user?.email}</p>
             {user?.role && (
-              <span className="inline-block mt-1 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
+              <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: 'rgba(245,158,11,0.1)', color: '#F59E0B', border: '1px solid rgba(245,158,11,0.2)' }}>
                 {roleLabels[user.role] || user.role}
               </span>
             )}
           </div>
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-3 py-2 text-gray-300 hover:bg-dark-hover rounded-lg transition-colors text-sm"
+            className="w-full flex items-center gap-3 px-3 py-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-xl transition-colors text-sm"
           >
             <span className="text-lg">🚪</span>
             <span>تسجيل الخروج</span>
@@ -153,7 +152,7 @@ function AdminLayout() {
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top bar */}
-        <header className="bg-dark-card border-b border-dark-border px-4 py-3 flex items-center justify-between sticky top-0 z-30">
+        <header className="bg-dark-card border-b border-white/10 px-4 py-3 flex items-center justify-between sticky top-0 z-30">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className="text-gray-300 hover:text-white transition-colors p-1"

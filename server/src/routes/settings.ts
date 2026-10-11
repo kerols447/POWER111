@@ -5,6 +5,21 @@ import { requirePermission } from '../middleware/permissions.js';
 
 const router = Router();
 
+async function getAutoCheckoutMinutes(branchId: string): Promise<number> {
+  const row: any = await prisma.$queryRaw`
+    SELECT value FROM app_settings WHERE key = 'autoCheckoutMinutes' AND branch_id = ${branchId}
+  `;
+  return row?.[0] ? parseInt(row[0].value) : 120;
+}
+
+async function setAutoCheckoutMinutes(branchId: string, minutes: number): Promise<void> {
+  await prisma.$executeRaw`
+    INSERT INTO app_settings (key, branch_id, value)
+    VALUES ('autoCheckoutMinutes', ${branchId}, ${String(minutes)})
+    ON CONFLICT (key, branch_id) DO UPDATE SET value = ${String(minutes)}, updated_at = now()
+  `;
+}
+
 // Get branch settings
 router.get('/:branchId', requireAuth, requirePermission('MANAGE_SETTINGS'), async (req: Request, res: Response) => {
   try {
@@ -20,14 +35,15 @@ router.get('/:branchId', requireAuth, requirePermission('MANAGE_SETTINGS'), asyn
     });
 
     if (!settings) {
-      // Create default settings
       const newSettings = await prisma.branchSettings.create({
         data: { branchId }
       });
-      return res.json(newSettings);
+      const autoCheckout = await getAutoCheckoutMinutes(branchId);
+      return res.json({ ...newSettings, autoCheckoutMinutes: autoCheckout });
     }
 
-    res.json(settings);
+    const autoCheckout = await getAutoCheckoutMinutes(branchId);
+    res.json({ ...settings, autoCheckoutMinutes: autoCheckout });
   } catch (error) {
     console.error('Error fetching settings:', error);
     res.status(500).json({ error: 'Failed to fetch settings' });
@@ -46,6 +62,7 @@ router.put('/:branchId', requireAuth, requirePermission('MANAGE_SETTINGS'), asyn
       freezeRequiresApproval,
       allowCrossBranchCheckin,
       lowStockThreshold,
+      autoCheckoutMinutes,
       currency,
       timezone
     } = req.body;
@@ -79,7 +96,12 @@ router.put('/:branchId', requireAuth, requirePermission('MANAGE_SETTINGS'), asyn
       }
     });
 
-    res.json(settings);
+    if (autoCheckoutMinutes !== undefined) {
+      await setAutoCheckoutMinutes(branchId, parseInt(autoCheckoutMinutes) || 120);
+    }
+
+    const finalAutoCheckout = await getAutoCheckoutMinutes(branchId);
+    res.json({ ...settings, autoCheckoutMinutes: finalAutoCheckout });
   } catch (error) {
     console.error('Error updating settings:', error);
     res.status(500).json({ error: 'Failed to update settings' });

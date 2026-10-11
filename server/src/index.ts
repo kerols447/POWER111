@@ -43,7 +43,7 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       connectSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "blob:"],
+      imgSrc: ["'self'", "data:", "blob:", "http:", "https:"],
     },
   },
 }));
@@ -98,6 +98,9 @@ app.use('/api/portal', portalRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/sync', syncRoutes);
 app.use('/api/offers', offerRoutes);
+
+// Serve uploaded files
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 // Serve web build in production
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

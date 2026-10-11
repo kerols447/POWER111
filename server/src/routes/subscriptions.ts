@@ -118,7 +118,7 @@ router.get('/expiring', requireAuth, async (req: Request, res: Response) => {
             person: { select: { name: true } }
           }
         },
-        plan: { select: { id: true, name: true } }
+        plan: { select: { id: true, name: true, nameAr: true } }
       },
       orderBy: { endDate: 'asc' }
     });

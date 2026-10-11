@@ -236,7 +236,7 @@ function PlansSection() {
     <div className="space-y-6">
       {/* Offline Banner */}
       {!isOnline && (
-        <div className="bg-yellow-500/10 border border-yellow-500/50 rounded-lg p-3 text-yellow-400 text-sm">
+        <div className="bg-amber-500/10 border border-amber-500/50 rounded-lg p-3 text-amber-400 text-sm">
           غير متصل بالإنترنت — جميع العمليات تُحفظ محلياً وتُزامَن تلقائياً عند عودة الاتصال
         </div>
       )}
@@ -298,7 +298,7 @@ function PlansSection() {
                     <td className="px-4 py-3 text-sm text-white font-medium">{formatPrice(plan.pricePiasters)}</td>
                     <td className="px-4 py-3 text-sm text-gray-300">{plan.branch.code}</td>
                     <td className="px-4 py-3">
-                      <span className={`px-2 py-1 rounded text-xs border ${plan.isActive ? 'bg-green-500/20 text-green-400 border-green-500/50' : 'bg-gray-500/20 text-gray-400 border-gray-500/50'}`}>
+                      <span className={`px-2 py-1 rounded text-xs border ${plan.isActive ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' : 'bg-gray-500/20 text-gray-400 border-gray-500/50'}`}>
                         {plan.isActive ? 'نشط' : 'معطل'}
                       </span>
                     </td>
@@ -307,13 +307,13 @@ function PlansSection() {
                         <div className="flex gap-2">
                           <button
                             onClick={() => openEditModal(plan)}
-                            className="px-2 py-1 text-xs bg-blue-500/20 text-blue-400 border border-blue-500/50 rounded hover:bg-blue-500/30"
+                            className="px-2 py-1 text-xs bg-primary/20 text-primary border border-primary/50 rounded hover:bg-primary/30"
                           >
                             تعديل
                           </button>
                           <button
                             onClick={() => toggleActive(plan)}
-                            className={`px-2 py-1 text-xs rounded border ${plan.isActive ? 'bg-red-500/20 text-red-400 border-red-500/50 hover:bg-red-500/30' : 'bg-green-500/20 text-green-400 border-green-500/50 hover:bg-green-500/30'}`}
+                            className={`px-2 py-1 text-xs rounded border ${plan.isActive ? 'bg-rose-500/20 text-rose-400 border-rose-500/50 hover:bg-rose-500/30' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50 hover:bg-emerald-500/30'}`}
                           >
                             {plan.isActive ? 'تعطيل' : 'تفعيل'}
                           </button>
@@ -340,7 +340,7 @@ function PlansSection() {
               </div>
 
               {error && (
-                <div className="mb-4 p-3 bg-red-500/10 border border-red-500/50 rounded-lg text-red-400 text-sm">{error}</div>
+                <div className="mb-4 p-3 bg-rose-500/10 border border-rose-500/50 rounded-lg text-rose-400 text-sm">{error}</div>
               )}
 
               <form onSubmit={handleSubmit} className="space-y-4">
