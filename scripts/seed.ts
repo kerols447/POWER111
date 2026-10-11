@@ -165,30 +165,28 @@ async function main() {
 
   // Create products for each branch
   const productsData = [
-    { name: 'بروتين واي', nameAr: 'بروتين واي جولد', pricePiasters: 150000, stock: 50, branchIndex: 0 },
-    { name: 'كرياتين', nameAr: 'كرياتين مونوهيدرات', pricePiasters: 80000, stock: 30, branchIndex: 0 },
-    { name: 'BCAA', nameAr: 'بي سي أي أيه', pricePiasters: 120000, stock: 25, branchIndex: 0 },
-    { name: 'Pre-Workout', nameAr: 'بري ورك أوت', pricePiasters: 95000, stock: 20, branchIndex: 0 },
-    { name: 'Mass Gainer', nameAr: 'ماس جينر', pricePiasters: 180000, stock: 15, branchIndex: 0 },
-    { name: 'Vitamins', nameAr: 'فيتامينات متعددة', pricePiasters: 60000, stock: 40, branchIndex: 0 },
-    { name: 'بروتين واي', nameAr: 'بروتين واي جولد', pricePiasters: 150000, stock: 35, branchIndex: 1 },
-    { name: 'كرياتين', nameAr: 'كرياتين مونوهيدرات', pricePiasters: 80000, stock: 20, branchIndex: 1 },
-    { name: 'BCAA', nameAr: 'بي سي أي أيه', pricePiasters: 120000, stock: 18, branchIndex: 1 },
-    { name: 'بروتين واي', nameAr: 'بروتين واي جولد', pricePiasters: 150000, stock: 25, branchIndex: 2 },
-    { name: 'كرياتين', nameAr: 'كرياتين مونوهيدرات', pricePiasters: 80000, stock: 15, branchIndex: 2 },
-    { name: 'بروتين واي', nameAr: 'بروتين واي جولد', pricePiasters: 150000, stock: 20, branchIndex: 3 },
-    { name: 'BCAA', nameAr: 'بي سي أي أيه', pricePiasters: 120000, stock: 12, branchIndex: 3 }
+    { name: 'بروتين واي', nameAr: 'بروتين واي جولد', pricePiasters: 150000, quantity: 50, branchIndex: 0 },
+    { name: 'كرياتين', nameAr: 'كرياتين مونوهيدرات', pricePiasters: 80000, quantity: 30, branchIndex: 0 },
+    { name: 'BCAA', nameAr: 'بي سي أي أيه', pricePiasters: 120000, quantity: 25, branchIndex: 0 },
+    { name: 'Pre-Workout', nameAr: 'بري ورك أوت', pricePiasters: 95000, quantity: 20, branchIndex: 0 },
+    { name: 'Mass Gainer', nameAr: 'ماس جينر', pricePiasters: 180000, quantity: 15, branchIndex: 0 },
+    { name: 'Vitamins', nameAr: 'فيتامينات متعددة', pricePiasters: 60000, quantity: 40, branchIndex: 0 },
+    { name: 'بروتين واي', nameAr: 'بروتين واي جولد', pricePiasters: 150000, quantity: 35, branchIndex: 1 },
+    { name: 'كرياتين', nameAr: 'كرياتين مونوهيدرات', pricePiasters: 80000, quantity: 20, branchIndex: 1 },
+    { name: 'BCAA', nameAr: 'بي سي أي أيه', pricePiasters: 120000, quantity: 18, branchIndex: 1 },
+    { name: 'بروتين واي', nameAr: 'بروتين واي جولد', pricePiasters: 150000, quantity: 25, branchIndex: 2 },
+    { name: 'كرياتين', nameAr: 'كرياتين مونوهيدرات', pricePiasters: 80000, quantity: 15, branchIndex: 2 },
+    { name: 'بروتين واي', nameAr: 'بروتين واي جولد', pricePiasters: 150000, quantity: 20, branchIndex: 3 },
+    { name: 'BCAA', nameAr: 'بي سي أي أيه', pricePiasters: 120000, quantity: 12, branchIndex: 3 }
   ];
 
   for (const p of productsData) {
-    await prisma.product.upsert({
-      where: { name_branchId: { name: p.name, branchId: branchList[p.branchIndex].id } },
-      update: {},
-      create: {
+    await prisma.product.create({
+      data: {
         name: p.name,
         nameAr: p.nameAr,
         pricePiasters: p.pricePiasters,
-        stock: p.stock,
+        quantity: p.quantity,
         branchId: branchList[p.branchIndex].id
       }
     });
@@ -218,15 +216,24 @@ async function main() {
     });
   }
 
-  for (const sale of salesData) {
+  for (let i = 0; i < salesData.length; i++) {
+    const sale = salesData[i];
+    const invoiceNumber = `INV-${String(i + 1).padStart(5, '0')}`;
     await prisma.sale.create({
       data: {
         branchId: sale.branchId,
-        productId: sale.productId,
-        quantity: sale.quantity,
+        invoiceNumber,
         totalPiasters: sale.totalPiasters,
-        saleDate: sale.saleDate,
-        memberId: sale.memberId
+        finalTotalPiasters: sale.totalPiasters,
+        paymentMethod: 'CASH' as any,
+        items: {
+          create: {
+            productId: sale.productId,
+            quantity: sale.quantity,
+            unitPricePiasters: sale.totalPiasters / sale.quantity,
+            totalPiasters: sale.totalPiasters
+          }
+        }
       }
     });
   }
@@ -247,7 +254,7 @@ async function main() {
       category,
       description: `${category} - ${branchList[branchIndex].name}`,
       amountPiasters,
-      expenseDate
+      date: expenseDate
     });
   }
 
@@ -258,7 +265,7 @@ async function main() {
         category: exp.category,
         description: exp.description,
         amountPiasters: exp.amountPiasters,
-        expenseDate: exp.expenseDate
+        date: exp.date
       }
     });
   }
