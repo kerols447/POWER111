@@ -71,6 +71,34 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Clear all data (owner only - for production cleanup)
+app.post('/api/admin/clear-data', async (req, res) => {
+  try {
+    const sessionUser = (req.session as any).user;
+    if (!sessionUser || sessionUser.role !== 'OWNER') {
+      return res.status(403).json({ error: 'Owner only' });
+    }
+
+    await prisma.saleItem.deleteMany({});
+    await prisma.sale.deleteMany({});
+    await prisma.expense.deleteMany({});
+    await prisma.attendance.deleteMany({});
+    await prisma.payment.deleteMany({});
+    await prisma.subscription.deleteMany({});
+    await prisma.product.deleteMany({});
+    await prisma.offer.deleteMany({});
+    await prisma.member.deleteMany({});
+    await prisma.person.deleteMany({});
+    await prisma.plan.deleteMany({});
+    await prisma.branch.deleteMany({});
+
+    res.json({ success: true, message: 'All data cleared' });
+  } catch (error) {
+    console.error('Error clearing data:', error);
+    res.status(500).json({ error: 'Failed to clear data' });
+  }
+});
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/branches', branchRoutes);
