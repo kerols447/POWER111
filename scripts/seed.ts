@@ -37,30 +37,289 @@ async function main() {
   }
   console.log('Created plans for all branches');
 
-  // Create a test member (idempotent)
-  const person = await prisma.person.upsert({
-    where: { phoneNormalized: '201555123456' },
-    update: {},
-    create: {
-      name: 'أحمد محمد',
-      phone: '01555123456',
-      phoneNormalized: '201555123456',
-      email: 'ahmed.test@example.com',
-      gender: 'Male'
-    }
-  });
+  // Create members for each branch
+  const membersData = [
+    // Branch 1 - Main branch (Cairo) - 15 members
+    { name: 'أحمد محمد علي', phone: '01012345678', gender: 'Male', branchIndex: 0, code: 'MEM001', status: 'ACTIVE' as const },
+    { name: 'محمد حسن Ibrahim', phone: '01023456789', gender: 'Male', branchIndex: 0, code: 'MEM002', status: 'ACTIVE' as const },
+    { name: 'سارة أحمد محمود', phone: '01034567890', gender: 'Female', branchIndex: 0, code: 'MEM003', status: 'ACTIVE' as const },
+    { name: 'عمر خالد سعيد', phone: '01045678901', gender: 'Male', branchIndex: 0, code: 'MEM004', status: 'ACTIVE' as const },
+    { name: 'فاطمة حسن علي', phone: '01056789012', gender: 'Female', branchIndex: 0, code: 'MEM005', status: 'ACTIVE' as const },
+    { name: 'يوسف محمد عبدالرحمن', phone: '01067890123', gender: 'Male', branchIndex: 0, code: 'MEM006', status: 'ACTIVE' as const },
+    { name: 'نور الدين أحمد', phone: '01078901234', gender: 'Male', branchIndex: 0, code: 'MEM007', status: 'ACTIVE' as const },
+    { name: 'مريم عبدالله', phone: '01089012345', gender: 'Female', branchIndex: 0, code: 'MEM008', status: 'ACTIVE' as const },
+    { name: 'خالد عمر حسين', phone: '01090123456', gender: 'Male', branchIndex: 0, code: 'MEM009', status: 'ACTIVE' as const },
+    { name: 'هدى محمد صالح', phone: '01101234567', gender: 'Female', branchIndex: 0, code: 'MEM010', status: 'ACTIVE' as const },
+    { name: 'عبدالرحمن سعيد', phone: '01112345678', gender: 'Male', branchIndex: 0, code: 'MEM011', status: 'ACTIVE' as const },
+    { name: 'ياسمين خالد', phone: '01123456789', gender: 'Female', branchIndex: 0, code: 'MEM012', status: 'ACTIVE' as const },
+    { name: 'مصطفى أحمد', phone: '01134567890', gender: 'Male', branchIndex: 0, code: 'MEM013', status: 'ACTIVE' as const },
+    { name: 'رانيا محمد', phone: '01145678901', gender: 'Female', branchIndex: 0, code: 'MEM014', status: 'ACTIVE' as const },
+    { name: 'حسن علي محمود', phone: '01156789012', gender: 'Male', branchIndex: 0, code: 'MEM015', status: 'ACTIVE' as const },
 
-  const member = await prisma.member.upsert({
-    where: { memberCode: 'AB12CD34' },
-    update: {},
-    create: {
-      personId: person.id,
-      branchId: branchList[0].id,
-      memberCode: 'AB12CD34',
-      status: 'ACTIVE'
-    }
-  });
-  console.log(`Member ready: ${member.memberCode}`);
+    // Branch 2 - 6 October - 10 members
+    { name: 'إبراهيم محمد', phone: '01201234567', gender: 'Male', branchIndex: 1, code: 'MEM016', status: 'ACTIVE' as const },
+    { name: 'سميرة أحمد', phone: '01212345678', gender: 'Female', branchIndex: 1, code: 'MEM017', status: 'ACTIVE' as const },
+    { name: 'طارق حسن', phone: '01223456789', gender: 'Male', branchIndex: 1, code: 'MEM018', status: 'ACTIVE' as const },
+    { name: 'لينا خالد', phone: '01234567890', gender: 'Female', branchIndex: 1, code: 'MEM019', status: 'ACTIVE' as const },
+    { name: 'كريم محمد', phone: '01245678901', gender: 'Male', branchIndex: 1, code: 'MEM020', status: 'ACTIVE' as const },
+    { name: 'دعاء سعيد', phone: '01256789012', gender: 'Female', branchIndex: 1, code: 'MEM021', status: 'ACTIVE' as const },
+    { name: 'ماجد عبدالله', phone: '01267890123', gender: 'Male', branchIndex: 1, code: 'MEM022', status: 'ACTIVE' as const },
+    { name: 'سلمى أحمد', phone: '01278901234', gender: 'Female', branchIndex: 1, code: 'MEM023', status: 'ACTIVE' as const },
+    { name: 'وليد محمد', phone: '01289012345', gender: 'Male', branchIndex: 1, code: 'MEM024', status: 'ACTIVE' as const },
+    { name: 'هالة حسن', phone: '01290123456', gender: 'Female', branchIndex: 1, code: 'MEM025', status: 'ACTIVE' as const },
+
+    // Branch 3 - Maadi - 8 members
+    { name: 'شريف محمد', phone: '01301234567', gender: 'Male', branchIndex: 2, code: 'MEM026', status: 'ACTIVE' as const },
+    { name: 'نجلاء أحمد', phone: '01312345678', gender: 'Female', branchIndex: 2, code: 'MEM027', status: 'ACTIVE' as const },
+    { name: 'حسام خالد', phone: '01323456789', gender: 'Male', branchIndex: 2, code: 'MEM028', status: 'ACTIVE' as const },
+    { name: 'غادة سعيد', phone: '01334567890', gender: 'Female', branchIndex: 2, code: 'MEM029', status: 'ACTIVE' as const },
+    { name: 'رامي محمد', phone: '01345678901', gender: 'Male', branchIndex: 2, code: 'MEM030', status: 'ACTIVE' as const },
+    { name: 'منال حسن', phone: '01356789012', gender: 'Female', branchIndex: 2, code: 'MEM031', status: 'ACTIVE' as const },
+    { name: 'فادي عبدالله', phone: '01367890123', gender: 'Male', branchIndex: 2, code: 'MEM032', status: 'ACTIVE' as const },
+    { name: 'إيمان أحمد', phone: '01378901234', gender: 'Female', branchIndex: 2, code: 'MEM033', status: 'ACTIVE' as const },
+
+    // Branch 4 - Nasr City - 7 members
+    { name: 'أسامة محمد', phone: '01401234567', gender: 'Male', branchIndex: 3, code: 'MEM034', status: 'ACTIVE' as const },
+    { name: 'دينا خالد', phone: '01412345678', gender: 'Female', branchIndex: 3, code: 'MEM035', status: 'ACTIVE' as const },
+    { name: 'حمزة أحمد', phone: '01423456789', gender: 'Male', branchIndex: 3, code: 'MEM036', status: 'ACTIVE' as const },
+    { name: 'سارة حسن', phone: '01434567890', gender: 'Female', branchIndex: 3, code: 'MEM037', status: 'ACTIVE' as const },
+    { name: 'عادل محمد', phone: '01445678901', gender: 'Male', branchIndex: 3, code: 'MEM038', status: 'ACTIVE' as const },
+    { name: 'لمياء سعيد', phone: '01456789012', gender: 'Female', branchIndex: 3, code: 'MEM039', status: 'ACTIVE' as const },
+    { name: 'سامي عبدالله', phone: '01467890123', gender: 'Male', branchIndex: 3, code: 'MEM040', status: 'ACTIVE' as const }
+  ];
+
+  const createdMembers: any[] = [];
+  for (const m of membersData) {
+    const person = await prisma.person.upsert({
+      where: { phoneNormalized: '2' + m.phone.slice(1) },
+      update: {},
+      create: {
+        name: m.name,
+        phone: m.phone,
+        phoneNormalized: '2' + m.phone.slice(1),
+        gender: m.gender as any
+      }
+    });
+    const member = await prisma.member.upsert({
+      where: { memberCode: m.code },
+      update: {},
+      create: {
+        personId: person.id,
+        branchId: branchList[m.branchIndex].id,
+        memberCode: m.code,
+        status: m.status
+      }
+    });
+    createdMembers.push({ ...m, memberId: member.id, personId: person.id });
+  }
+  console.log(`Created ${createdMembers.length} members`);
+
+  // Create subscriptions for members
+  const now = new Date();
+  const subscriptionsData: any[] = [];
+  for (const m of createdMembers) {
+    const planIndex = Math.floor(Math.random() * 3); // 0=monthly, 1=quarterly, 2=annual
+    const plan = await prisma.plan.findFirst({ where: { branchId: branchList[m.branchIndex].id } });
+    if (!plan) continue;
+
+    const startDate = new Date(now);
+    startDate.setDate(startDate.getDate() - Math.floor(Math.random() * 60)); // Started 0-60 days ago
+
+    const durationDays = [30, 90, 365][planIndex];
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + durationDays);
+
+    const pricePiasters = [50000, 130000, 450000][planIndex];
+    const paidPiasters = pricePiasters;
+    const outstandingPiasters = Math.random() > 0.7 ? Math.floor(pricePiasters * 0.2) : 0; // 30% have outstanding
+
+    subscriptionsData.push({
+      memberId: m.memberId,
+      planId: plan.id,
+      startDate,
+      endDate,
+      pricePiasters,
+      paidPiasters,
+      outstandingPiasters,
+      status: endDate > now ? 'ACTIVE' : 'EXPIRED',
+      branchId: branchList[m.branchIndex].id
+    });
+  }
+
+  for (const sub of subscriptionsData) {
+    await prisma.subscription.create({
+      data: {
+        memberId: sub.memberId,
+        planId: sub.planId,
+        startDate: sub.startDate,
+        endDate: sub.endDate,
+        pricePiasters: sub.pricePiasters,
+        paidPiasters: sub.paidPiasters,
+        outstandingPiasters: sub.outstandingPiasters,
+        status: sub.status as any,
+        branchId: sub.branchId
+      }
+    });
+  }
+  console.log(`Created ${subscriptionsData.length} subscriptions`);
+
+  // Create products for each branch
+  const productsData = [
+    { name: 'بروتين واي', nameAr: 'بروتين واي جولد', pricePiasters: 150000, stock: 50, branchIndex: 0 },
+    { name: 'كرياتين', nameAr: 'كرياتين مونوهيدرات', pricePiasters: 80000, stock: 30, branchIndex: 0 },
+    { name: 'BCAA', nameAr: 'بي سي أي أيه', pricePiasters: 120000, stock: 25, branchIndex: 0 },
+    { name: 'Pre-Workout', nameAr: 'بري ورك أوت', pricePiasters: 95000, stock: 20, branchIndex: 0 },
+    { name: 'Mass Gainer', nameAr: 'ماس جينر', pricePiasters: 180000, stock: 15, branchIndex: 0 },
+    { name: 'Vitamins', nameAr: 'فيتامينات متعددة', pricePiasters: 60000, stock: 40, branchIndex: 0 },
+    { name: 'بروتين واي', nameAr: 'بروتين واي جولد', pricePiasters: 150000, stock: 35, branchIndex: 1 },
+    { name: 'كرياتين', nameAr: 'كرياتين مونوهيدرات', pricePiasters: 80000, stock: 20, branchIndex: 1 },
+    { name: 'BCAA', nameAr: 'بي سي أي أيه', pricePiasters: 120000, stock: 18, branchIndex: 1 },
+    { name: 'بروتين واي', nameAr: 'بروتين واي جولد', pricePiasters: 150000, stock: 25, branchIndex: 2 },
+    { name: 'كرياتين', nameAr: 'كرياتين مونوهيدرات', pricePiasters: 80000, stock: 15, branchIndex: 2 },
+    { name: 'بروتين واي', nameAr: 'بروتين واي جولد', pricePiasters: 150000, stock: 20, branchIndex: 3 },
+    { name: 'BCAA', nameAr: 'بي سي أي أيه', pricePiasters: 120000, stock: 12, branchIndex: 3 }
+  ];
+
+  for (const p of productsData) {
+    await prisma.product.upsert({
+      where: { name_branchId: { name: p.name, branchId: branchList[p.branchIndex].id } },
+      update: {},
+      create: {
+        name: p.name,
+        nameAr: p.nameAr,
+        pricePiasters: p.pricePiasters,
+        stock: p.stock,
+        branchId: branchList[p.branchIndex].id
+      }
+    });
+  }
+  console.log(`Created ${productsData.length} products`);
+
+  // Create sales for each branch
+  const salesData: any[] = [];
+  for (let i = 0; i < 40; i++) {
+    const branchIndex = Math.floor(Math.random() * 4);
+    const products = await prisma.product.findMany({ where: { branchId: branchList[branchIndex].id } });
+    if (products.length === 0) continue;
+
+    const product = products[Math.floor(Math.random() * products.length)];
+    const quantity = Math.floor(Math.random() * 3) + 1;
+    const totalPiasters = product.pricePiasters * quantity;
+    const saleDate = new Date(now);
+    saleDate.setDate(saleDate.getDate() - Math.floor(Math.random() * 30));
+
+    salesData.push({
+      branchId: branchList[branchIndex].id,
+      productId: product.id,
+      quantity,
+      totalPiasters,
+      saleDate,
+      memberId: createdMembers.filter(m => m.branchIndex === branchIndex)[Math.floor(Math.random() * 10)]?.memberId
+    });
+  }
+
+  for (const sale of salesData) {
+    await prisma.sale.create({
+      data: {
+        branchId: sale.branchId,
+        productId: sale.productId,
+        quantity: sale.quantity,
+        totalPiasters: sale.totalPiasters,
+        saleDate: sale.saleDate,
+        memberId: sale.memberId
+      }
+    });
+  }
+  console.log(`Created ${salesData.length} sales`);
+
+  // Create expenses for each branch
+  const expensesData: any[] = [];
+  const expenseCategories = ['إيجار', 'كهرباء', 'مياه', 'رواتب', 'صيانة', 'معدات', 'تنظيف', 'أخرى'];
+  for (let i = 0; i < 30; i++) {
+    const branchIndex = Math.floor(Math.random() * 4);
+    const category = expenseCategories[Math.floor(Math.random() * expenseCategories.length)];
+    const amountPiasters = Math.floor(Math.random() * 500000) + 50000; // 500-5000 EGP
+    const expenseDate = new Date(now);
+    expenseDate.setDate(expenseDate.getDate() - Math.floor(Math.random() * 30));
+
+    expensesData.push({
+      branchId: branchList[branchIndex].id,
+      category,
+      description: `${category} - ${branchList[branchIndex].name}`,
+      amountPiasters,
+      expenseDate
+    });
+  }
+
+  for (const exp of expensesData) {
+    await prisma.expense.create({
+      data: {
+        branchId: exp.branchId,
+        category: exp.category,
+        description: exp.description,
+        amountPiasters: exp.amountPiasters,
+        expenseDate: exp.expenseDate
+      }
+    });
+  }
+  console.log(`Created ${expensesData.length} expenses`);
+
+  // Create attendance records
+  const attendanceData: any[] = [];
+  for (let i = 0; i < 100; i++) {
+    const member = createdMembers[Math.floor(Math.random() * createdMembers.length)];
+    const checkInDate = new Date(now);
+    checkInDate.setDate(checkInDate.getDate() - Math.floor(Math.random() * 30));
+    checkInDate.setHours(Math.floor(Math.random() * 12) + 6, Math.floor(Math.random() * 60));
+
+    const checkOutDate = new Date(checkInDate);
+    checkOutDate.setHours(checkOutDate.getHours() + Math.floor(Math.random() * 3) + 1);
+
+    attendanceData.push({
+      memberId: member.memberId,
+      branchId: branchList[member.branchIndex].id,
+      checkInTime: checkInDate,
+      checkOutTime: checkOutDate,
+      method: 'QR' as const
+    });
+  }
+
+  for (const att of attendanceData) {
+    await prisma.attendance.create({
+      data: {
+        memberId: att.memberId,
+        branchId: att.branchId,
+        checkInTime: att.checkInTime,
+        checkOutTime: att.checkOutTime,
+        method: att.method as any
+      }
+    });
+  }
+  console.log(`Created ${attendanceData.length} attendance records`);
+
+  // Create offers
+  const offersData = [
+    { title: 'عرض الصيف', titleAr: 'عرض الصيف - خصم 30%', descriptionAr: 'خصم 30% على جميع الاشتراكات', discountPercent: 30, startDate: new Date(now.getFullYear(), now.getMonth(), 1), endDate: new Date(now.getFullYear(), now.getMonth() + 1, 0), isPublished: true, branchId: null },
+    { title: 'فرع جديد', titleAr: 'عرض افتتاح الفرع', descriptionAr: 'خصم 20% للاحتفال بافتتاح الفرع الجديد', discountPercent: 20, startDate: new Date(now.getFullYear(), now.getMonth(), 5), endDate: new Date(now.getFullYear(), now.getMonth() + 1, 5), isPublished: true, branchId: branchList[0].id },
+    { title: 'طلاب', titleAr: 'خصم الطلاب', descriptionAr: 'خصم 15% للطلاب بجميع الفروع', discountPercent: 15, startDate: new Date(now.getFullYear(), now.getMonth() - 1, 15), endDate: new Date(now.getFullYear(), now.getMonth() + 2, 15), isPublished: true, branchId: branchList[1].id },
+    { title: 'Black Friday', titleAr: 'معاينة البلاك فرايدي', descriptionAr: 'خصم 40% - عرض محدود', discountPercent: 40, startDate: new Date(now.getFullYear(), 10, 20), endDate: new Date(now.getFullYear(), 10, 30), isPublished: false, branchId: null }
+  ];
+
+  for (const offer of offersData) {
+    await prisma.offer.create({
+      data: {
+        title: offer.title,
+        titleAr: offer.titleAr,
+        descriptionAr: offer.descriptionAr,
+        discountPercent: offer.discountPercent,
+        startDate: offer.startDate,
+        endDate: offer.endDate,
+        isPublished: offer.isPublished,
+        branchId: offer.branchId
+      }
+    });
+  }
+  console.log(`Created ${offersData.length} offers`);
 
   // Create owner account if missing (idempotent)
   const existingOwner = await prisma.user.findUnique({ where: { email: OWNER_EMAIL } });
