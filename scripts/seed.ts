@@ -11,6 +11,22 @@ const ADMIN_PASSWORD = 'admin123';
 async function main() {
   console.log('Seeding database...');
 
+  // Clean existing demo data (order matters for foreign keys)
+  console.log('Cleaning existing demo data...');
+  await prisma.saleItem.deleteMany({});
+  await prisma.sale.deleteMany({});
+  await prisma.expense.deleteMany({});
+  await prisma.attendance.deleteMany({});
+  await prisma.payment.deleteMany({});
+  await prisma.subscription.deleteMany({});
+  await prisma.product.deleteMany({});
+  await prisma.offer.deleteMany({});
+  await prisma.member.deleteMany({});
+  await prisma.person.deleteMany({});
+  await prisma.plan.deleteMany({});
+  await prisma.branch.deleteMany({});
+  console.log('Cleaned existing demo data');
+
   // Create branches
   const branches = await prisma.branch.createMany({
     data: [
@@ -90,20 +106,16 @@ async function main() {
 
   const createdMembers: any[] = [];
   for (const m of membersData) {
-    const person = await prisma.person.upsert({
-      where: { phoneNormalized: '2' + m.phone.slice(1) },
-      update: {},
-      create: {
+    const person = await prisma.person.create({
+      data: {
         name: m.name,
         phone: m.phone,
         phoneNormalized: '2' + m.phone.slice(1),
         gender: m.gender as any
       }
     });
-    const member = await prisma.member.upsert({
-      where: { memberCode: m.code },
-      update: {},
-      create: {
+    const member = await prisma.member.create({
+      data: {
         personId: person.id,
         branchId: branchList[m.branchIndex].id,
         memberCode: m.code,
@@ -118,20 +130,19 @@ async function main() {
   const now = new Date();
   const subscriptionsData: any[] = [];
   for (const m of createdMembers) {
-    const planIndex = Math.floor(Math.random() * 3); // 0=monthly, 1=quarterly, 2=annual
+    const planIndex = Math.floor(Math.random() * 3);
     const plan = await prisma.plan.findFirst({ where: { branchId: branchList[m.branchIndex].id } });
     if (!plan) continue;
 
     const startDate = new Date(now);
-    startDate.setDate(startDate.getDate() - Math.floor(Math.random() * 60)); // Started 0-60 days ago
+    startDate.setDate(startDate.getDate() - Math.floor(Math.random() * 60));
 
     const durationDays = [30, 90, 365][planIndex];
     const endDate = new Date(startDate);
     endDate.setDate(endDate.getDate() + durationDays);
 
     const pricePiasters = [50000, 130000, 450000][planIndex];
-    const paidPiasters = pricePiasters;
-    const outstandingPiasters = Math.random() > 0.7 ? Math.floor(pricePiasters * 0.2) : 0; // 30% have outstanding
+    const paidPiasters = Math.random() > 0.7 ? Math.floor(pricePiasters * 0.8) : pricePiasters;
 
     subscriptionsData.push({
       memberId: m.memberId,
@@ -140,7 +151,6 @@ async function main() {
       endDate,
       pricePiasters,
       paidPiasters,
-      outstandingPiasters,
       status: endDate > now ? 'ACTIVE' : 'EXPIRED',
       branchId: branchList[m.branchIndex].id
     });
@@ -155,7 +165,6 @@ async function main() {
         endDate: sub.endDate,
         pricePiasters: sub.pricePiasters,
         paidPiasters: sub.paidPiasters,
-        outstandingPiasters: sub.outstandingPiasters,
         status: sub.status as any,
         branchId: sub.branchId
       }
@@ -203,16 +212,12 @@ async function main() {
     const product = products[Math.floor(Math.random() * products.length)];
     const quantity = Math.floor(Math.random() * 3) + 1;
     const totalPiasters = product.pricePiasters * quantity;
-    const saleDate = new Date(now);
-    saleDate.setDate(saleDate.getDate() - Math.floor(Math.random() * 30));
 
     salesData.push({
       branchId: branchList[branchIndex].id,
       productId: product.id,
       quantity,
       totalPiasters,
-      saleDate,
-      memberId: createdMembers.filter(m => m.branchIndex === branchIndex)[Math.floor(Math.random() * 10)]?.memberId
     });
   }
 
@@ -240,39 +245,27 @@ async function main() {
   console.log(`Created ${salesData.length} sales`);
 
   // Create expenses for each branch
-  const expensesData: any[] = [];
   const expenseCategories = ['إيجار', 'كهرباء', 'مياه', 'رواتب', 'صيانة', 'معدات', 'تنظيف', 'أخرى'];
   for (let i = 0; i < 30; i++) {
     const branchIndex = Math.floor(Math.random() * 4);
     const category = expenseCategories[Math.floor(Math.random() * expenseCategories.length)];
-    const amountPiasters = Math.floor(Math.random() * 500000) + 50000; // 500-5000 EGP
+    const amountPiasters = Math.floor(Math.random() * 500000) + 50000;
     const expenseDate = new Date(now);
     expenseDate.setDate(expenseDate.getDate() - Math.floor(Math.random() * 30));
 
-    expensesData.push({
-      branchId: branchList[branchIndex].id,
-      category,
-      description: `${category} - ${branchList[branchIndex].name}`,
-      amountPiasters,
-      date: expenseDate
-    });
-  }
-
-  for (const exp of expensesData) {
     await prisma.expense.create({
       data: {
-        branchId: exp.branchId,
-        category: exp.category,
-        description: exp.description,
-        amountPiasters: exp.amountPiasters,
-        date: exp.date
+        branchId: branchList[branchIndex].id,
+        category,
+        description: `${category} - ${branchList[branchIndex].name}`,
+        amountPiasters,
+        date: expenseDate
       }
     });
   }
-  console.log(`Created ${expensesData.length} expenses`);
+  console.log('Created 30 expenses');
 
   // Create attendance records
-  const attendanceData: any[] = [];
   for (let i = 0; i < 100; i++) {
     const member = createdMembers[Math.floor(Math.random() * createdMembers.length)];
     const checkInDate = new Date(now);
@@ -282,27 +275,17 @@ async function main() {
     const checkOutDate = new Date(checkInDate);
     checkOutDate.setHours(checkOutDate.getHours() + Math.floor(Math.random() * 3) + 1);
 
-    attendanceData.push({
-      memberId: member.memberId,
-      branchId: branchList[member.branchIndex].id,
-      checkInTime: checkInDate,
-      checkOutTime: checkOutDate,
-      method: 'QR' as const
-    });
-  }
-
-  for (const att of attendanceData) {
     await prisma.attendance.create({
       data: {
-        memberId: att.memberId,
-        branchId: att.branchId,
-        checkInTime: att.checkInTime,
-        checkOutTime: att.checkOutTime,
-        method: att.method as any
+        memberId: member.memberId,
+        branchId: branchList[member.branchIndex].id,
+        checkInTime: checkInDate,
+        checkOutTime: checkOutDate,
+        method: 'QR_CODE' as any
       }
     });
   }
-  console.log(`Created ${attendanceData.length} attendance records`);
+  console.log('Created 100 attendance records');
 
   // Create offers
   const offersData = [
