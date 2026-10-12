@@ -444,48 +444,42 @@ export default function LandingPage() {
           {data.length === 0 ? (
             <p className="mt-12 text-center text-gray-500">جاري التحميل…</p>
           ) : (
-            <div ref={branchesGridRef as React.RefObject<HTMLDivElement>} className="stagger mt-14 grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-3xl mx-auto">
+            <div ref={branchesGridRef as React.RefObject<HTMLDivElement>} className="stagger mt-14 grid grid-cols-1 sm:grid-cols-2 gap-5 max-w-3xl mx-auto">
               {data.map((b) => (
                 <div
                   key={b.id}
-                  className="glow-card rounded-2xl border border-white/10 p-6"
+                  className="rounded-2xl border border-white/10 p-6 hover:border-yellow-500/30 transition-all duration-300"
                   style={{ backgroundColor: '#141414' }}
                 >
-                  <div
-                    className="w-12 h-12 rounded-xl flex items-center justify-center text-yellow-500 font-black text-sm"
-                    style={{ background: 'linear-gradient(135deg, rgba(245,158,11,0.15), rgba(217,119,6,0.08))', border: '1px solid rgba(245,158,11,0.2)' }}
-                  >
-                    {b.code}
+                  {/* Branch header */}
+                  <div className="flex items-center gap-4 mb-4">
+                    <div
+                      className="w-12 h-12 rounded-xl flex items-center justify-center text-yellow-500 font-bold text-sm shrink-0"
+                      style={{ background: 'linear-gradient(135deg, rgba(245,158,11,0.15), rgba(217,119,6,0.08))', border: '1px solid rgba(245,158,11,0.25)' }}
+                    >
+                      {b.code}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-lg font-bold text-white truncate">{b.name}</h3>
+                      {b.address && (
+                        <p className="text-sm text-gray-400 mt-0.5 truncate">{b.address}</p>
+                      )}
+                    </div>
                   </div>
-                  <h3 className="mt-5 text-lg font-bold">{b.name}</h3>
-                  {b.address && (
-                    <p className="mt-2 text-sm text-gray-400 leading-relaxed">{b.address}</p>
-                  )}
-                  <div className="mt-4 flex flex-col gap-2">
+
+                  {/* Contact buttons */}
+                  <div className="flex flex-wrap gap-2">
                     {b.phone && (
                       <a
                         href={`tel:${b.phone}`}
                         dir="ltr"
-                        className="inline-flex items-center gap-2 text-sm text-gray-300 hover:text-yellow-500 transition-colors"
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-300 hover:text-yellow-500 hover:bg-yellow-500/5 transition-all"
+                        style={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                         </svg>
-                        {b.phone}
-                      </a>
-                    )}
-                    {b.locationUrl && (
-                      <a
-                        href={b.locationUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-2 text-sm text-yellow-500 hover:text-yellow-400 transition-colors"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                        الموقع على الخريطة
+                        <span>{b.phone}</span>
                       </a>
                     )}
                     {b.whatsapp && (
@@ -493,12 +487,28 @@ export default function LandingPage() {
                         href={`https://wa.me/${b.whatsapp.replace(/^0/, '20')}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-2 text-sm text-green-400 hover:text-green-300 transition-colors"
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-green-400 hover:text-green-300 hover:bg-green-500/5 transition-all"
+                        style={{ backgroundColor: 'rgba(34,197,94,0.03)', border: '1px solid rgba(34,197,94,0.1)' }}
                       >
                         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                           <path d="M12.04 2a9.9 9.9 0 0 0-8.51 14.94L2 22l5.2-1.49A9.9 9.9 0 1 0 12.04 2z" />
                         </svg>
-                        واتساب
+                        <span>واتساب</span>
+                      </a>
+                    )}
+                    {b.locationUrl && (
+                      <a
+                        href={b.locationUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-yellow-500 hover:text-yellow-400 hover:bg-yellow-500/5 transition-all"
+                        style={{ backgroundColor: 'rgba(245,158,11,0.03)', border: '1px solid rgba(245,158,11,0.1)' }}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        <span>الموقع</span>
                       </a>
                     )}
                   </div>
