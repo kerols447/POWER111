@@ -1,5 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import {
+  drawMembershipCard,
+  downloadCardAsPng,
+  downloadCardAsPdf
+} from '../utils/membershipCard';
 
 interface PortalMember {
   id: string;
@@ -89,6 +94,19 @@ function daysRemaining(endDate: string): number {
   return Math.max(0, Math.ceil((end - now) / (24 * 60 * 60 * 1000)));
 }
 
+function buildCardData(data: PortalData, qrDataUrl: string) {
+  const sub = data.currentSubscription;
+  return {
+    memberName: data.member.name,
+    memberCode: data.member.memberCode,
+    branchName: data.member.branch.name,
+    planName: sub ? (sub.plan.nameAr || sub.plan.name) : 'عضوية',
+    validUntil: sub ? formatDate(sub.endDate) : 'بدون اشتراك',
+    isActive: !!sub && daysRemaining(sub.endDate) > 0 && sub.status !== 'CANCELLED',
+    qrDataUrl
+  };
+}
+
 export default function PortalPage() {
   const [checking, setChecking] = useState(true);
   const [data, setData] = useState<PortalData | null>(null);
@@ -97,6 +115,9 @@ export default function PortalPage() {
   const [memberCode, setMemberCode] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [cardError, setCardError] = useState('');
+  const [downloading, setDownloading] = useState<'' | 'png' | 'pdf'>('');
+  const cardCanvasRef = useRef<HTMLCanvasElement>(null);
 
   const loadDashboard = async () => {
     try {
@@ -130,6 +151,31 @@ export default function PortalPage() {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const canvas = cardCanvasRef.current;
+    if (!canvas || !data || !qrImage) return;
+    setCardError('');
+    drawMembershipCard(canvas, buildCardData(data, qrImage)).catch(() =>
+      setCardError('تعذر رسم البطاقة، حاول مرة أخرى')
+    );
+  }, [data, qrImage]);
+
+  const handleDownload = async (kind: 'png' | 'pdf') => {
+    const canvas = cardCanvasRef.current;
+    if (!canvas || !data || downloading) return;
+    setDownloading(kind);
+    setCardError('');
+    try {
+      const name = `بطاقة-POWER111-${data.member.memberCode}.${kind === 'png' ? 'png' : 'pdf'}`;
+      if (kind === 'png') await downloadCardAsPng(canvas, name);
+      else await downloadCardAsPdf(canvas, name);
+    } catch {
+      setCardError('تعذر تحميل البطاقة، حاول مرة أخرى');
+    } finally {
+      setDownloading('');
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -249,7 +295,7 @@ export default function PortalPage() {
           </Link>
           <button
             onClick={handleLogout}
-            className="px-4 py-2 rounded-full text-sm text-gray-300 border border-white/15 hover:bg-white/5 transition-colors"
+            className="px-4 py-2 rounded-full min-h-10 text-sm text-gray-300 border border-white/15 hover:bg-white/5 transition-colors"
           >
             خروج
           </button>
@@ -281,6 +327,38 @@ export default function PortalPage() {
             ) : (
               <div className="w-56 h-56 flex items-center justify-center text-gray-500 text-sm">جاري التحميل…</div>
             )}
+          </div>
+        </section>
+
+        {/* Membership card */}
+        <section className="rounded-2xl border border-white/10 bg-dark-card p-6">
+          <h2 className="text-lg font-bold">بطاقة العضوية</h2>
+          <p className="text-sm text-gray-400 mt-1">كرت باسمك وكودك — حمّله كصورة أو PDF واستخدمه في الحضور</p>
+
+          <canvas
+            ref={cardCanvasRef}
+            className="mt-5 block w-full h-auto rounded-xl border border-white/10 bg-dark"
+          />
+
+          {cardError && (
+            <p className="mt-3 text-sm text-rose-400 text-center">{cardError}</p>
+          )}
+
+          <div className="mt-5 grid grid-cols-2 gap-3">
+            <button
+              onClick={() => handleDownload('png')}
+              disabled={!!downloading}
+              className="py-3 rounded-xl bg-gradient-to-l from-yellow-600 to-yellow-500 text-black font-bold text-sm hover:opacity-90 disabled:opacity-50 transition-opacity"
+            >
+              {downloading === 'png' ? 'جاري التحضير…' : 'تحميل صورة'}
+            </button>
+            <button
+              onClick={() => handleDownload('pdf')}
+              disabled={!!downloading}
+              className="py-3 rounded-xl border border-yellow-500/40 text-yellow-500 font-bold text-sm hover:bg-yellow-500/10 disabled:opacity-50 transition-colors"
+            >
+              {downloading === 'pdf' ? 'جاري التحضير…' : 'تحميل PDF'}
+            </button>
           </div>
         </section>
 
