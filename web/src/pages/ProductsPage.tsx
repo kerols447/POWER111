@@ -79,7 +79,7 @@ function BarcodePrintModal({ product, onClose }: { product: Product; onClose: ()
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4" onClick={onClose}>
-      <div className="relative bg-gradient-to-br from-gray-800 via-gray-800 to-gray-900 rounded-2xl border border-gray-700/50 max-w-sm w-full shadow-2xl" onClick={e => e.stopPropagation()}>
+      <div className="relative bg-gradient-to-br from-gray-800 via-gray-800 to-gray-900 rounded-2xl border border-gray-700/50 max-w-sm w-full max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary via-amber-400 to-primary rounded-t-2xl" />
         <div className="p-6">
           <div className="flex items-center justify-between mb-6">
@@ -87,7 +87,7 @@ function BarcodePrintModal({ product, onClose }: { product: Product; onClose: ()
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-amber-600 flex items-center justify-center"><BarcodeIcon /></div>
               <h2 className="text-lg font-bold text-white">طباعة الباركود</h2>
             </div>
-            <button onClick={onClose} className="w-8 h-8 rounded-lg bg-gray-700/50 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"><CloseIcon /></button>
+            <button onClick={onClose} className="w-10 h-10 shrink-0 rounded-lg bg-gray-700/50 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"><CloseIcon /></button>
           </div>
           <div className="bg-white/5 rounded-xl p-6 mb-6">
             <p className="text-center text-sm text-gray-300 mb-3 font-medium">{product.nameAr || product.name}</p>
@@ -414,13 +414,13 @@ export default function ProductsPage() {
                       <td className="px-4 sm:px-6 py-4">
                         <div className="flex items-center gap-1.5">
                           {product.barcode && (
-                            <button onClick={() => setBarcodeProduct(product)} className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium bg-primary/10 text-amber-300 rounded-lg border border-primary/20 hover:bg-primary/20 transition-all duration-200" title="طباعة الباركود">
+                            <button onClick={() => setBarcodeProduct(product)} className="inline-flex items-center gap-1 px-2.5 py-2 min-h-10 text-xs font-medium bg-primary/10 text-amber-300 rounded-lg border border-primary/20 hover:bg-primary/20 transition-all duration-200" title="طباعة الباركود">
                               <PrinterIcon />
                             </button>
                           )}
-                          <button onClick={() => openStockModal(product)} className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium bg-emerald-500/10 text-emerald-300 rounded-lg border border-emerald-500/20 hover:bg-emerald-500/20 transition-all duration-200"><StockIcon /></button>
-                          <button onClick={() => openEditModal(product)} className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium bg-primary/10 text-amber-300 rounded-lg border border-primary/20 hover:bg-primary/20 transition-all duration-200"><EditIcon /></button>
-                          <button onClick={() => handleDelete(product.id)} className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium bg-rose-500/10 text-rose-300 rounded-lg border border-rose-500/20 hover:bg-rose-500/20 transition-all duration-200"><TrashIcon /></button>
+                          <button onClick={() => openStockModal(product)} className="inline-flex items-center gap-1 px-2.5 py-2 min-h-10 text-xs font-medium bg-emerald-500/10 text-emerald-300 rounded-lg border border-emerald-500/20 hover:bg-emerald-500/20 transition-all duration-200"><StockIcon /></button>
+                          <button onClick={() => openEditModal(product)} className="inline-flex items-center gap-1 px-2.5 py-2 min-h-10 text-xs font-medium bg-primary/10 text-amber-300 rounded-lg border border-primary/20 hover:bg-primary/20 transition-all duration-200"><EditIcon /></button>
+                          <button onClick={() => handleDelete(product.id)} className="inline-flex items-center gap-1 px-2.5 py-2 min-h-10 text-xs font-medium bg-rose-500/10 text-rose-300 rounded-lg border border-rose-500/20 hover:bg-rose-500/20 transition-all duration-200"><TrashIcon /></button>
                         </div>
                       </td>
                     </tr>
@@ -452,17 +452,17 @@ export default function ProductsPage() {
                         {!product.isActive && <span className="px-2 py-0.5 text-[10px] font-medium bg-gray-700/50 text-gray-400 rounded-full">معطل</span>}
                       </div>
                       {product.barcode && (
-                        <button onClick={() => setBarcodeProduct(product)} className="flex items-center gap-1.5 mt-2 text-xs text-gray-400 hover:text-primary transition-colors">
+                        <button onClick={() => setBarcodeProduct(product)} className="flex items-center gap-1.5 mt-1 min-h-10 text-xs text-gray-400 hover:text-primary transition-colors">
                           <BarcodeIcon /><span className="font-mono">{product.barcode}</span>
                         </button>
                       )}
                       <div className="flex items-center gap-2 mt-3">
                         {product.barcode && (
-                          <button onClick={() => setBarcodeProduct(product)} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-primary/10 text-amber-300 rounded-lg border border-primary/20"><PrinterIcon />باركود</button>
+                          <button onClick={() => setBarcodeProduct(product)} className="inline-flex items-center gap-1 px-3 py-2 min-h-10 text-xs font-medium bg-primary/10 text-amber-300 rounded-lg border border-primary/20"><PrinterIcon />باركود</button>
                         )}
-                        <button onClick={() => openStockModal(product)} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-emerald-500/10 text-emerald-300 rounded-lg border border-emerald-500/20"><StockIcon />مخزون</button>
-                        <button onClick={() => openEditModal(product)} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-primary/10 text-amber-300 rounded-lg border border-primary/20"><EditIcon />تعديل</button>
-                        <button onClick={() => handleDelete(product.id)} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-rose-500/10 text-rose-300 rounded-lg border border-rose-500/20"><TrashIcon /></button>
+                        <button onClick={() => openStockModal(product)} className="inline-flex items-center gap-1 px-3 py-2 min-h-10 text-xs font-medium bg-emerald-500/10 text-emerald-300 rounded-lg border border-emerald-500/20"><StockIcon />مخزون</button>
+                        <button onClick={() => openEditModal(product)} className="inline-flex items-center gap-1 px-3 py-2 min-h-10 text-xs font-medium bg-primary/10 text-amber-300 rounded-lg border border-primary/20"><EditIcon />تعديل</button>
+                        <button onClick={() => handleDelete(product.id)} className="inline-flex items-center gap-1 px-3 py-2 min-h-10 text-xs font-medium bg-rose-500/10 text-rose-300 rounded-lg border border-rose-500/20"><TrashIcon /></button>
                       </div>
                     </div>
                   </div>
@@ -484,7 +484,7 @@ export default function ProductsPage() {
                   <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-amber-600 flex items-center justify-center shadow-lg shadow-primary/20"><PackageIcon /></div>
                   <h2 className="text-lg sm:text-xl font-bold text-white">{editingProduct ? 'تعديل المنتج' : 'إضافة منتج جديد'}</h2>
                 </div>
-                <button onClick={() => setShowModal(false)} className="w-8 h-8 rounded-lg bg-gray-700/50 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"><CloseIcon /></button>
+                <button onClick={() => setShowModal(false)} className="w-10 h-10 shrink-0 rounded-lg bg-gray-700/50 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"><CloseIcon /></button>
               </div>
             </div>
 
@@ -567,7 +567,7 @@ export default function ProductsPage() {
       {/* Stock Adjustment Modal */}
       {showStockModal && stockProduct && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4" onClick={() => setShowStockModal(false)}>
-          <div className="relative bg-gradient-to-br from-dark-card via-dark-card to-dark-card rounded-2xl border border-dark-border max-w-md w-full shadow-2xl" onClick={e => e.stopPropagation()}>
+          <div className="relative bg-gradient-to-br from-dark-card via-dark-card to-dark-card rounded-2xl border border-dark-border max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-emerald-500/40 to-transparent rounded-t-2xl" />
             <div className="p-5 sm:p-6">
               <div className="flex items-center justify-between mb-6">
@@ -575,7 +575,7 @@ export default function ProductsPage() {
                   <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center"><StockIcon /></div>
                   <div><h2 className="text-lg font-bold text-white">تعديل المخزون</h2><p className="text-sm text-gray-400">{stockProduct.nameAr || stockProduct.name}</p></div>
                 </div>
-                <button onClick={() => setShowStockModal(false)} className="w-8 h-8 rounded-lg bg-gray-700/50 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"><CloseIcon /></button>
+                <button onClick={() => setShowStockModal(false)} className="w-10 h-10 shrink-0 rounded-lg bg-gray-700/50 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"><CloseIcon /></button>
               </div>
               <div className="relative overflow-hidden mb-6 p-4 bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 rounded-xl border border-emerald-500/20">
                 <div className="flex items-center justify-between">

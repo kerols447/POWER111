@@ -511,7 +511,54 @@ function DashboardPage() {
               <h3 className="text-base font-bold text-white">أداء الفروع</h3>
             </div>
           </div>
-          <div className="overflow-x-auto px-5 sm:px-7 pb-5 sm:pb-7">
+          {/* Phone: same data as stacked cards, no sideways scrolling */}
+          <div className="sm:hidden px-4 pb-4 space-y-3">
+            {filteredStats.map((stat, idx) => (
+              <div key={stat.branch.id} className="bg-dark border border-dark-border rounded-xl p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm flex-shrink-0" style={{ backgroundColor: COLORS[idx % COLORS.length] + '15', color: COLORS[idx % COLORS.length] }}>
+                    {stat.branch.code.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-white truncate">{stat.branch.name}</p>
+                    <p className="text-xs text-gray-600">{stat.branch.code}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 mt-3.5 pt-3.5 border-t border-dark-border/50">
+                  {hasPermission('VIEW_DASHBOARD_REVENUE') && (
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs text-gray-500">الإيرادات</span>
+                      <span className="text-xs font-semibold text-emerald-400">{formatPiasters(stat.revenue || 0)}</span>
+                    </div>
+                  )}
+                  {hasPermission('VIEW_DASHBOARD_EXPENSES') && (
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs text-gray-500">المصروفات</span>
+                      <span className="text-xs font-semibold text-rose-400">{formatPiasters(stat.expenses || 0)}</span>
+                    </div>
+                  )}
+                  {hasPermission('VIEW_DASHBOARD_PROFIT') && (
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs text-gray-500">الربح</span>
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-lg ${(stat.profit || 0) >= 0 ? 'text-emerald-400 bg-emerald-500/10' : 'text-rose-400 bg-rose-500/10'}`}>
+                        {formatPiasters(stat.profit || 0)}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-gray-500">أعضاء نشط</span>
+                    <span className="text-xs font-semibold text-white">{stat.activeMembers}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-gray-500">اشتراكات</span>
+                    <span className="text-xs font-semibold text-white">{stat.activeSubscriptions}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="hidden sm:block overflow-x-auto px-5 sm:px-7 pb-5 sm:pb-7">
             <table className="w-full min-w-[500px]">
               <thead>
                 <tr className="border-b border-dark-border">

@@ -262,7 +262,6 @@ export default function AttendancePage() {
   };
 
   const fetchTodayAttendance = async () => {
-    if (!isOnline) return;
     setLoading(true);
     try {
       const res = await fetch(`/api/attendance/today?branchId=${selectedBranch}`, { credentials: 'include' });
@@ -628,7 +627,7 @@ export default function AttendancePage() {
                   <div className="flex bg-dark rounded-xl p-1 border border-dark-border">
                     <button
                       onClick={() => setScanMode('qr')}
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                      className={`flex items-center gap-1.5 px-3 py-2 min-h-10 rounded-lg text-xs font-semibold transition-all duration-200 ${
                         scanMode === 'qr'
                           ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-md shadow-amber-500/20'
                           : 'text-gray-400 hover:text-white'
@@ -639,7 +638,7 @@ export default function AttendancePage() {
                     </button>
                     <button
                       onClick={() => setScanMode('barcode')}
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                      className={`flex items-center gap-1.5 px-3 py-2 min-h-10 rounded-lg text-xs font-semibold transition-all duration-200 ${
                         scanMode === 'barcode'
                           ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-md shadow-amber-500/20'
                           : 'text-gray-400 hover:text-white'

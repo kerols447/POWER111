@@ -1,7 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { addPendingOperation } from '../utils/offlineDb';
 import JsBarcode from 'jsbarcode';
+import { whatsappLink } from '../utils/whatsapp';
+import ConfirmDialog from '../components/ConfirmDialog';
+import NoticeBanner from '../components/NoticeBanner';
 
 interface Member {
   id: string;
@@ -53,11 +58,21 @@ function MemberDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, hasPermission } = useAuth();
+  const isOnline = useOnlineStatus();
   const [member, setMember] = useState<Member | null>(null);
   const [qrImage, setQrImage] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [notice, setNotice] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const [activeTab, setActiveTab] = useState<'info' | 'subscriptions' | 'attendance'>('info');
   const barcodeRef = useRef<SVGSVGElement>(null);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(null), 5000);
+    return () => clearTimeout(timer);
+  }, [notice]);
 
   useEffect(() => {
     if (id) {
@@ -109,7 +124,27 @@ function MemberDetailPage() {
 
   const handleDelete = async () => {
     if (!member) return;
-    if (!confirm(`هل أنت متأكد من حذف العضو "${member.person.name}"؟`)) {
+    setDeleting(true);
+    const memberName = member.person.name;
+
+    if (!isOnline) {
+      try {
+        await addPendingOperation({
+          id: `op_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+          type: 'DELETE_MEMBER',
+          payload: { memberId: member.id },
+          timestamp: Date.now(),
+          branchId: member.branch.id,
+          userId: user!.id
+        });
+        setNotice({ kind: 'ok', text: 'تم حفظ الحذف محلياً — سيتم التزامن عند عودة الاتصال' });
+        setTimeout(() => navigate('/admin/members'), 800);
+      } catch {
+        setNotice({ kind: 'err', text: 'تعذر حذف العضو — أعد المحاولة' });
+      } finally {
+        setDeleting(false);
+        setConfirmOpen(false);
+      }
       return;
     }
 
@@ -122,12 +157,27 @@ function MemberDetailPage() {
       if (res.ok) {
         navigate('/admin/members');
       } else {
-        const data = await res.json();
-        alert(data.error || 'حدث خطأ في حذف العضو');
+        const data = await res.json().catch(() => ({}));
+        setNotice({ kind: 'err', text: data.error || data.message || 'حدث خطأ في حذف العضو' });
       }
-    } catch (err) {
-      console.error('Error deleting member:', err);
-      alert('حدث خطأ في حذف العضو');
+    } catch {
+      try {
+        await addPendingOperation({
+          id: `op_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+          type: 'DELETE_MEMBER',
+          payload: { memberId: member.id },
+          timestamp: Date.now(),
+          branchId: member.branch.id,
+          userId: user!.id
+        });
+        setNotice({ kind: 'ok', text: `تم حفظ حذف "${memberName}" محلياً — سيُزامَن عند عودة الاتصال` });
+        setTimeout(() => navigate('/admin/members'), 800);
+      } catch {
+        setNotice({ kind: 'err', text: 'تعذر حذف العضو — أعد المحاولة' });
+      }
+    } finally {
+      setDeleting(false);
+      setConfirmOpen(false);
     }
   };
 
@@ -179,19 +229,20 @@ function MemberDetailPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3 sm:gap-4 min-w-0">
           <button
             onClick={() => navigate('/admin/members')}
-            className="p-2 hover:bg-dark-card rounded-lg transition-colors"
+            aria-label="رجوع"
+            className="w-10 h-10 flex items-center justify-center hover:bg-dark-card rounded-lg transition-colors flex-shrink-0"
           >
             <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
-          <div>
-            <h1 className="text-2xl font-bold text-white">{member.person.name}</h1>
-            <p className="text-gray-400 mt-1">
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-white truncate">{member.person.name}</h1>
+            <p className="text-gray-400 mt-1 text-xs sm:text-sm">
               {member.branch.name} • {member.memberCode}
             </p>
           </div>
@@ -200,8 +251,8 @@ function MemberDetailPage() {
           {getStatusBadge(member.status)}
           {hasPermission('DELETE_MEMBERS') && (
             <button
-              onClick={handleDelete}
-              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-sm rounded-lg transition-colors"
+              onClick={() => setConfirmOpen(true)}
+              className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-sm rounded-lg transition-colors"
             >
               حذف العضو
             </button>
@@ -209,11 +260,13 @@ function MemberDetailPage() {
         </div>
       </div>
 
+      {notice && <NoticeBanner kind={notice.kind} text={notice.text} onDismiss={() => setNotice(null)} />}
+
       {/* Tabs */}
       <div className="flex gap-2 border-b border-dark-border">
         <button
           onClick={() => setActiveTab('info')}
-          className={`px-4 py-2 text-sm font-medium transition-colors ${
+          className={`px-4 py-2.5 min-h-11 text-sm font-medium transition-colors ${
             activeTab === 'info'
               ? 'text-primary border-b-2 border-primary'
               : 'text-gray-400 hover:text-white'
@@ -223,7 +276,7 @@ function MemberDetailPage() {
         </button>
         <button
           onClick={() => setActiveTab('subscriptions')}
-          className={`px-4 py-2 text-sm font-medium transition-colors ${
+          className={`px-4 py-2.5 min-h-11 text-sm font-medium transition-colors ${
             activeTab === 'subscriptions'
               ? 'text-primary border-b-2 border-primary'
               : 'text-gray-400 hover:text-white'
@@ -233,7 +286,7 @@ function MemberDetailPage() {
         </button>
         <button
           onClick={() => setActiveTab('attendance')}
-          className={`px-4 py-2 text-sm font-medium transition-colors ${
+          className={`px-4 py-2.5 min-h-11 text-sm font-medium transition-colors ${
             activeTab === 'attendance'
               ? 'text-primary border-b-2 border-primary'
               : 'text-gray-400 hover:text-white'
@@ -256,7 +309,22 @@ function MemberDetailPage() {
               </div>
               <div>
                 <label className="block text-sm text-gray-400 mb-1">الهاتف</label>
-                <p className="text-white font-medium">{member.person.phone}</p>
+                <div className="flex items-center gap-3">
+                  <p className="text-white font-medium">{member.person.phone}</p>
+                  {whatsappLink(member.person.phone) && (
+                    <a
+                      href={whatsappLink(member.person.phone) as string}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-1.5 px-2.5 py-1 min-h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 transition-all text-xs font-medium"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12.04 2a9.9 9.9 0 0 0-8.51 14.94L2 22l5.2-1.49A9.9 9.9 0 1 0 12.04 2z" />
+                      </svg>
+                      محادثة واتساب
+                    </a>
+                  )}
+                </div>
               </div>
               <div>
                 <label className="block text-sm text-gray-400 mb-1">البريد الإلكتروني</label>
@@ -452,6 +520,15 @@ function MemberDetailPage() {
           )}
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title="حذف العضو"
+        description={member ? `سيتم حذف "${member.person.name}" نهائياً مع اشتراكاته وسجل حضوره.` : ''}
+        busy={deleting}
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </div>
   );
 }

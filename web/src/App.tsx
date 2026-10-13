@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NetworkStatus } from './components/NetworkStatus';
 import { startAutoSync } from './utils/syncEngine';
+import { startOfflinePrefetch } from './utils/offlinePrefetch';
 import { useEffect } from 'react';
 import LoginPage from './pages/LoginPage';
 import LandingPage from './pages/LandingPage';
@@ -16,6 +17,7 @@ import ProductsPage from './pages/ProductsPage';
 import SalesPage from './pages/SalesPage';
 import ExpensesPage from './pages/ExpensesPage';
 import ReportsPage from './pages/ReportsPage';
+import WhatsAppPage from './pages/WhatsAppPage';
 import SettingsPage from './pages/SettingsPage';
 import BranchesPage from './pages/BranchesPage';
 import UsersPage from './pages/UsersPage';
@@ -37,7 +39,11 @@ function SyncManager() {
   useEffect(() => {
     if (!user) return;
     const stopSync = startAutoSync(30000);
-    return stopSync;
+    const stopPrefetch = startOfflinePrefetch();
+    return () => {
+      stopSync();
+      stopPrefetch();
+    };
   }, [user]);
 
   return null;
@@ -74,6 +80,7 @@ function App() {
             <Route path="sales" element={<SalesPage />} />
             <Route path="expenses" element={<ExpensesPage />} />
             <Route path="reports" element={<ReportsPage />} />
+            <Route path="whatsapp" element={<WhatsAppPage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
 

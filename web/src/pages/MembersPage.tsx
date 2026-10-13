@@ -3,6 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { addPendingOperation } from '../utils/offlineDb';
+import { whatsappLink } from '../utils/whatsapp';
+import { downloadWorkbook } from '../utils/downloadWorkbook';
+import ConfirmDialog from '../components/ConfirmDialog';
+import NoticeBanner from '../components/NoticeBanner';
 
 interface Member {
   id: string;
@@ -62,6 +66,16 @@ function MembersPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [exporting, setExporting] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [notice, setNotice] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(null), 5000);
+    return () => clearTimeout(timer);
+  }, [notice]);
 
   // Auto-fill branch for non-OWNER users with single branch
   const userBranchCount = user?.branches?.length || 0;
@@ -109,25 +123,52 @@ function MembersPage() {
     }
   };
 
-  const handleDelete = async (memberId: string, memberName: string) => {
-    if (!confirm(`هل أنت متأكد من حذف العضو "${memberName}"؟`)) {
+  const handleExportExcel = async () => {
+    if (!isOnline) {
+      setNotice({ kind: 'err', text: 'تحميل ملف Excel يحتاج اتصال بالإنترنت' });
       return;
     }
+    setExporting(true);
+    try {
+      const filename = await downloadWorkbook(
+        '/api/exports/members',
+        { branchId: branchFilter, status: statusFilter, search },
+        `أعضاء-POWER111-${new Date().toISOString().slice(0, 10)}.xlsx`
+      );
+      setNotice({ kind: 'ok', text: `تم تنزيل ${filename}` });
+    } catch (err) {
+      setNotice({ kind: 'err', text: err instanceof Error ? err.message : 'تعذر تحميل ملف Excel' });
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const queueOfflineDelete = async (memberId: string) => {
+    await addPendingOperation({
+      id: generateOperationId(),
+      type: 'DELETE_MEMBER',
+      payload: { memberId },
+      timestamp: Date.now(),
+      branchId: branchFilter || user?.branches?.[0]?.id || '',
+      userId: user!.id
+    });
+    setNotice({ kind: 'ok', text: 'تم حفظ الحذف محلياً — سيتم التزامن عند عودة الاتصال' });
+  };
+
+  const handleDelete = async () => {
+    if (!pendingDelete) return;
+    const { id: memberId, name: memberName } = pendingDelete;
+    setDeleting(true);
 
     if (!isOnline) {
       try {
-        await addPendingOperation({
-          id: generateOperationId(),
-          type: 'DELETE_MEMBER',
-          payload: { memberId },
-          timestamp: Date.now(),
-          branchId: branchFilter || user?.branches?.[0]?.id || '',
-          userId: user!.id
-        });
-        alert('تم حفظ الحذف محلياً (سيتم التزامن عند عودة الاتصال)');
+        await queueOfflineDelete(memberId);
         fetchMembers();
       } catch {
-        alert('حدث خطأ في الحفظ المحلي');
+        setNotice({ kind: 'err', text: 'تعذر حذف العضو — أعد المحاولة' });
+      } finally {
+        setDeleting(false);
+        setPendingDelete(null);
       }
       return;
     }
@@ -139,25 +180,22 @@ function MembersPage() {
       });
 
       if (res.ok) {
+        setNotice({ kind: 'ok', text: `تم حذف العضو "${memberName}"` });
         fetchMembers();
       } else {
         const data = await res.json();
-        alert(data.error || 'حدث خطأ في حذف العضو');
+        setNotice({ kind: 'err', text: data.error || data.message || 'حدث خطأ في حذف العضو' });
       }
-    } catch (err) {
+    } catch {
       try {
-        await addPendingOperation({
-          id: generateOperationId(),
-          type: 'DELETE_MEMBER',
-          payload: { memberId },
-          timestamp: Date.now(),
-          branchId: branchFilter || user?.branches?.[0]?.id || '',
-          userId: user!.id
-        });
-        alert('تم حفظ الحذف محلياً (سيتم التزامن عند عودة الاتصال)');
+        await queueOfflineDelete(memberId);
+        fetchMembers();
       } catch {
-        alert('حدث خطأ في حذف العضو');
+        setNotice({ kind: 'err', text: 'حدث خطأ في حذف العضو' });
       }
+    } finally {
+      setDeleting(false);
+      setPendingDelete(null);
     }
   };
 
@@ -179,9 +217,10 @@ function MembersPage() {
           branchId,
           userId: user!.id
         });
+        setNotice({ kind: 'ok', text: 'تم حفظ العضو محلياً — سيتم التزامن عند عودة الاتصال' });
         setShowModal(false);
         setFormData({ name: '', phone: '', email: '', gender: 'Male', branchId: '' });
-        alert('تم حفظ العضو محلياً (سيتم التزامن عند عودة الاتصال)');
+        fetchMembers();
       } catch {
         setError('حدث خطأ في الحفظ المحلي');
       } finally {
@@ -227,7 +266,8 @@ function MembersPage() {
         });
         setShowModal(false);
         setFormData({ name: '', phone: '', email: '', gender: 'Male', branchId: '' });
-        alert('تم حفظ العضو محلياً (سيتم التزامن عند عودة الاتصال)');
+        setNotice({ kind: 'ok', text: 'تم حفظ العضو محلياً — سيتم التزامن عند عودة الاتصال' });
+        fetchMembers();
       } catch {
         setError('حدث خطأ في الاتصال بالخادم');
       }
@@ -302,27 +342,48 @@ function MembersPage() {
         </div>
       )}
 
+      {notice && <NoticeBanner kind={notice.kind} text={notice.text} onDismiss={() => setNotice(null)} />}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">الأعضاء</h1>
           <p className="text-sm text-gray-500 mt-1">إدارة أعضاء الجيم</p>
         </div>
-        <button
-          onClick={() => {
-            setError('');
-            setSuccess('');
-            setFormData({ name: '', phone: '', email: '', gender: 'Male', branchId: singleBranchUser && user?.branches?.[0] ? user.branches[0].id : '' });
-            setShowModal(true);
-          }}
-          className="relative overflow-hidden inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-amber-600 hover:from-amber-600 hover:to-primary text-white rounded-xl font-semibold text-sm transition-all shadow-lg shadow-primary/20 hover:shadow-primary/30 group"
-        >
-          <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7.5v3m0 0v3m0-3h3m-3 0h-3M2.25 9.75h19.5a2.25 2.25 0 012.25 2.25v6a2.25 2.25 0 01-2.25 2.25H2.25A2.25 2.25 0 010 18v-6a2.25 2.25 0 012.25-2.25z" />
-          </svg>
-          <span>إضافة عضو</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={handleExportExcel}
+            disabled={exporting}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-dark-card border border-primary/30 hover:border-primary/70 text-primary rounded-xl font-semibold text-sm transition-colors disabled:opacity-60"
+          >
+            {exporting ? (
+              <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5 7.5 12M12 16.5V3" />
+              </svg>
+            )}
+            <span>{exporting ? 'جارٍ التحضير…' : 'تحميل Excel'}</span>
+          </button>
+          <button
+            onClick={() => {
+              setError('');
+              setSuccess('');
+              setFormData({ name: '', phone: '', email: '', gender: 'Male', branchId: singleBranchUser && user?.branches?.[0] ? user.branches[0].id : '' });
+              setShowModal(true);
+            }}
+            className="relative overflow-hidden inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-amber-600 hover:from-amber-600 hover:to-primary text-white rounded-xl font-semibold text-sm transition-all shadow-lg shadow-primary/20 hover:shadow-primary/30 group"
+          >
+            <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7.5v3m0 0v3m0-3h3m-3 0h-3M2.25 9.75h19.5a2.25 2.25 0 012.25 2.25v6a2.25 2.25 0 01-2.25 2.25H2.25A2.25 2.25 0 010 18v-6a2.25 2.25 0 012.25-2.25z" />
+            </svg>
+            <span>إضافة عضو</span>
+          </button>
+        </div>
       </div>
 
       {/* Stats Summary Cards */}
@@ -582,7 +643,23 @@ function MembersPage() {
                         </div>
                       </td>
                       <td className="px-5 py-4">
-                        <span className="text-sm text-gray-300 font-mono">{member.person.phone}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-gray-300 font-mono">{member.person.phone}</span>
+                          {whatsappLink(member.person.phone) && (
+                            <a
+                              href={whatsappLink(member.person.phone) as string}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              title="فتح محادثة واتساب"
+                              className="inline-flex items-center justify-center min-h-10 min-w-10 p-3 -m-1.5 text-emerald-400 hover:text-emerald-300 transition-colors"
+                            >
+                              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12.04 2a9.9 9.9 0 0 0-8.51 14.94L2 22l5.2-1.49A9.9 9.9 0 1 0 12.04 2z" />
+                              </svg>
+                            </a>
+                          )}
+                        </div>
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-2">
@@ -603,9 +680,9 @@ function MembersPage() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleDelete(member.id, member.person.name);
+                              setPendingDelete({ id: member.id, name: member.person.name });
                             }}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-medium rounded-lg border border-rose-500/20 hover:border-rose-500/40 transition-all"
+                            className="inline-flex items-center gap-1.5 px-3 py-2 min-h-10 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-medium rounded-lg border border-rose-500/20 hover:border-rose-500/40 transition-all"
                           >
                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
@@ -637,7 +714,23 @@ function MembersPage() {
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-white truncate">{member.person.name}</p>
-                        <p className="text-xs text-gray-500 font-mono mt-0.5">{member.person.phone}</p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <p className="text-xs text-gray-500 font-mono">{member.person.phone}</p>
+                          {whatsappLink(member.person.phone) && (
+                            <a
+                              href={whatsappLink(member.person.phone) as string}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              title="فتح محادثة واتساب"
+                              className="inline-flex items-center justify-center min-h-10 min-w-10 p-3 -m-1.5 text-emerald-400 hover:text-emerald-300 transition-colors"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12.04 2a9.9 9.9 0 0 0-8.51 14.94L2 22l5.2-1.49A9.9 9.9 0 1 0 12.04 2z" />
+                              </svg>
+                            </a>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-2 flex-shrink-0">
@@ -662,9 +755,9 @@ function MembersPage() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleDelete(member.id, member.person.name);
+                          setPendingDelete({ id: member.id, name: member.person.name });
                         }}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 bg-rose-500/10 text-rose-400 text-xs font-medium rounded-lg border border-rose-500/20"
+                        className="inline-flex items-center gap-1 px-3 py-2 min-h-10 bg-rose-500/10 text-rose-400 text-xs font-medium rounded-lg border border-rose-500/20"
                       >
                         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
@@ -732,7 +825,7 @@ function MembersPage() {
                 </div>
                 <button
                   onClick={() => setShowModal(false)}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg bg-dark border border-dark-border text-gray-400 hover:text-white hover:border-gray-500 transition-colors"
+                  className="w-10 h-10 shrink-0 flex items-center justify-center rounded-lg bg-dark border border-dark-border text-gray-400 hover:text-white hover:border-gray-500 transition-colors"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -791,15 +884,34 @@ function MembersPage() {
                     </svg>
                     الهاتف <span className="text-primary">*</span>
                   </label>
-                  <input
-                    type="tel"
-                    required
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    placeholder="01xxxxxxxxx"
-                    className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white text-sm focus:outline-none focus:border-primary/60 transition-colors placeholder:text-gray-600 font-mono"
-                    dir="ltr"
-                  />
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="tel"
+                      required
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      placeholder="01xxxxxxxxx"
+                      className="flex-1 min-w-0 px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white text-sm focus:outline-none focus:border-primary/60 transition-colors placeholder:text-gray-600 font-mono"
+                      dir="ltr"
+                    />
+                    {(() => {
+                      const link = whatsappLink(formData.phone);
+                      return link ? (
+                        <a
+                          href={link}
+                          target="_blank"
+                          rel="noreferrer"
+                          title="فتح محادثة واتساب"
+                          className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 transition-all text-xs font-medium flex-shrink-0"
+                        >
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12.04 2a9.9 9.9 0 0 0-8.51 14.94L2 22l5.2-1.49A9.9 9.9 0 1 0 12.04 2z" />
+                          </svg>
+                          واتساب
+                        </a>
+                      ) : null;
+                    })()}
+                  </div>
                 </div>
 
                 {/* Email */}
@@ -915,6 +1027,15 @@ function MembersPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="حذف العضو"
+        description={pendingDelete ? `سيتم حذف "${pendingDelete.name}" نهائياً مع اشتراكاته وسجل حضوره.` : ''}
+        busy={deleting}
+        onConfirm={handleDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }

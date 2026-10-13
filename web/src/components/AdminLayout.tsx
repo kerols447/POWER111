@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { NetworkStatus } from './NetworkStatus';
 
 interface SidebarItem {
   label: string;
@@ -22,6 +21,7 @@ const allMenuItems: SidebarItem[] = [
   { label: 'المبيعات', path: '/admin/sales', icon: '💰', permission: 'VIEW_SALES' },
   { label: 'المصروفات', path: '/admin/expenses', icon: '💸', permission: 'VIEW_EXPENSES' },
   { label: 'التقارير', path: '/admin/reports', icon: '📊', permission: 'VIEW_REPORTS' },
+  { label: 'رسائل واتساب', path: '/admin/whatsapp', icon: '💬', permission: 'VIEW_REPORTS' },
   { label: 'الإعدادات', path: '/admin/settings', icon: '⚙️', permission: 'MANAGE_SETTINGS' }
 ];
 
@@ -155,7 +155,7 @@ function AdminLayout() {
         <header className="bg-dark-card border-b border-white/10 px-4 py-3 flex items-center justify-between sticky top-0 z-30">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="text-gray-300 hover:text-white transition-colors p-1"
+            className="text-gray-300 hover:text-white transition-colors p-2 -m-1 min-h-10 min-w-10 flex items-center justify-center"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
@@ -181,8 +181,6 @@ function AdminLayout() {
           <Outlet />
         </main>
       </div>
-
-      <NetworkStatus />
     </div>
   );
 }

@@ -769,7 +769,7 @@ function SubscriptionsPage() {
       <div className="flex gap-1 p-1 bg-gray-800/50 rounded-xl border border-gray-700/50 w-fit">
         <button
           onClick={() => setTab('subscriptions')}
-          className={`relative flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 rounded-lg font-medium text-sm transition-all duration-300 ${
+          className={`relative flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 min-h-10 rounded-lg font-medium text-sm transition-all duration-300 ${
             tab === 'subscriptions'
               ? 'bg-gradient-to-r from-amber-500/20 to-amber-600/10 text-amber-400 shadow-sm'
               : 'text-gray-400 hover:text-white hover:bg-gray-700/30'
@@ -780,7 +780,7 @@ function SubscriptionsPage() {
         </button>
         <button
           onClick={() => setTab('plans')}
-          className={`relative flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 rounded-lg font-medium text-sm transition-all duration-300 ${
+          className={`relative flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 min-h-10 rounded-lg font-medium text-sm transition-all duration-300 ${
             tab === 'plans'
               ? 'bg-gradient-to-r from-amber-500/20 to-amber-600/10 text-amber-400 shadow-sm'
               : 'text-gray-400 hover:text-white hover:bg-gray-700/30'
@@ -1066,7 +1066,7 @@ function SubscriptionsPage() {
                   </div>
                   <h2 className="text-lg sm:text-xl font-bold text-white">اشتراك جديد</h2>
                 </div>
-                <button onClick={() => setShowNewSub(false)} className="w-8 h-8 rounded-lg bg-gray-700/50 hover:bg-gray-600/50 flex items-center justify-center text-gray-400 hover:text-white transition-all duration-200">
+                <button onClick={() => setShowNewSub(false)} className="w-10 h-10 shrink-0 rounded-lg bg-gray-700/50 hover:bg-gray-600/50 flex items-center justify-center text-gray-400 hover:text-white transition-all duration-200">
                   <IconClose className="w-4 h-4" />
                 </button>
               </div>
@@ -1312,7 +1312,7 @@ function SubscriptionsPage() {
                     <div className="mt-1">{getStatusBadge(selectedSub.status)}</div>
                   </div>
                 </div>
-                <button onClick={() => setShowDetail(false)} className="w-8 h-8 rounded-lg bg-gray-700/50 hover:bg-gray-600/50 flex items-center justify-center text-gray-400 hover:text-white transition-all duration-200">
+                <button onClick={() => setShowDetail(false)} className="w-10 h-10 shrink-0 rounded-lg bg-gray-700/50 hover:bg-gray-600/50 flex items-center justify-center text-gray-400 hover:text-white transition-all duration-200">
                   <IconClose className="w-4 h-4" />
                 </button>
               </div>
@@ -1515,7 +1515,7 @@ function SubscriptionsPage() {
       {/* ──────── Payment Modal ──────── */}
       {showPayment && selectedSub && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[60] p-3 sm:p-4" onClick={() => setShowPayment(false)}>
-          <div className="relative bg-gradient-to-b from-gray-800 to-gray-900 border border-gray-700/50 rounded-2xl max-w-md w-full shadow-2xl shadow-black/50" onClick={e => e.stopPropagation()}>
+          <div className="relative bg-gradient-to-b from-gray-800 to-gray-900 border border-gray-700/50 rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl shadow-black/50" onClick={e => e.stopPropagation()}>
             {/* Header gradient bar */}
             <div className="h-1 bg-gradient-to-r from-emerald-500 via-emerald-400 to-emerald-600 rounded-t-2xl" />
 
@@ -1529,7 +1529,7 @@ function SubscriptionsPage() {
                     {!isOnline ? 'تسجيل دفعة (محلياً)' : 'تسجيل دفعة'}
                   </h2>
                 </div>
-                <button onClick={() => setShowPayment(false)} className="w-8 h-8 rounded-lg bg-gray-700/50 hover:bg-gray-600/50 flex items-center justify-center text-gray-400 hover:text-white transition-all duration-200">
+                <button onClick={() => setShowPayment(false)} className="w-10 h-10 shrink-0 rounded-lg bg-gray-700/50 hover:bg-gray-600/50 flex items-center justify-center text-gray-400 hover:text-white transition-all duration-200">
                   <IconClose className="w-4 h-4" />
                 </button>
               </div>

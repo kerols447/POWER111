@@ -24,6 +24,7 @@ import portalRoutes from './routes/portal.js';
 import publicRoutes from './routes/public.js';
 import syncRoutes from './routes/sync.js';
 import offerRoutes from './routes/offers.js';
+import exportRoutes from './routes/exports.js';
 
 dotenv.config();
 
@@ -117,6 +118,7 @@ app.use('/api/portal', portalRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/sync', syncRoutes);
 app.use('/api/offers', offerRoutes);
+app.use('/api/exports', exportRoutes);
 
 // Serve uploaded files
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));

@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { downloadWorkbook } from '../utils/downloadWorkbook';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import NoticeBanner from '../components/NoticeBanner';
 
 interface Branch {
   id: string;
@@ -231,12 +235,16 @@ function BackgroundDecor() {
 
 export default function ReportsPage() {
   const { user, isOwner, hasPermission } = useAuth();
+  const isOnline = useOnlineStatus();
+  const navigate = useNavigate();
   const [branches, setBranches] = useState<Branch[]>([]);
   const [selectedBranch, setSelectedBranch] = useState<string>('');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [activeTab, setActiveTab] = useState<ReportTab>('financial');
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [notice, setNotice] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
   const [financial, setFinancial] = useState<FinancialSummary | null>(null);
   const [branchStats, setBranchStats] = useState<BranchStat[]>([]);
@@ -244,6 +252,12 @@ export default function ReportsPage() {
   const [expensesData, setExpensesData] = useState<ExpensesReport | null>(null);
 
   const singleBranchUser = !isOwner && (user?.branches?.length || 0) === 1;
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(null), 5000);
+    return () => clearTimeout(timer);
+  }, [notice]);
 
   useEffect(() => {
     fetchBranches();
@@ -307,6 +321,31 @@ export default function ReportsPage() {
       console.error('Error fetching reports:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleExportExcel = async () => {
+    if (!isOnline) {
+      setNotice({ kind: 'err', text: 'تحميل ملف Excel يحتاج اتصال بالإنترنت' });
+      return;
+    }
+    setExporting(true);
+    setNotice(null);
+    try {
+      const filename = await downloadWorkbook(
+        '/api/exports/reports',
+        {
+          branchId: activeTab === 'branches' ? '' : selectedBranch,
+          from: fromDate,
+          to: toDate
+        },
+        `تقارير-POWER111-${fromDate || 'all'}_${toDate || new Date().toISOString().slice(0, 10)}.xlsx`
+      );
+      setNotice({ kind: 'ok', text: `تم تنزيل ${filename}` });
+    } catch (err) {
+      setNotice({ kind: 'err', text: err instanceof Error ? err.message : 'تعذر تحميل ملف Excel' });
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -402,16 +441,38 @@ export default function ReportsPage() {
               </p>
             </div>
 
-            {/* Live badge */}
-            <div className="flex items-center gap-2 self-start sm:self-auto px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-              </span>
-              <span className="text-xs font-medium text-emerald-400">مباشر</span>
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              {/* Live badge */}
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                </span>
+                <span className="text-xs font-medium text-emerald-400">مباشر</span>
+              </div>
+
+              <button
+                onClick={handleExportExcel}
+                disabled={exporting}
+                className="inline-flex items-center gap-2 px-4 py-2.5 min-h-11 bg-dark border border-primary/30 hover:border-primary/70 text-primary rounded-xl font-semibold text-xs sm:text-sm transition-colors disabled:opacity-60"
+              >
+                {exporting ? (
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5 7.5 12M12 16.5V3" />
+                  </svg>
+                )}
+                <span>{exporting ? 'جارٍ التحضير…' : 'تحميل Excel'}</span>
+              </button>
             </div>
           </div>
         </div>
+
+        {notice && <NoticeBanner kind={notice.kind} text={notice.text} onDismiss={() => setNotice(null)} />}
 
         {/* ============================================================ */}
         {/*  Tabs                                                        */}
@@ -421,7 +482,7 @@ export default function ReportsPage() {
             <button
               key={key}
               onClick={() => setActiveTab(key)}
-              className={`group relative flex items-center gap-2 px-3.5 sm:px-5 py-2.5 sm:py-3 rounded-xl font-semibold text-xs sm:text-sm whitespace-nowrap transition-all duration-300 ${
+              className={`group relative flex items-center gap-2 px-3.5 sm:px-5 py-2.5 sm:py-3 min-h-11 rounded-xl font-semibold text-xs sm:text-sm whitespace-nowrap transition-all duration-300 ${
                 activeTab === key
                   ? 'bg-gradient-to-r from-primary to-amber-600 text-white shadow-lg shadow-primary/25 scale-[1.02]'
                   : 'bg-dark-card border border-dark-border text-gray-400 hover:text-white hover:border-primary/30 hover:bg-dark-hover hover:shadow-md hover:shadow-primary/5'
@@ -435,6 +496,25 @@ export default function ReportsPage() {
             </button>
           ))}
         </div>
+
+        {/* ============================================================ */}
+        {/*  WhatsApp messages shortcut                                  */}
+        {/* ============================================================ */}
+        <button
+          onClick={() => navigate('/admin/whatsapp')}
+          className="w-full flex items-center gap-4 p-4 sm:p-5 rounded-2xl bg-dark-card border border-dark-border hover:border-emerald-500/40 transition-all text-right group"
+        >
+          <div className="w-11 h-11 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center flex-shrink-0">
+            <svg className="w-6 h-6 text-emerald-400" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12.04 2a9.9 9.9 0 0 0-8.51 14.94L2 22l5.2-1.49A9.9 9.9 0 1 0 12.04 2z" />
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-white">رسائل واتساب</p>
+            <p className="text-xs text-gray-500 mt-0.5">ابعت تنبيهات التجديد والعروض والترحيب للأعضاء مرة واحدة</p>
+          </div>
+          <span className="text-gray-600 group-hover:text-emerald-400 transition-colors text-lg">←</span>
+        </button>
 
         {/* ============================================================ */}
         {/*  Filters                                                     */}
@@ -460,7 +540,7 @@ export default function ReportsPage() {
                 <button
                   key={range}
                   onClick={() => setQuickRange(range)}
-                  className="group relative px-3 sm:px-4 py-2 bg-dark border border-dark-border text-gray-400 rounded-lg text-xs sm:text-sm font-medium hover:border-primary/40 hover:text-white hover:shadow-md hover:shadow-primary/5 transition-all duration-200"
+                  className="group relative px-3 sm:px-4 py-2 min-h-10 bg-dark border border-dark-border text-gray-400 rounded-lg text-xs sm:text-sm font-medium hover:border-primary/40 hover:text-white hover:shadow-md hover:shadow-primary/5 transition-all duration-200"
                 >
                   <span className="relative z-10">{label}</span>
                   <div className="absolute inset-0 rounded-lg bg-gradient-to-t from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />

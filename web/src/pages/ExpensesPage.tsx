@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { addPendingOperation } from '../utils/offlineDb';
+import ConfirmDialog from '../components/ConfirmDialog';
+import NoticeBanner from '../components/NoticeBanner';
 
 interface Expense {
   id: string;
@@ -103,6 +105,15 @@ export default function ExpensesPage() {
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Expense | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [notice, setNotice] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(null), 5000);
+    return () => clearTimeout(timer);
+  }, [notice]);
 
   const singleBranchUser = !isOwner && (user?.branches?.length || 0) === 1;
 
@@ -209,9 +220,10 @@ export default function ExpensesPage() {
       const data = await res.json();
       if (data.id || data.success) {
         setShowModal(false);
+        setNotice({ kind: 'ok', text: editingExpense ? 'تم تعديل المصروف' : 'تم إضافة المصروف' });
         fetchExpenses();
       } else {
-        alert(data.error || 'حدث خطأ');
+        setNotice({ kind: 'err', text: data.error || data.message || 'حدث خطأ أثناء الحفظ' });
       }
     } catch (error) {
       console.error('Error saving expense:', error);
@@ -241,7 +253,7 @@ export default function ExpensesPage() {
     });
 
     setShowModal(false);
-    alert('تم حفظ المصروف محلياً (سيتم التزامن عند عودة الاتصال)');
+    setNotice({ kind: 'ok', text: 'تم حفظ المصروف محلياً — سيتم التزامن عند عودة الاتصال' });
   };
 
   const handleOfflineEditExpense = async () => {
@@ -262,23 +274,36 @@ export default function ExpensesPage() {
     });
 
     setShowModal(false);
-    alert('تم حفظ التعديل محلياً (سيتم التزامن عند عودة الاتصال)');
+    setNotice({ kind: 'ok', text: 'تم حفظ التعديل محلياً — سيتم التزامن عند عودة الاتصال' });
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('هل أنت متأكد من حذف هذا المصروف؟')) return;
+  const queueOfflineDelete = async (id: string) => {
+    await addPendingOperation({
+      id: generateOperationId(),
+      type: 'DELETE_EXPENSE',
+      payload: { expenseId: id },
+      timestamp: Date.now(),
+      branchId: selectedBranch,
+      userId: user!.id
+    });
+    setNotice({ kind: 'ok', text: 'تم حفظ الحذف محلياً — سيتم التزامن عند عودة الاتصال' });
+  };
+
+  const handleDelete = async () => {
+    if (!pendingDelete) return;
+    setDeleting(true);
+    const id = pendingDelete.id;
 
     if (!isOnline) {
-      const operationId = generateOperationId();
-      await addPendingOperation({
-        id: operationId,
-        type: 'DELETE_EXPENSE',
-        payload: { expenseId: id },
-        timestamp: Date.now(),
-        branchId: selectedBranch,
-        userId: user!.id
-      });
-      alert('تم حفظ الحذف محلياً (سيتم التزامن عند عودة الاتصال)');
+      try {
+        await queueOfflineDelete(id);
+        fetchExpenses();
+      } catch {
+        setNotice({ kind: 'err', text: 'تعذر حذف المصروف — أعد المحاولة' });
+      } finally {
+        setDeleting(false);
+        setPendingDelete(null);
+      }
       return;
     }
 
@@ -289,23 +314,22 @@ export default function ExpensesPage() {
       });
 
       const data = await res.json();
-      if (data.success || data.id) {
+      if (res.ok && (data.success || data.id)) {
+        setNotice({ kind: 'ok', text: 'تم حذف المصروف' });
         fetchExpenses();
       } else {
-        alert(data.error || 'حدث خطأ');
+        setNotice({ kind: 'err', text: data.error || data.message || 'حدث خطأ أثناء الحذف' });
       }
-    } catch (error) {
-      console.error('Error deleting expense:', error);
-      const operationId = generateOperationId();
-      await addPendingOperation({
-        id: operationId,
-        type: 'DELETE_EXPENSE',
-        payload: { expenseId: id },
-        timestamp: Date.now(),
-        branchId: selectedBranch,
-        userId: user!.id
-      });
-      alert('تم حفظ الحذف محلياً (سيتم التزامن عند عودة الاتصال)');
+    } catch {
+      try {
+        await queueOfflineDelete(id);
+        fetchExpenses();
+      } catch {
+        setNotice({ kind: 'err', text: 'حدث خطأ أثناء حذف المصروف' });
+      }
+    } finally {
+      setDeleting(false);
+      setPendingDelete(null);
     }
   };
 
@@ -341,6 +365,8 @@ export default function ExpensesPage() {
           </div>
         </div>
       )}
+
+      {notice && <NoticeBanner kind={notice.kind} text={notice.text} onDismiss={() => setNotice(null)} />}
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -472,7 +498,8 @@ export default function ExpensesPage() {
             <p className="text-gray-500 text-sm mt-1">قم بإضافة مصروف جديد للبدء</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full min-w-[640px]">
               <thead>
                 <tr className="border-b border-gray-700/50">
@@ -520,14 +547,14 @@ export default function ExpensesPage() {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => openEditModal(expense)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-amber-500/10 text-amber-300 rounded-lg border border-amber-500/20 hover:bg-amber-500/20 transition-all duration-200"
+                          className="inline-flex items-center gap-1.5 px-3 py-2 min-h-10 text-xs font-medium bg-amber-500/10 text-amber-300 rounded-lg border border-amber-500/20 hover:bg-amber-500/20 transition-all duration-200"
                         >
                           <EditIcon />
                           <span className="hidden sm:inline">تعديل</span>
                         </button>
                         <button
-                          onClick={() => handleDelete(expense.id)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-rose-500/10 text-rose-300 rounded-lg border border-rose-500/20 hover:bg-rose-500/20 transition-all duration-200"
+                          onClick={() => setPendingDelete(expense)}
+                          className="inline-flex items-center gap-1.5 px-3 py-2 min-h-10 text-xs font-medium bg-rose-500/10 text-rose-300 rounded-lg border border-rose-500/20 hover:bg-rose-500/20 transition-all duration-200"
                         >
                           <TrashIcon />
                           <span className="hidden sm:inline">حذف</span>
@@ -539,6 +566,48 @@ export default function ExpensesPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Mobile cards */}
+          <div className="sm:hidden divide-y divide-gray-700/30">
+            {expenses.map((expense) => (
+              <div key={expense.id} className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-white leading-snug">{expense.description}</p>
+                    <div className="flex flex-wrap items-center gap-2 mt-2">
+                      <span className="inline-flex px-2.5 py-1 text-xs font-medium bg-amber-500/10 text-amber-300 rounded-lg border border-amber-500/20">
+                        {expense.category}
+                      </span>
+                      <span className="text-xs text-gray-500">{formatDate(expense.date)}</span>
+                    </div>
+                  </div>
+                  <p className="text-sm font-bold text-rose-400 flex-shrink-0">
+                    {formatPrice(expense.amountPiasters)}
+                  </p>
+                </div>
+                <div className="flex items-center justify-between gap-3 mt-3 pt-3 border-t border-gray-700/30">
+                  <span className="text-xs text-gray-500 truncate">{expense.branch.name}</span>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      onClick={() => openEditModal(expense)}
+                      className="inline-flex items-center gap-1.5 px-3 py-2.5 min-h-11 text-xs font-medium bg-amber-500/10 text-amber-300 rounded-lg border border-amber-500/20 active:bg-amber-500/20 transition-colors"
+                    >
+                      <EditIcon />
+                      تعديل
+                    </button>
+                    <button
+                      onClick={() => setPendingDelete(expense)}
+                      className="inline-flex items-center gap-1.5 px-3 py-2.5 min-h-11 text-xs font-medium bg-rose-500/10 text-rose-300 rounded-lg border border-rose-500/20 active:bg-rose-500/20 transition-colors"
+                    >
+                      <TrashIcon />
+                      حذف
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          </>
         )}
       </div>
 
@@ -565,7 +634,7 @@ export default function ExpensesPage() {
                 </div>
                 <button
                   onClick={() => setShowModal(false)}
-                  className="w-8 h-8 rounded-lg bg-gray-700/50 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+                  className="w-10 h-10 shrink-0 rounded-lg bg-gray-700/50 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
                 >
                   <CloseIcon />
                 </button>
@@ -669,6 +738,15 @@ export default function ExpensesPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="حذف المصروف"
+        description={pendingDelete ? `سيتم حذف "${pendingDelete.description}" (${formatPrice(pendingDelete.amountPiasters)}) نهائياً.` : ''}
+        busy={deleting}
+        onConfirm={handleDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }

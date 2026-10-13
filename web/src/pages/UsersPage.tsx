@@ -488,7 +488,7 @@ function UsersPage() {
       {/* Users Table */}
       <div className="relative overflow-hidden bg-gradient-to-br from-gray-800/80 via-gray-800/60 to-gray-900/80 backdrop-blur-sm rounded-2xl border border-gray-700/50">
         <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-amber-500/20 to-transparent"></div>
-        <div className="overflow-x-auto">
+        <div className="hidden sm:block overflow-x-auto">
           <table className="w-full min-w-[800px]">
             <thead>
               <tr className="border-b border-gray-700/50">
@@ -584,6 +584,76 @@ function UsersPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Phone: one card per user, no sideways scrolling */}
+        <div className="sm:hidden divide-y divide-gray-700/30">
+          {users.map((user) => (
+            <div key={user.id} className="p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-500/20 to-amber-600/10 flex items-center justify-center border border-amber-500/20 shrink-0">
+                  <span className="text-sm font-bold text-amber-300">{user.name.charAt(0)}</span>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-white truncate">{user.name}</p>
+                  <p className="text-xs text-gray-500 font-mono break-all mt-0.5">{user.email}</p>
+                </div>
+                <span className={`shrink-0 inline-flex px-2.5 py-1 rounded-full text-xs font-medium border ${getRoleBadgeColor(user.role)}`}>
+                  {roleLabels[user.role] || user.role}
+                </span>
+              </div>
+
+              <div className="mt-3 space-y-1.5 text-xs text-gray-400">
+                <div className="font-mono">{user.phone || '—'}</div>
+                {user.branchAccess.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {user.branchAccess.map(ba => (
+                      <span key={ba.branch.id} className="inline-flex px-2 py-0.5 text-xs font-medium bg-amber-500/10 text-amber-300 rounded-md border border-amber-500/15">
+                        {ba.branch.code}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => handleToggleActive(user)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-2 min-h-10 rounded-lg text-xs font-medium border transition-all duration-200 ${
+                    user.isActive
+                      ? 'bg-rose-500/10 text-rose-300 border-rose-500/20 active:bg-rose-500/20'
+                      : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20 active:bg-emerald-500/20'
+                  }`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${user.isActive ? 'bg-emerald-400' : 'bg-rose-400'}`}></span>
+                  {user.isActive ? 'تعطيل' : 'تفعيل'}
+                </button>
+                {user.role !== 'OWNER' && (
+                  <button
+                    onClick={() => openPermissionsEditor(user)}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 min-h-10 text-xs font-medium bg-gray-700/30 text-gray-300 rounded-lg border border-gray-600/30 active:bg-gray-700/50 transition-all duration-200"
+                  >
+                    <KeyIcon />
+                    <span>الصلاحيات ({user.permissions.length})</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => handleEdit(user)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 min-h-10 text-xs font-medium bg-amber-500/10 text-amber-300 rounded-lg border border-amber-500/20 active:bg-amber-500/20 transition-all duration-200"
+                >
+                  <EditIcon />
+                  <span>تعديل</span>
+                </button>
+                <button
+                  onClick={() => handleDelete(user)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 min-h-10 text-xs font-medium bg-rose-500/10 text-rose-300 rounded-lg border border-rose-500/20 active:bg-rose-500/20 transition-all duration-200"
+                >
+                  <TrashIcon />
+                  <span>حذف</span>
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Create/Edit Modal */}
@@ -611,7 +681,7 @@ function UsersPage() {
                     setEditingUser(null);
                     setFormData({ email: '', password: '', name: '', role: 'RECEPTIONIST', phone: '', branchIds: [], permissions: [] });
                   }}
-                  className="w-8 h-8 rounded-lg bg-gray-700/50 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+                  className="w-10 h-10 shrink-0 rounded-lg bg-gray-700/50 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
                 >
                   <CloseIcon />
                 </button>
@@ -817,7 +887,7 @@ function UsersPage() {
                     setShowPermissionsModal(false);
                     setPermissionsUser(null);
                   }}
-                  className="w-8 h-8 rounded-lg bg-gray-700/50 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+                  className="w-10 h-10 shrink-0 rounded-lg bg-gray-700/50 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
                 >
                   <CloseIcon />
                 </button>

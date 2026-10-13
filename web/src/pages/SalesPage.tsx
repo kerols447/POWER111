@@ -288,7 +288,6 @@ export default function SalesPage() {
   };
 
   const fetchSales = async () => {
-    if (!isOnline) return;
     setLoading(true);
     try {
       const res = await fetch(`/api/sales?branchId=${selectedBranch}`, {
@@ -694,7 +693,7 @@ export default function SalesPage() {
                     {cart.length > 0 && (
                       <button
                         onClick={clearCart}
-                        className="flex items-center gap-1.5 rounded-lg border border-rose-500/20 bg-rose-500/10 px-3 py-1.5 text-xs font-medium text-rose-400 transition-all duration-200 hover:bg-rose-500/20 hover:border-rose-500/30"
+                        className="flex items-center gap-1.5 rounded-lg border border-rose-500/20 bg-rose-500/10 px-3 py-2 min-h-10 text-xs font-medium text-rose-400 transition-all duration-200 hover:bg-rose-500/20 hover:border-rose-500/30"
                       >
                         <IconTrash className="w-3.5 h-3.5" />
                         <span>مسح</span>
@@ -736,7 +735,7 @@ export default function SalesPage() {
                               </div>
                               <button
                                 onClick={() => removeFromCart(item.product.id)}
-                                className="flex-shrink-0 rounded-lg p-1.5 text-gray-500 transition-all duration-200 hover:bg-rose-500/10 hover:text-rose-400"
+                                className="flex-shrink-0 flex h-10 w-10 items-center justify-center rounded-lg text-gray-500 transition-all duration-200 hover:bg-rose-500/10 hover:text-rose-400"
                                 title="حذف"
                               >
                                 <IconTrash className="w-3.5 h-3.5" />
@@ -746,7 +745,7 @@ export default function SalesPage() {
                             <div className="flex items-center gap-2">
                               <button
                                 onClick={() => updateCartQuantity(item.product.id, item.quantity - 1)}
-                                className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/[0.08] bg-gray-800/60 text-gray-400 transition-all duration-200 hover:bg-gray-700 hover:text-white hover:border-white/[0.12]"
+                                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/[0.08] bg-gray-800/60 text-gray-400 transition-all duration-200 hover:bg-gray-700 hover:text-white hover:border-white/[0.12]"
                               >
                                 <IconMinus className="w-3.5 h-3.5" />
                               </button>
@@ -755,11 +754,11 @@ export default function SalesPage() {
                                 min="1"
                                 value={item.quantity}
                                 onChange={(e) => updateCartQuantity(item.product.id, parseInt(e.target.value) || 0)}
-                                className="w-12 rounded-lg border border-white/[0.08] bg-gray-900/60 py-1.5 text-center text-sm font-semibold text-white transition-all duration-200 focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/20 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                className="w-14 rounded-lg border border-white/[0.08] bg-gray-900/60 py-2.5 min-h-11 text-center text-sm font-semibold text-white transition-all duration-200 focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/20 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                               />
                               <button
                                 onClick={() => updateCartQuantity(item.product.id, item.quantity + 1)}
-                                className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/[0.08] bg-gray-800/60 text-gray-400 transition-all duration-200 hover:bg-gray-700 hover:text-white hover:border-white/[0.12]"
+                                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/[0.08] bg-gray-800/60 text-gray-400 transition-all duration-200 hover:bg-gray-700 hover:text-white hover:border-white/[0.12]"
                               >
                                 <IconPlus className="w-3.5 h-3.5" />
                               </button>
@@ -789,7 +788,7 @@ export default function SalesPage() {
                               step="0.01"
                               value={discount / 100}
                               onChange={(e) => setDiscount(Math.round(parseFloat(e.target.value) * 100) || 0)}
-                              className="w-24 rounded-lg border border-white/[0.08] bg-gray-800/60 py-1.5 px-3 text-left text-sm text-white transition-all duration-200 focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/20 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                              className="w-28 rounded-lg border border-white/[0.08] bg-gray-800/60 py-2.5 min-h-11 px-3 text-left text-sm text-white transition-all duration-200 focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/20 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                             />
                             <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-gray-500 pointer-events-none">جنيه</span>
                           </div>
@@ -823,7 +822,7 @@ export default function SalesPage() {
                             <button
                               key={opt.value}
                               onClick={() => setPaymentMethod(opt.value)}
-                              className={`flex items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-xs sm:text-sm font-medium transition-all duration-300 ${
+                              className={`flex items-center justify-center gap-2 rounded-xl border px-3 py-2.5 min-h-11 text-xs sm:text-sm font-medium transition-all duration-300 ${
                                 paymentMethod === opt.value
                                   ? 'border-amber-500/40 bg-gradient-to-l from-amber-500/15 to-amber-600/10 text-amber-300 shadow-sm shadow-amber-500/10'
                                   : 'border-white/[0.06] bg-gray-800/40 text-gray-400 hover:border-white/[0.1] hover:text-gray-300'

@@ -342,7 +342,7 @@ function OffersPage() {
       {/* Offers Table */}
       <div className="relative overflow-hidden bg-gradient-to-br from-gray-800/80 via-gray-800/60 to-gray-900/80 backdrop-blur-sm rounded-2xl border border-gray-700/50">
         <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-amber-500/20 to-transparent"></div>
-        <div className="overflow-x-auto">
+        <div className="hidden sm:block overflow-x-auto">
           <table className="w-full min-w-[700px]">
             <thead>
               <tr className="border-b border-gray-700/50">
@@ -449,6 +449,84 @@ function OffersPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Phone: one card per offer, no sideways scrolling */}
+        <div className="sm:hidden divide-y divide-gray-700/30">
+          {offers.length === 0 ? (
+            <div className="p-8 text-center">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gray-700/30 flex items-center justify-center">
+                <TagIcon />
+              </div>
+              <p className="text-gray-400 text-lg font-medium">لا توجد عروض حالياً</p>
+              <p className="text-gray-500 text-sm mt-1">قم بإضافة عرض جديد للبدء</p>
+            </div>
+          ) : (
+            offers.map((offer) => {
+              const now = new Date();
+              const isActive = new Date(offer.startDate) <= now && new Date(offer.endDate) >= now;
+              return (
+                <div key={offer.id} className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-white break-words">{offer.titleAr || offer.title}</p>
+                      {offer.descriptionAr && (
+                        <p className="text-xs text-gray-400 mt-1 line-clamp-2">{offer.descriptionAr}</p>
+                      )}
+                    </div>
+                    {offer.discountPercent && (
+                      <span className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold bg-amber-500/10 text-amber-300 rounded-full border border-amber-500/20">
+                        <PercentIcon />
+                        {offer.discountPercent}%
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="mt-3 space-y-1.5 text-xs text-gray-400">
+                    <div className="flex items-center gap-1.5">
+                      <CalendarIcon />
+                      <span>{formatDate(offer.startDate)} — {formatDate(offer.endDate)}</span>
+                    </div>
+                    <div className="text-gray-500">
+                      {offer.branchId ? branches.find(b => b.id === offer.branchId)?.name || '—' : 'جميع الفروع'}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => handleTogglePublished(offer)}
+                      className={`inline-flex items-center gap-1.5 px-3 py-2 min-h-10 rounded-lg text-xs font-medium border transition-all duration-200 ${
+                        offer.isPublished
+                          ? isActive
+                            ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20 active:bg-emerald-500/20'
+                            : 'bg-amber-500/10 text-amber-300 border-amber-500/20 active:bg-amber-500/20'
+                          : 'bg-gray-700/30 text-gray-400 border-gray-600/30 active:bg-gray-700/50'
+                      }`}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${
+                        offer.isPublished ? (isActive ? 'bg-emerald-400' : 'bg-amber-400') : 'bg-gray-500'
+                      }`}></span>
+                      {offer.isPublished ? (isActive ? 'نشط' : 'منتهي') : 'مسودة'}
+                    </button>
+                    <button
+                      onClick={() => handleEdit(offer)}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 min-h-10 text-xs font-medium bg-amber-500/10 text-amber-300 rounded-lg border border-amber-500/20 active:bg-amber-500/20 transition-all duration-200"
+                    >
+                      <EditIcon />
+                      <span>تعديل</span>
+                    </button>
+                    <button
+                      onClick={() => handleDelete(offer)}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 min-h-10 text-xs font-medium bg-rose-500/10 text-rose-300 rounded-lg border border-rose-500/20 active:bg-rose-500/20 transition-all duration-200"
+                    >
+                      <TrashIcon />
+                      <span>حذف</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
       </div>
 
       {/* Modal */}
@@ -476,7 +554,7 @@ function OffersPage() {
                     setEditingOffer(null);
                     resetForm();
                   }}
-                  className="w-8 h-8 rounded-lg bg-gray-700/50 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+                  className="w-10 h-10 shrink-0 rounded-lg bg-gray-700/50 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
                 >
                   <CloseIcon />
                 </button>
