@@ -25,6 +25,7 @@ import publicRoutes from './routes/public.js';
 import syncRoutes from './routes/sync.js';
 import offerRoutes from './routes/offers.js';
 import exportRoutes from './routes/exports.js';
+import backupRoutes from './routes/backup.js';
 
 dotenv.config();
 
@@ -51,6 +52,8 @@ app.use(cors({
   credentials: true
 }));
 app.use(morgan('dev'));
+// A restore body is a full dump of every table, so it needs more headroom than the default cap.
+app.use('/api/backup/restore', express.json({ limit: '100mb' }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -119,6 +122,7 @@ app.use('/api/public', publicRoutes);
 app.use('/api/sync', syncRoutes);
 app.use('/api/offers', offerRoutes);
 app.use('/api/exports', exportRoutes);
+app.use('/api/backup', backupRoutes);
 
 // Serve uploaded files
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
