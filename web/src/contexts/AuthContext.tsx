@@ -28,11 +28,12 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 // Global fetch interceptor to handle 401 responses
-// (portal endpoints are excluded — the members portal manages its own session)
+// (portal endpoints are excluded — the members portal manages its own session,
+// and public pages must never be hijacked to /login by a background 401)
 const originalFetch = window.fetch;
 window.fetch = async function(input: RequestInfo | URL, init?: RequestInit) {
   const res = await originalFetch(input, init);
-  if (res.status === 401) {
+  if (res.status === 401 && window.location.pathname.startsWith('/admin')) {
     const url = typeof input === 'string' ? input : (input instanceof Request ? input.url : input instanceof URL ? input.href : '');
     if (!url.includes('/api/portal')) {
       localStorage.removeItem('user');

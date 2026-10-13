@@ -11,11 +11,29 @@ export default defineConfig({
       manifest: false,
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
-        navigateFallback: undefined,
+        navigateFallback: 'index.html',
+        navigateFallbackDenylist: [/^\/api\//],
         skipWaiting: true,
         clientsClaim: true,
         cleanupOutdatedCaches: true,
         runtimeCaching: [
+          {
+            // Public site data gets a long network timeout: on slow mobile
+            // connections a 3s fallback served a stale/empty cache for days
+            urlPattern: /\/api\/public\/.*/i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'public-api-cache',
+              expiration: {
+                maxEntries: 20,
+                maxAgeSeconds: 60 * 60 * 24
+              },
+              networkTimeoutSeconds: 15,
+              cacheableResponse: {
+                statuses: [200]
+              }
+            }
+          },
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: 'CacheFirst',
@@ -50,8 +68,8 @@ export default defineConfig({
             options: {
               cacheName: 'api-cache',
               expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 5
+                maxEntries: 500,
+                maxAgeSeconds: 60 * 60 * 24 * 30
               },
               networkTimeoutSeconds: 3,
               cacheableResponse: {
