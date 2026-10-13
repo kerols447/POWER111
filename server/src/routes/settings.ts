@@ -5,19 +5,10 @@ import { requirePermission } from '../middleware/permissions.js';
 
 const router = Router();
 
-async function getAutoCheckoutMinutes(branchId: string): Promise<number> {
-  const row: any = await prisma.$queryRaw`
-    SELECT value FROM app_settings WHERE key = 'autoCheckoutMinutes' AND branch_id = ${branchId}
-  `;
-  return row?.[0] ? parseInt(row[0].value) : 120;
-}
-
-async function setAutoCheckoutMinutes(branchId: string, minutes: number): Promise<void> {
-  await prisma.$executeRaw`
-    INSERT INTO app_settings (key, branch_id, value)
-    VALUES ('autoCheckoutMinutes', ${branchId}, ${String(minutes)})
-    ON CONFLICT (key, branch_id) DO UPDATE SET value = ${String(minutes)}, updated_at = now()
-  `;
+function toInt(value: unknown): number | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  const parsed = parseInt(String(value), 10);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 // Get branch settings
@@ -30,20 +21,13 @@ router.get('/:branchId', requireAuth, requirePermission('MANAGE_SETTINGS'), asyn
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    const settings = await prisma.branchSettings.findUnique({
-      where: { branchId }
+    const settings = await prisma.branchSettings.upsert({
+      where: { branchId },
+      update: {},
+      create: { branchId }
     });
 
-    if (!settings) {
-      const newSettings = await prisma.branchSettings.create({
-        data: { branchId }
-      });
-      const autoCheckout = await getAutoCheckoutMinutes(branchId);
-      return res.json({ ...newSettings, autoCheckoutMinutes: autoCheckout });
-    }
-
-    const autoCheckout = await getAutoCheckoutMinutes(branchId);
-    res.json({ ...settings, autoCheckoutMinutes: autoCheckout });
+    res.json(settings);
   } catch (error) {
     console.error('Error fetching settings:', error);
     res.status(500).json({ error: 'Failed to fetch settings' });
@@ -61,8 +45,9 @@ router.put('/:branchId', requireAuth, requirePermission('MANAGE_SETTINGS'), asyn
       maxFreezeDays,
       freezeRequiresApproval,
       allowCrossBranchCheckin,
-      lowStockThreshold,
+      autoCheckoutEnabled,
       autoCheckoutMinutes,
+      lowStockThreshold,
       currency,
       timezone
     } = req.body;
@@ -71,37 +56,38 @@ router.put('/:branchId', requireAuth, requirePermission('MANAGE_SETTINGS'), asyn
       return res.status(403).json({ error: 'Access denied' });
     }
 
+    const minutes = toInt(autoCheckoutMinutes);
+
     const settings = await prisma.branchSettings.upsert({
       where: { branchId },
       update: {
         taxEnabled: taxEnabled !== undefined ? taxEnabled : undefined,
-        taxRatePercent: taxRatePercent !== undefined ? parseInt(taxRatePercent) : undefined,
-        maxFreezeDays: maxFreezeDays !== undefined ? parseInt(maxFreezeDays) : undefined,
+        taxRatePercent: toInt(taxRatePercent),
+        maxFreezeDays: toInt(maxFreezeDays),
         freezeRequiresApproval: freezeRequiresApproval !== undefined ? freezeRequiresApproval : undefined,
         allowCrossBranchCheckin: allowCrossBranchCheckin !== undefined ? allowCrossBranchCheckin : undefined,
-        lowStockThreshold: lowStockThreshold !== undefined ? parseInt(lowStockThreshold) : undefined,
+        autoCheckoutEnabled: autoCheckoutEnabled !== undefined ? autoCheckoutEnabled : undefined,
+        autoCheckoutMinutes: minutes !== undefined ? Math.min(Math.max(minutes, 0), 1440) : undefined,
+        lowStockThreshold: toInt(lowStockThreshold),
         currency: currency || undefined,
         timezone: timezone || undefined
       },
       create: {
         branchId,
         taxEnabled: taxEnabled || false,
-        taxRatePercent: taxRatePercent ? parseInt(taxRatePercent) : 0,
-        maxFreezeDays: maxFreezeDays ? parseInt(maxFreezeDays) : 30,
+        taxRatePercent: toInt(taxRatePercent) ?? 0,
+        maxFreezeDays: toInt(maxFreezeDays) ?? 30,
         freezeRequiresApproval: freezeRequiresApproval !== undefined ? freezeRequiresApproval : true,
-        allowCrossBranchCheckin: allowCrossBranchCheckin !== undefined ? allowCrossBranchCheckin : true,
-        lowStockThreshold: lowStockThreshold ? parseInt(lowStockThreshold) : 5,
+        allowCrossBranchCheckin: allowCrossBranchCheckin === true,
+        autoCheckoutEnabled: autoCheckoutEnabled !== undefined ? autoCheckoutEnabled : true,
+        autoCheckoutMinutes: minutes !== undefined ? Math.min(Math.max(minutes, 0), 1440) : 90,
+        lowStockThreshold: toInt(lowStockThreshold) ?? 5,
         currency: currency || 'EGP',
         timezone: timezone || 'Africa/Cairo'
       }
     });
 
-    if (autoCheckoutMinutes !== undefined) {
-      await setAutoCheckoutMinutes(branchId, parseInt(autoCheckoutMinutes) || 120);
-    }
-
-    const finalAutoCheckout = await getAutoCheckoutMinutes(branchId);
-    res.json({ ...settings, autoCheckoutMinutes: finalAutoCheckout });
+    res.json(settings);
   } catch (error) {
     console.error('Error updating settings:', error);
     res.status(500).json({ error: 'Failed to update settings' });

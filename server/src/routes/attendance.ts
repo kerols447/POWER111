@@ -5,6 +5,22 @@ import { requirePermission } from '../middleware/permissions.js';
 
 const router = Router();
 
+// Members may only check in at another branch when that branch's settings allow it.
+// Returns the branch the member actually belongs to, so callers can name it in the error.
+export async function crossBranchCheckinStatus(
+  targetBranchId: string,
+  memberBranchId: string
+): Promise<{ allowed: boolean; homeBranchName: string }> {
+  const [settings, homeBranch] = await Promise.all([
+    prisma.branchSettings.findUnique({ where: { branchId: targetBranchId } }),
+    prisma.branch.findUnique({ where: { id: memberBranchId }, select: { name: true } })
+  ]);
+  return {
+    allowed: settings?.allowCrossBranchCheckin ?? false,
+    homeBranchName: homeBranch?.name ?? 'فرع آخر'
+  };
+}
+
 // POST /api/attendance/checkin — Check in a member
 router.post('/checkin', requireAuth, requirePermission('CHECKIN_MEMBERS'), async (req: Request, res: Response) => {
   try {
@@ -49,12 +65,18 @@ router.post('/checkin', requireAuth, requirePermission('CHECKIN_MEMBERS'), async
       });
     }
 
-    // Verify member belongs to the checkin branch
-    if (member.branchId !== branchId) {
-      return res.status(403).json({
-        error: 'Forbidden',
-        message: 'هذا العضو غير مسجل في هذا الفرع'
-      });
+    // Members check in at their own branch unless the owner enabled cross-branch for this branch
+    const crossBranch = member.branchId !== branchId;
+    let homeBranchName: string | null = null;
+    if (crossBranch) {
+      const status = await crossBranchCheckinStatus(branchId, member.branchId);
+      if (!status.allowed) {
+        return res.status(403).json({
+          error: 'Cross-branch check-in disabled',
+          message: `الحضور في فرع آخر مقفول. العضو مسجل في فرع ${status.homeBranchName}. شغّل السماح من صفحة الإعدادات لو عايز تسمح بيه.`
+        });
+      }
+      homeBranchName = status.homeBranchName;
     }
 
     // Check if member already checked in today
@@ -78,16 +100,19 @@ router.post('/checkin', requireAuth, requirePermission('CHECKIN_MEMBERS'), async
 
     // Check if member has active subscription
     const activeSubscription = member.subscriptions[0];
-    let flagged = false;
-    let flagReason: string | null = null;
+    const reasons: string[] = [];
 
     if (!activeSubscription) {
-      flagged = true;
-      flagReason = 'لا يوجد اشتراك نشط';
+      reasons.push('لا يوجد اشتراك نشط');
     } else if (activeSubscription.paidPiasters < activeSubscription.pricePiasters) {
-      flagged = true;
-      flagReason = 'يوجد مبلغ متبقي';
+      reasons.push('يوجد مبلغ متبقي');
     }
+    if (homeBranchName) {
+      reasons.push(`العضو مسجل في فرع ${homeBranchName}`);
+    }
+
+    const flagged = reasons.length > 0;
+    const flagReason = flagged ? reasons.join(' — ') : null;
 
     // Create attendance record
     const attendance = await prisma.attendance.create({
@@ -373,27 +398,30 @@ router.get('/now', requireAuth, requirePermission('VIEW_ATTENDANCE'), async (req
 
 export default router;
 
-async function getAutoCheckoutMinutes(branchId: string): Promise<number> {
-  const row: any = await prisma.$queryRaw`
-    SELECT value FROM app_settings WHERE key = 'autoCheckoutMinutes' AND branch_id = ${branchId}
-  `;
-  return row?.[0] ? parseInt(row[0].value) : 120;
-}
-
 async function runAutoCheckout() {
   try {
-    const openAttendances: any[] = await prisma.$queryRaw`
-      SELECT id, "branchId", "checkInTime"
-      FROM attendances
-      WHERE "checkOutTime" IS NULL
-    `;
+    const [openAttendances, allSettings] = await Promise.all([
+      prisma.attendance.findMany({
+        where: { checkOutTime: null },
+        select: { id: true, branchId: true, checkInTime: true }
+      }),
+      prisma.branchSettings.findMany({
+        select: { branchId: true, autoCheckoutEnabled: true, autoCheckoutMinutes: true }
+      })
+    ]);
+
+    if (openAttendances.length === 0) return;
+
+    const settingsByBranch = new Map(allSettings.map(s => [s.branchId, s]));
 
     for (const att of openAttendances) {
-      const minutes = await getAutoCheckoutMinutes(att.branchId);
-      if (minutes <= 0) continue;
+      // Branches without a settings row fall back to the schema defaults (on, 90 minutes)
+      const settings = settingsByBranch.get(att.branchId);
+      const enabled = settings?.autoCheckoutEnabled ?? true;
+      const minutes = settings?.autoCheckoutMinutes ?? 90;
+      if (!enabled || minutes <= 0) continue;
 
-      const checkIn = new Date(att.checkInTime);
-      const elapsed = (Date.now() - checkIn.getTime()) / (1000 * 60);
+      const elapsed = (Date.now() - new Date(att.checkInTime).getTime()) / (1000 * 60);
 
       if (elapsed >= minutes) {
         await prisma.attendance.update({

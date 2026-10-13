@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import NoticeBanner from '../components/NoticeBanner';
 
 interface Branch {
   id: string;
@@ -14,8 +16,9 @@ interface BranchSettings {
   maxFreezeDays: number;
   freezeRequiresApproval: boolean;
   allowCrossBranchCheckin: boolean;
-  lowStockThreshold: number;
+  autoCheckoutEnabled: boolean;
   autoCheckoutMinutes: number;
+  lowStockThreshold: number;
   currency: string;
   timezone: string;
 }
@@ -70,12 +73,56 @@ const CheckIcon = () => (
   </svg>
 );
 
+const BackupIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5-3 3m0 0l-3-3m3 3V9" />
+  </svg>
+);
+
+const RestoreIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 4v8m0-8L8 8m4-4l4 4" />
+  </svg>
+);
+
+/** Arabic labels for the backup summary — tables the owner cares about. */
+const BACKUP_LABELS: Record<string, string> = {
+  user: 'المستخدمون',
+  branch: 'الفروع',
+  person: 'الأشخاص',
+  member: 'العضويات',
+  plan: 'الباقات',
+  subscription: 'الاشتراكات',
+  payment: 'المدفوعات',
+  attendance: 'الحضور',
+  product: 'المنتجات',
+  sale: 'الفواتير',
+  expense: 'المصروفات',
+  offer: 'العروض'
+};
+const BACKUP_SUMMARY_ORDER = ['user', 'branch', 'member', 'plan', 'subscription', 'payment', 'attendance', 'product', 'sale', 'expense', 'offer'];
+
+interface PendingRestore {
+  fileName: string;
+  createdAt: string;
+  payload: any;
+  counts: Record<string, number>;
+}
+
 export default function SettingsPage() {
+  const { isOwner } = useAuth();
   const [branches, setBranches] = useState<Branch[]>([]);
   const [selectedBranch, setSelectedBranch] = useState<string>('');
   const [settings, setSettings] = useState<BranchSettings | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [pendingRestore, setPendingRestore] = useState<PendingRestore | null>(null);
+  const [restoreConfirm, setRestoreConfirm] = useState('');
+  const [restoring, setRestoring] = useState(false);
+  const [notice, setNotice] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const [saveNotice, setSaveNotice] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchBranches();
@@ -101,10 +148,10 @@ export default function SettingsPage() {
     }
   };
 
-  const fetchSettings = async () => {
+  const fetchSettings = async (branchId?: string) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/settings/${selectedBranch}`, { credentials: 'include' });
+      const res = await fetch(`/api/settings/${branchId ?? selectedBranch}`, { credentials: 'include' });
       const data = await res.json();
       if (data.id) {
         setSettings(data);
@@ -120,6 +167,7 @@ export default function SettingsPage() {
     if (!settings) return;
 
     setSaving(true);
+    setSaveNotice(null);
     try {
       const res = await fetch(`/api/settings/${selectedBranch}`, {
         method: 'PUT',
@@ -131,13 +179,13 @@ export default function SettingsPage() {
       const data = await res.json();
       if (data.id) {
         setSettings(data);
-        alert('تم حفظ الإعدادات بنجاح');
+        setSaveNotice({ kind: 'ok', text: 'تم حفظ الإعدادات بنجاح' });
       } else {
-        alert(data.error || 'حدث خطأ');
+        setSaveNotice({ kind: 'err', text: data.message || 'حدث خطأ في الحفظ' });
       }
     } catch (error) {
       console.error('Error saving settings:', error);
-      alert('فشل في حفظ الإعدادات');
+      setSaveNotice({ kind: 'err', text: 'فشل في حفظ الإعدادات' });
     } finally {
       setSaving(false);
     }
@@ -146,6 +194,119 @@ export default function SettingsPage() {
   const updateSetting = (key: keyof BranchSettings, value: any) => {
     if (settings) {
       setSettings({ ...settings, [key]: value });
+    }
+  };
+
+  const downloadBackup = async () => {
+    setDownloading(true);
+    setNotice(null);
+    try {
+      const res = await fetch('/api/backup/download', { credentials: 'include' });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.tables) {
+        setNotice({ kind: 'err', text: data?.message || 'فشل تحميل النسخة الاحتياطية' });
+        return;
+      }
+
+      const members = data.tables?.member?.length ?? 0;
+      const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `نسخة-احتياطية-POWER111-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+
+      setNotice({ kind: 'ok', text: `تم تحميل النسخة الاحتياطية — ${members} عضوية` });
+    } catch (error) {
+      console.error('Backup download failed:', error);
+      setNotice({ kind: 'err', text: 'فشل تحميل النسخة الاحتياطية' });
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const pickBackupFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    setNotice(null);
+    setPendingRestore(null);
+    setRestoreConfirm('');
+
+    let parsed: any;
+    try {
+      parsed = JSON.parse(await file.text());
+    } catch {
+      setNotice({ kind: 'err', text: 'الملف ليس نسخة احتياطية صالحة' });
+      return;
+    }
+
+    if (parsed?.backupVersion !== 1 || !parsed.tables) {
+      setNotice({ kind: 'err', text: 'الملف ليس نسخة احتياطية معروفة للنظام' });
+      return;
+    }
+    if (!Array.isArray(parsed.tables.user) || parsed.tables.user.length === 0) {
+      setNotice({ kind: 'err', text: 'الملف لا يحتوي على مستخدمين — لا يمكن استعادته' });
+      return;
+    }
+
+    const counts: Record<string, number> = {};
+    for (const [key, rows] of Object.entries(parsed.tables)) {
+      counts[key] = Array.isArray(rows) ? rows.length : 0;
+    }
+
+    setPendingRestore({
+      fileName: file.name,
+      createdAt: typeof parsed.createdAt === 'string' ? parsed.createdAt : '',
+      payload: parsed,
+      counts
+    });
+  };
+
+  const cancelRestore = () => {
+    setPendingRestore(null);
+    setRestoreConfirm('');
+  };
+
+  const confirmRestore = async () => {
+    if (!pendingRestore) return;
+
+    setRestoring(true);
+    setNotice(null);
+    try {
+      const res = await fetch('/api/backup/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ confirm: 'RESTORE', backup: pendingRestore.payload })
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        setNotice({ kind: 'err', text: data?.message || 'فشلت استعادة البيانات' });
+      } else {
+        setNotice({ kind: 'ok', text: data.message });
+        setPendingRestore(null);
+        setRestoreConfirm('');
+        // Restoring rewrites every id, so the picked branch has to be re-selected.
+        const branchRes = await fetch('/api/branches', { credentials: 'include' });
+        const branchData = await branchRes.json().catch(() => null);
+        const branchList = Array.isArray(branchData) ? branchData : (branchData?.branches || []);
+        setBranches(branchList);
+        setSelectedBranch(branchList[0]?.id ?? '');
+        setSettings(null);
+        if (branchList.length > 0) {
+          await fetchSettings(branchList[0].id);
+        }
+      }
+    } catch (error) {
+      console.error('Backup restore failed:', error);
+      setNotice({ kind: 'err', text: 'فشلت استعادة البيانات' });
+    } finally {
+      setRestoring(false);
     }
   };
 
@@ -290,10 +451,14 @@ export default function SettingsPage() {
           {/* Attendance Settings */}
           <SectionCard icon={<ClockIcon />} title="الحضور">
             <div className="space-y-5">
-              <div className="flex items-center justify-between p-4 bg-gray-900/30 rounded-xl border border-gray-700/30">
-                <div>
-                  <p className="text-white font-medium">السماح بالحضور في فروع أخرى</p>
-                  <p className="text-sm text-gray-500 mt-0.5">تسجيل الحضور من أي فرع</p>
+              <div className="flex items-center justify-between gap-4 p-4 bg-gray-900/30 rounded-xl border border-gray-700/30">
+                <div className="min-w-0">
+                  <p className="text-white font-medium">الحضور في فرع آخر</p>
+                  <p className="text-sm text-gray-500 mt-0.5">
+                    {settings.allowCrossBranchCheckin
+                      ? 'مفتوح — العضو يقدر يسجل حضوره في الفرع ده حتى لو اشتراكه في فرع تاني، ويوصلك تنبيه.'
+                      : 'مقفول — العضو يسجل حضوره في فرعه بس. افتحه لو عايز تسمح بالحضور من فرع تاني.'}
+                  </p>
                 </div>
                 <ToggleSwitch
                   checked={settings.allowCrossBranchCheckin}
@@ -301,26 +466,38 @@ export default function SettingsPage() {
                 />
               </div>
 
-              <div className="p-4 bg-gray-900/30 rounded-xl border border-gray-700/30">
+              <div className="flex items-center justify-between gap-4 p-4 bg-gray-900/30 rounded-xl border border-gray-700/30">
+                <div className="min-w-0">
+                  <p className="text-white font-medium">الانصراف التلقائي</p>
+                  <p className="text-sm text-gray-500 mt-0.5">
+                    {settings.autoCheckoutEnabled
+                      ? 'شغال — العضو ينصرف تلقائيًا بعد المدة المحددة من تسجيل الحضور.'
+                      : 'مقفول — العضو يفضل مسجل حضوره لحد ما تسجل انصرافه يدوي.'}
+                  </p>
+                </div>
+                <ToggleSwitch
+                  checked={settings.autoCheckoutEnabled}
+                  onChange={(val) => updateSetting('autoCheckoutEnabled', val)}
+                />
+              </div>
+
+              <div className={`p-4 bg-gray-900/30 rounded-xl border border-gray-700/30 ${settings.autoCheckoutEnabled ? '' : 'opacity-50'}`}>
                 <label className="block text-sm font-medium text-gray-400 mb-2">
-                  الانصراف التلقائي (بالدقائق)
+                  مدة الانصراف التلقائي (بالدقائق)
                 </label>
-                <p className="text-xs text-gray-500 mb-3">يتم انصراف العضو تلقائيًا بعد المدة المحددة. اجعلها 0 لإيقاف الميزة.</p>
                 <input
                   type="number"
-                  min="0"
-                  max="600"
-                  value={settings.autoCheckoutMinutes ?? 120}
-                  onChange={(e) => updateSetting('autoCheckoutMinutes', parseInt(e.target.value) || 0)}
-                  className="w-full sm:w-48 px-4 py-2.5 bg-gray-900/50 border border-gray-700/50 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
+                  min="1"
+                  max="1440"
+                  disabled={!settings.autoCheckoutEnabled}
+                  value={settings.autoCheckoutMinutes ?? 90}
+                  onChange={(e) => updateSetting('autoCheckoutMinutes', Math.min(Math.max(parseInt(e.target.value) || 0, 0), 1440))}
+                  className="w-full sm:w-48 px-4 py-2.5 bg-gray-900/50 border border-gray-700/50 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200 disabled:cursor-not-allowed"
                 />
-                {(settings.autoCheckoutMinutes ?? 120) > 0 && (
+                {settings.autoCheckoutEnabled && (
                   <p className="text-xs text-amber-400/70 mt-2">
-                    ⏱ سيتم انصراف الأعضاء تلقائيًا بعد {(settings.autoCheckoutMinutes ?? 120)} دقيقة ({Math.floor((settings.autoCheckoutMinutes ?? 120) / 60)} ساعة و {(settings.autoCheckoutMinutes ?? 120) % 60} دقيقة)
+                    {`هيتم انصراف العضو بعد ${settings.autoCheckoutMinutes ?? 90} دقيقة (${Math.floor((settings.autoCheckoutMinutes ?? 90) / 60)} ساعة و ${(settings.autoCheckoutMinutes ?? 90) % 60} دقيقة)`}
                   </p>
-                )}
-                {(settings.autoCheckoutMinutes ?? 120) === 0 && (
-                  <p className="text-xs text-gray-500 mt-2">الميزة معطلة</p>
                 )}
               </div>
             </div>
@@ -372,7 +549,11 @@ export default function SettingsPage() {
           </SectionCard>
 
           {/* Save Button */}
-          <div className="flex justify-end">
+          <div className="space-y-3">
+            {saveNotice && (
+              <NoticeBanner kind={saveNotice.kind} text={saveNotice.text} onDismiss={() => setSaveNotice(null)} />
+            )}
+            <div className="flex justify-end">
             <button
               onClick={handleSave}
               disabled={saving}
@@ -393,6 +574,7 @@ export default function SettingsPage() {
                 </>
               )}
             </button>
+            </div>
           </div>
         </div>
       ) : (
@@ -403,6 +585,119 @@ export default function SettingsPage() {
           </div>
           <p className="text-gray-400 text-lg font-medium">لا توجد إعدادات لهذا الفرع</p>
         </div>
+      )}
+
+      {isOwner && (
+        <SectionCard icon={<BackupIcon />} title="النسخة الاحتياطية">
+          <p className="text-sm text-gray-400 mb-5">
+            حمّل نسخة كاملة من كل بيانات النظام — العضويات والاشتراكات والحضور والمبيعات والمصروفات — واحفظها على جهازك.
+            لو اتمسحت البيانات لا قدر الله، ارفع الملف ده ترجع كل حاجة.
+          </p>
+
+          {notice && (
+            <div className="mb-4">
+              <NoticeBanner kind={notice.kind} text={notice.text} onDismiss={() => setNotice(null)} />
+            </div>
+          )}
+
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button
+              onClick={downloadBackup}
+              disabled={downloading}
+              className="inline-flex items-center justify-center gap-2 min-h-11 px-5 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-xl font-semibold transition-all duration-200 shadow-lg shadow-amber-500/20 disabled:opacity-50"
+            >
+              {downloading ? (
+                <>
+                  <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span>جاري التحضير...</span>
+                </>
+              ) : (
+                <>
+                  <BackupIcon />
+                  <span>تحميل نسخة احتياطية</span>
+                </>
+              )}
+            </button>
+
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={restoring}
+              className="inline-flex items-center justify-center gap-2 min-h-11 px-5 bg-gray-900/50 border border-gray-700/50 text-gray-200 rounded-xl font-semibold transition-colors duration-200 hover:border-rose-500/50 hover:text-white disabled:opacity-50"
+            >
+              <RestoreIcon />
+              <span>استعادة من ملف</span>
+            </button>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/json,.json"
+              onChange={pickBackupFile}
+              className="hidden"
+            />
+          </div>
+
+          {pendingRestore && (
+            <div className="mt-5 p-4 bg-rose-500/5 border border-rose-500/30 rounded-xl">
+              <p className="text-white font-medium">الملف المختار</p>
+              <p className="text-sm text-gray-400 mt-1 break-all" dir="ltr">{pendingRestore.fileName}</p>
+              {pendingRestore.createdAt && (
+                <p className="text-sm text-gray-500 mt-1">
+                  تاريخ النسخة: {new Date(pendingRestore.createdAt).toLocaleString('ar-EG')}
+                </p>
+              )}
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-4">
+                {BACKUP_SUMMARY_ORDER.filter((key) => key in pendingRestore.counts).map((key) => (
+                  <div key={key} className="px-3 py-2 bg-gray-900/40 rounded-lg border border-gray-700/30">
+                    <p className="text-xs text-gray-500">{BACKUP_LABELS[key]}</p>
+                    <p className="text-white font-semibold">{pendingRestore.counts[key]}</p>
+                  </div>
+                ))}
+              </div>
+
+              <p className="text-sm text-rose-300 mt-4 leading-relaxed">
+                تحذير: الاستعادة تمسح البيانات الحالية بالكامل وتستبدلها بما في الملف، ولا يمكن التراجع عنها.
+                اكتب كلمة RESTORE في الخانة للتأكيد.
+              </p>
+
+              <input
+                type="text"
+                value={restoreConfirm}
+                onChange={(e) => setRestoreConfirm(e.target.value)}
+                placeholder="RESTORE"
+                dir="ltr"
+                className="w-full sm:w-64 mt-3 px-4 py-3 bg-gray-900/50 border border-gray-700/50 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-rose-500/50 focus:border-rose-500/50 transition-all duration-200"
+              />
+
+              <div className="grid grid-cols-2 gap-3 mt-4">
+                <button
+                  onClick={cancelRestore}
+                  disabled={restoring}
+                  className="min-h-11 px-4 bg-gray-900/50 border border-gray-700/50 text-gray-300 hover:text-white rounded-xl font-semibold transition-colors disabled:opacity-50"
+                >
+                  إلغاء
+                </button>
+                <button
+                  onClick={confirmRestore}
+                  disabled={restoring || restoreConfirm.trim() !== 'RESTORE'}
+                  className="inline-flex items-center justify-center gap-2 min-h-11 px-4 bg-rose-600 hover:bg-rose-500 text-white rounded-xl font-semibold transition-colors disabled:opacity-50"
+                >
+                  {restoring && (
+                    <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  )}
+                  <span>{restoring ? 'جاري الاستعادة...' : 'استعادة البيانات'}</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </SectionCard>
       )}
     </div>
   );

@@ -4,6 +4,7 @@ import { prisma } from '../index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { normalizePhone, isValidEgyptianPhone, generateMemberCode } from 'shared';
 import { createAuditLog } from './audit.js';
+import { crossBranchCheckinStatus } from './attendance.js';
 
 const router = Router();
 
@@ -176,7 +177,14 @@ async function processCheckin(op: SyncOperation): Promise<Record<string, unknown
   });
 
   if (!member) throw new Error('العضو غير موجود');
-  if (member.branchId !== resolvedBranchId) throw new Error('هذا العضو غير مسجل في هذا الفرع');
+
+  const crossBranch = member.branchId !== resolvedBranchId;
+  let homeBranchName: string | null = null;
+  if (crossBranch) {
+    const status = await crossBranchCheckinStatus(resolvedBranchId, member.branchId);
+    if (!status.allowed) throw new Error(`الحضور في فرع آخر مقفول. العضو مسجل في فرع ${status.homeBranchName}`);
+    homeBranchName = status.homeBranchName;
+  }
 
   const originalTime = checkInTime ? new Date(checkInTime) : new Date(op.timestamp);
   const dayStart = new Date(originalTime);
@@ -196,16 +204,19 @@ async function processCheckin(op: SyncOperation): Promise<Record<string, unknown
   }
 
   const activeSubscription = member.subscriptions[0];
-  let flagged = false;
-  let flagReason: string | null = null;
+  const reasons: string[] = [];
 
   if (!activeSubscription) {
-    flagged = true;
-    flagReason = 'لا يوجد اشتراك نشط';
+    reasons.push('لا يوجد اشتراك نشط');
   } else if (activeSubscription.paidPiasters < activeSubscription.pricePiasters) {
-    flagged = true;
-    flagReason = 'يوجد مبلغ متبقي';
+    reasons.push('يوجد مبلغ متبقي');
   }
+  if (homeBranchName) {
+    reasons.push(`العضو مسجل في فرع ${homeBranchName}`);
+  }
+
+  const flagged = reasons.length > 0;
+  const flagReason = flagged ? reasons.join(' — ') : null;
 
   const attendance = await prisma.attendance.create({
     data: {
