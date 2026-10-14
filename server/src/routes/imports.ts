@@ -49,7 +49,9 @@ function validateRow(row: any): string | null {
   return null;
 }
 
-// Whole-number dates: sheet start lands on midnight, sheet end stays inclusive to the last second.
+// The app stores subscription boundaries at UTC midnight (that is what its own
+// start + durationDays arithmetic produces) and lists render them with the Cairo offset.
+// Anything later in the day would show the sheet's end date one day ahead.
 const subKey = (memberId: string, startDate: Date) => `${memberId}|${startDate.toISOString()}`;
 
 // POST /api/imports/members — bring members over from the old system with their exact codes
@@ -87,7 +89,7 @@ router.post('/members', requireAuth, requireRole('OWNER'), async (req: Request, 
         code,
         name: row.name.replace(/\s+/g, ' ').trim(),
         startDate: new Date(`${row.startDate}T00:00:00.000Z`),
-        endDate: new Date(`${row.endDate}T23:59:59.999Z`),
+        endDate: new Date(`${row.endDate}T00:00:00.000Z`),
         durationDays: Number.isFinite(row.durationDays) ? row.durationDays : 30,
         planId: '',
         status: 'ACTIVE'

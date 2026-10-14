@@ -332,7 +332,9 @@ function MemberDetailPage() {
               </div>
               <div>
                 <label className="block text-sm text-gray-400 mb-1">النوع</label>
-                <p className="text-white font-medium">{member.person.gender === 'Male' ? 'ذكر' : 'أنثى'}</p>
+                <p className="text-white font-medium">
+                  {member.person.gender === 'Male' ? 'ذكر' : member.person.gender === 'Female' ? 'أنثى' : '—'}
+                </p>
               </div>
               <div>
                 <label className="block text-sm text-gray-400 mb-1">الكود</label>
