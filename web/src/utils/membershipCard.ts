@@ -13,9 +13,11 @@ export interface MembershipCardData {
   qrDataUrl: string;
 }
 
-const GOLD = '#F59E0B';
-const INK = '#FFFFFF';
-const MUTED = '#9CA3AF';
+const WHITE = '#FFFFFF';
+const INK = '#0A0A0A';
+const MUTED = 'rgba(255, 255, 255, 0.55)';
+const FAINT = 'rgba(255, 255, 255, 0.20)';
+const EDGE = 'rgba(255, 255, 255, 0.72)';
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -56,6 +58,7 @@ function barcodeCanvas(code: string): HTMLCanvasElement {
 
 const UI_FONT = '"Segoe UI", Tahoma, Arial, sans-serif';
 const MONO_FONT = '"Courier New", monospace';
+const BLACK_FONT = '"Arial Black", "Segoe UI", Arial, sans-serif';
 
 /** Shrinks the font until the text fits the available column width. */
 function fitFont(
@@ -74,6 +77,96 @@ function fitFont(
   }
 }
 
+function trackedWidth(ctx: CanvasRenderingContext2D, text: string, spacing: number) {
+  let w = 0;
+  for (const ch of text) w += ctx.measureText(ch).width + spacing;
+  return w - spacing;
+}
+
+/** Latin small-caps style labels get wide letter spacing, like the mockup. */
+function drawTracked(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  spacing: number,
+  align: 'left' | 'right' | 'center' = 'left'
+) {
+  const previous = ctx.textAlign;
+  const width = trackedWidth(ctx, text, spacing);
+  let cursor = align === 'right' ? x - width : align === 'center' ? x - width / 2 : x;
+  ctx.textAlign = 'left';
+  for (const ch of text) {
+    ctx.fillText(ch, cursor, y);
+    cursor += ctx.measureText(ch).width + spacing;
+  }
+  ctx.textAlign = previous;
+  return width;
+}
+
+/** White circle with a black glyph — the club's fitness / health / nutrition marks. */
+function iconCircle(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, kind: 'dumbbell' | 'heart' | 'leaf') {
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = WHITE;
+  ctx.fill();
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.fillStyle = INK;
+  ctx.strokeStyle = INK;
+  const s = r / 27;
+  ctx.scale(s, s);
+
+  if (kind === 'dumbbell') {
+    ctx.fillRect(-10, -3, 20, 6);
+    ctx.fillRect(-15, -10, 6, 20);
+    ctx.fillRect(9, -10, 6, 20);
+    ctx.fillRect(-21, -7, 5, 14);
+    ctx.fillRect(16, -7, 5, 14);
+  } else if (kind === 'heart') {
+    ctx.beginPath();
+    ctx.moveTo(0, -3);
+    ctx.bezierCurveTo(-3, -12, -16, -11, -16, -1);
+    ctx.bezierCurveTo(-16, 8, -3, 13, 0, 18);
+    ctx.bezierCurveTo(3, 13, 16, 8, 16, -1);
+    ctx.bezierCurveTo(16, -11, 3, -12, 0, -3);
+    ctx.fill();
+  } else {
+    ctx.beginPath();
+    ctx.moveTo(-11, 14);
+    ctx.bezierCurveTo(-13, -2, -1, -16, 12, -15);
+    ctx.bezierCurveTo(11, -1, 3, 11, -11, 14);
+    ctx.fill();
+    ctx.strokeStyle = WHITE;
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    ctx.moveTo(-9, 12);
+    ctx.quadraticCurveTo(0, 0, 10, -13);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** The double diagonal slash that sits in the card corners. */
+function cornerAccent(ctx: CanvasRenderingContext2D, x: number, y: number, dirX: number, dirY: number) {
+  ctx.lineCap = 'butt';
+  ctx.lineWidth = 9;
+  for (const offset of [0, 26]) {
+    const startX = x + dirX * offset;
+    const endX = startX + dirX * 52;
+    const endY = y + dirY * 52;
+    const gradient = ctx.createLinearGradient(startX, y, endX, endY);
+    gradient.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
+    gradient.addColorStop(1, 'rgba(255, 255, 255, 0.18)');
+    ctx.strokeStyle = gradient;
+    ctx.beginPath();
+    ctx.moveTo(startX, y);
+    ctx.lineTo(endX, endY);
+    ctx.stroke();
+  }
+}
+
 /** Draws the membership card onto the given canvas at 1050x660. */
 export async function drawMembershipCard(
   canvas: HTMLCanvasElement,
@@ -84,111 +177,164 @@ export async function drawMembershipCard(
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('canvas unavailable');
 
-  const [logo, qr] = await Promise.all([
-    loadImage('/power-logo.jpg'),
-    loadImage(data.qrDataUrl)
-  ]);
+  const qr = await loadImage(data.qrDataUrl);
   const barcode = barcodeCanvas(data.memberCode);
+  const W = CARD_WIDTH;
+  const H = CARD_HEIGHT;
+  const L = 54;
+  const R = W - 54;
 
-  ctx.fillStyle = '#0A0A0A';
-  ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
+  ctx.fillStyle = '#050505';
+  ctx.fillRect(0, 0, W, H);
 
-  ctx.strokeStyle = 'rgba(245, 158, 11, 0.35)';
+  ctx.strokeStyle = EDGE;
   ctx.lineWidth = 2;
-  roundedRect(ctx, 20, 20, CARD_WIDTH - 40, CARD_HEIGHT - 40, 28);
+  roundedRect(ctx, 22, 22, W - 44, H - 44, 26);
   ctx.stroke();
 
   ctx.textBaseline = 'middle';
-
-  // ===== Header: club identity (left) + status pill (right) =====
-  ctx.drawImage(logo, 54, 48, 88, 88);
   ctx.direction = 'ltr';
   ctx.textAlign = 'left';
-  ctx.fillStyle = INK;
-  ctx.font = `700 40px ${UI_FONT}`;
-  ctx.fillText('POWER 111', 158, 78);
+
+  // ===== Brand block (top-left) =====
+  ctx.fillStyle = WHITE;
+  ctx.font = `900 58px ${BLACK_FONT}`;
+  drawTracked(ctx, 'POWER 111', L, 74, 2);
+
+  const circleR = 27;
+  const circleY = 144;
+  iconCircle(ctx, L + circleR, circleY, circleR, 'dumbbell');
+  iconCircle(ctx, L + circleR + 70, circleY, circleR, 'heart');
+  iconCircle(ctx, L + circleR + 140, circleY, circleR, 'leaf');
+
+  // ===== Card type (top-right) =====
+  cornerAccent(ctx, W - 58, 26, -1, 1);
+
+  ctx.fillStyle = WHITE;
+  ctx.font = `600 26px ${UI_FONT}`;
+  const typeWidth = drawTracked(ctx, 'MEMBERSHIP CARD', R, 96, 5, 'right');
+  const ruleGradient = ctx.createLinearGradient(R - typeWidth, 0, R, 0);
+  ruleGradient.addColorStop(0, 'rgba(255, 255, 255, 0.05)');
+  ruleGradient.addColorStop(0.35, 'rgba(255, 255, 255, 0.85)');
+  ruleGradient.addColorStop(1, 'rgba(255, 255, 255, 0.4)');
+  ctx.fillStyle = ruleGradient;
+  ctx.fillRect(R - typeWidth, 120, typeWidth, 2);
+
+  ctx.direction = 'rtl';
+  ctx.textAlign = 'right';
   ctx.fillStyle = MUTED;
-  ctx.font = `400 21px ${UI_FONT}`;
-  ctx.fillText('POWER 111 GYM — MEMBERSHIP CARD', 158, 114);
+  ctx.font = `400 22px ${UI_FONT}`;
+  ctx.fillText('بطاقة عضوية', R, 150);
+
+  ctx.fillStyle = FAINT;
+  ctx.fillRect(L, 196, R - L, 1);
+
+  // ===== Member name =====
+  ctx.direction = 'ltr';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = MUTED;
+  ctx.font = `500 20px ${UI_FONT}`;
+  drawTracked(ctx, 'MEMBER NAME', L, 224, 5);
+
+  ctx.direction = 'rtl';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = WHITE;
+  fitFont(ctx, data.memberName, R - L, '700', 46);
+  ctx.fillText(data.memberName, L, 266);
+
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+  ctx.fillRect(L, 298, R - L, 2);
+
+  // ===== ID / branch columns =====
+  ctx.direction = 'ltr';
+  ctx.fillStyle = MUTED;
+  ctx.font = `500 18px ${UI_FONT}`;
+  drawTracked(ctx, 'MEMBERSHIP ID', L, 336, 4);
+  drawTracked(ctx, 'BRANCH', 556, 336, 4);
+
+  ctx.fillStyle = WHITE;
+  ctx.font = `700 34px ${MONO_FONT}`;
+  ctx.fillText(data.memberCode, L, 376);
+
+  ctx.direction = 'rtl';
+  ctx.textAlign = 'left';
+  fitFont(ctx, data.branchName, R - 556, '700', 32);
+  ctx.fillText(data.branchName, 556, 376);
+
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(520, 316);
+  ctx.lineTo(520, 396);
+  ctx.stroke();
+
+  ctx.direction = 'rtl';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = MUTED;
+  ctx.font = `400 22px ${UI_FONT}`;
+  const planLine = `الباقة: ${data.planName}   •   صالح حتى ${data.validUntil}`;
+  fitFont(ctx, planLine, R - L - 170, '400', 22);
+  ctx.fillText(planLine, L, 420);
 
   const statusText = data.isActive ? 'نشط' : 'منتهي';
   const statusColor = data.isActive ? '#10B981' : '#F43F5E';
-  ctx.direction = 'rtl';
-  ctx.font = `700 24px ${UI_FONT}`;
-  const statusWidth = ctx.measureText(statusText).width + 46;
+  ctx.font = `700 21px ${UI_FONT}`;
+  const statusWidth = ctx.measureText(statusText).width + 54;
+  ctx.strokeStyle = statusColor;
+  ctx.lineWidth = 2;
+  roundedRect(ctx, R - statusWidth, 400, statusWidth, 40, 20);
+  ctx.stroke();
   ctx.fillStyle = statusColor;
-  roundedRect(ctx, CARD_WIDTH - 54 - statusWidth, 66, statusWidth, 52, 26);
+  ctx.beginPath();
+  ctx.arc(R - statusWidth + 18, 420, 5, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = '#0A0A0A';
   ctx.textAlign = 'center';
-  ctx.fillText(statusText, CARD_WIDTH - 54 - statusWidth / 2, 93);
-
-  ctx.fillStyle = GOLD;
-  ctx.fillRect(54, 160, CARD_WIDTH - 108, 3);
-
-  // ===== QR panel =====
-  const qrSize = 226;
-  const qrX = 54;
-  const qrY = 188;
-  ctx.fillStyle = '#FFFFFF';
-  roundedRect(ctx, qrX, qrY, qrSize, qrSize, 16);
-  ctx.fill();
-  ctx.drawImage(qr, qrX + 12, qrY + 12, qrSize - 24, qrSize - 24);
-
-  // ===== Member identity block (right column, RTL) =====
-  const textRight = CARD_WIDTH - 54;
-  const textMaxW = textRight - (qrX + qrSize + 44);
-  ctx.textAlign = 'right';
-
   ctx.direction = 'rtl';
-  ctx.fillStyle = INK;
-  fitFont(ctx, data.memberName, textMaxW, '700', 44);
-  ctx.fillText(data.memberName, textRight, 232);
+  ctx.fillText(statusText, R - statusWidth / 2 + 9, 421);
 
-  ctx.direction = 'ltr';
-  ctx.fillStyle = GOLD;
-  ctx.font = `700 32px ${MONO_FONT}`;
-  ctx.fillText(data.memberCode, textRight, 284);
+  ctx.fillStyle = FAINT;
+  ctx.fillRect(L, 456, R - L, 1);
 
-  ctx.direction = 'rtl';
-  ctx.fillStyle = MUTED;
-  ctx.font = `400 24px ${UI_FONT}`;
-  ctx.fillText(`فرع ${data.branchName}`, textRight, 330);
-  fitFont(ctx, `الباقة: ${data.planName}`, textMaxW, '400', 24);
-  ctx.fillText(`الباقة: ${data.planName}`, textRight, 366);
-  ctx.fillStyle = INK;
-  ctx.font = `600 24px ${UI_FONT}`;
-  ctx.fillText(`صالح حتى ${data.validUntil}`, textRight, 402);
-
-  // ===== Barcode band =====
-  const bcWidth = 600;
-  const bcHeight = 104;
-  const bcX = (CARD_WIDTH - bcWidth) / 2;
-  const bcY = 432;
-  ctx.fillStyle = '#FFFFFF';
-  roundedRect(ctx, bcX, bcY, bcWidth, bcHeight, 16);
+  // ===== QR + barcode band =====
+  const qrSize = 124;
+  const qrY = 474;
+  ctx.fillStyle = WHITE;
+  roundedRect(ctx, L, qrY, qrSize, qrSize, 12);
   ctx.fill();
-  const scale = Math.min((bcWidth - 48) / barcode.width, 56 / barcode.height);
+  ctx.drawImage(qr, L + 8, qrY + 8, qrSize - 16, qrSize - 16);
+
+  const bcX = L + qrSize + 34;
+  const bcWidth = R - bcX;
+  const bcHeight = 96;
+  ctx.fillStyle = WHITE;
+  roundedRect(ctx, bcX, qrY, bcWidth, bcHeight, 12);
+  ctx.fill();
+  const scale = Math.min((bcWidth - 52) / barcode.width, 68 / barcode.height);
   const drawW = barcode.width * scale;
   const drawH = barcode.height * scale;
-  ctx.drawImage(barcode, bcX + (bcWidth - drawW) / 2, bcY + 14, drawW, drawH);
-  ctx.fillStyle = '#0A0A0A';
+  ctx.drawImage(barcode, bcX + (bcWidth - drawW) / 2, qrY + 14, drawW, drawH);
+
   ctx.direction = 'ltr';
-  ctx.textAlign = 'center';
-  ctx.font = `600 22px ${MONO_FONT}`;
-  ctx.fillText(data.memberCode, bcX + bcWidth / 2, bcY + bcHeight - 14);
+  ctx.textAlign = 'left';
+  ctx.fillStyle = WHITE;
+  ctx.font = `700 30px ${MONO_FONT}`;
+  drawTracked(ctx, data.memberCode, bcX + bcWidth / 2, qrY + bcHeight + 26, 7, 'center');
 
   // ===== Footer =====
-  ctx.fillStyle = GOLD;
-  ctx.fillRect(54, 558, CARD_WIDTH - 108, 3);
+  cornerAccent(ctx, W - 58, H - 26, -1, -1);
+
   ctx.direction = 'rtl';
-  ctx.textAlign = 'right';
+  ctx.textAlign = 'left';
   ctx.fillStyle = MUTED;
-  ctx.font = `400 21px ${UI_FONT}`;
-  ctx.fillText('اعرض الكود على الماسح عند الاستقبال لتسجيل الحضور', CARD_WIDTH - 54, 586);
-  ctx.fillStyle = INK;
-  ctx.font = `600 23px ${UI_FONT}`;
-  ctx.fillText('POWER 111 — لياقة • صحة • تغذية', CARD_WIDTH - 54, 620);
+  ctx.font = `400 20px ${UI_FONT}`;
+  ctx.fillText('اعرض الكود على الماسح عند الاستقبال لتسجيل الحضور', L, 622);
+
+  ctx.direction = 'ltr';
+  ctx.fillStyle = MUTED;
+  ctx.font = `500 19px ${UI_FONT}`;
+  const scanWidth = drawTracked(ctx, 'SCAN FOR ATTENDANCE', R - 134, 622, 4, 'right');
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+  ctx.fillRect(R - 134 - scanWidth - 44, 621, 32, 2);
 }
 
 function triggerDownload(blobUrl: string, filename: string) {
