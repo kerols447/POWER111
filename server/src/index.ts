@@ -26,6 +26,7 @@ import syncRoutes from './routes/sync.js';
 import offerRoutes from './routes/offers.js';
 import exportRoutes from './routes/exports.js';
 import backupRoutes from './routes/backup.js';
+import importRoutes from './routes/imports.js';
 
 dotenv.config();
 
@@ -123,6 +124,7 @@ app.use('/api/sync', syncRoutes);
 app.use('/api/offers', offerRoutes);
 app.use('/api/exports', exportRoutes);
 app.use('/api/backup', backupRoutes);
+app.use('/api/imports', importRoutes);
 
 // Serve uploaded files
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
