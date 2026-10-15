@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { whatsappLink } from '../utils/whatsapp';
+import { whatsappLink, displayPhone } from '../utils/whatsapp';
 
 interface Member {
   id: string;
@@ -349,7 +349,7 @@ function WhatsAppPage() {
                   />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-white truncate">{member.person.name}</p>
-                    <p className="text-xs text-gray-500 font-mono" dir="ltr">{member.person.phone}</p>
+                    <p className="text-xs text-gray-500 font-mono" dir="ltr">{displayPhone(member.person.phone)}</p>
                   </div>
                   <span
                     className={`text-[10px] px-2 py-0.5 rounded-md font-medium flex-shrink-0 ${
@@ -401,7 +401,7 @@ function WhatsAppPage() {
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-sm font-bold text-white">{current.person.name}</p>
                     <span className="text-xs text-gray-500 font-mono" dir="ltr">
-                      {current.person.phone}
+                      {displayPhone(current.person.phone)}
                     </span>
                   </div>
                   <div className="bg-emerald-900/30 border border-emerald-800/40 rounded-2xl rounded-tr-sm px-3 py-2 max-h-40 overflow-y-auto">

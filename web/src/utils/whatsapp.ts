@@ -1,3 +1,10 @@
+// Members imported without a number carry a "pending-<code>" placeholder; lists show a dash
+// instead of the placeholder text.
+export function displayPhone(phone?: string | null): string {
+  if (!phone || phone.startsWith('pending-')) return '—';
+  return phone;
+}
+
 export function normalizeWhatsAppPhone(phone: string): string | null {
   const digits = (phone || '').replace(/\D/g, '');
   if (!digits) return null;

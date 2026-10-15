@@ -51,6 +51,55 @@ interface PortalData {
   currentlyInBranch: number;
 }
 
+interface StaffShift {
+  id: string;
+  checkInTime: string;
+  checkOutTime: string | null;
+  branchName: string;
+  method: string;
+  minutes: number;
+}
+
+// Staff sessions carry shifts and hours only — never member or financial data.
+interface PortalStaffData {
+  kind: 'staff';
+  staff: {
+    id: string;
+    name: string;
+    staffCode: string | null;
+    role: string;
+    phone: string | null;
+    branches: { id: string; name: string; code: string }[];
+  };
+  present: boolean;
+  hoursToday: number;
+  hoursTodayLabel: string;
+  hoursMonth: number;
+  hoursMonthLabel: string;
+  daysWorkedMonth: number;
+  shifts: StaffShift[];
+}
+
+const STAFF_ROLE_TEXT: Record<string, string> = {
+  OWNER: 'مالك',
+  BRANCH_MANAGER: 'مدير فرع',
+  RECEPTIONIST: 'موظف استقبال',
+  ACCOUNTANT: 'محاسب',
+  TRAINER: 'مدرب',
+  CONTENT_MANAGER: 'مدير محتوى'
+};
+
+function fmtClock(iso: string | null) {
+  if (!iso) return 'شغال';
+  return new Date(iso).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+}
+
+function fmtShiftMinutes(minutes: number) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${h}س ${String(m).padStart(2, '0')}د`;
+}
+
 const STATUS_TEXT: Record<string, string> = {
   ACTIVE: 'نشط',
   EXPIRED: 'منتهي',
@@ -110,9 +159,9 @@ function buildCardData(data: PortalData, qrDataUrl: string) {
 export default function PortalPage() {
   const [checking, setChecking] = useState(true);
   const [data, setData] = useState<PortalData | null>(null);
+  const [staffData, setStaffData] = useState<PortalStaffData | null>(null);
   const [qrImage, setQrImage] = useState('');
   const [phone, setPhone] = useState('');
-  const [memberCode, setMemberCode] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [cardError, setCardError] = useState('');
@@ -124,7 +173,13 @@ export default function PortalPage() {
       const res = await fetch('/api/portal/me', { credentials: 'include' });
       if (!res.ok) return false;
       const body = await res.json();
-      setData(body.data);
+      if (body.data?.kind === 'staff') {
+        setStaffData(body.data);
+        setData(null);
+      } else {
+        setData(body.data);
+        setStaffData(null);
+      }
       fetchQR();
       return true;
     } catch {
@@ -154,20 +209,39 @@ export default function PortalPage() {
 
   useEffect(() => {
     const canvas = cardCanvasRef.current;
-    if (!canvas || !data || !qrImage) return;
+    if (!canvas || !qrImage) return;
     setCardError('');
-    drawMembershipCard(canvas, buildCardData(data, qrImage)).catch(() =>
-      setCardError('تعذر رسم البطاقة، حاول مرة أخرى')
-    );
-  }, [data, qrImage]);
+
+    if (staffData) {
+      drawMembershipCard(canvas, {
+        memberName: staffData.staff.name,
+        memberCode: staffData.staff.staffCode || '',
+        branchName: staffData.staff.branches.map(b => b.name).join('، ') || '—',
+        planName: '',
+        validUntil: '',
+        subtitle: `الوظيفة: ${STAFF_ROLE_TEXT[staffData.staff.role] || staffData.staff.role}   •   ختم دخول وخروج`,
+        kind: 'staff',
+        isActive: true,
+        qrDataUrl: qrImage
+      }).catch(() => setCardError('تعذر رسم البطاقة، حاول مرة أخرى'));
+      return;
+    }
+
+    if (data) {
+      drawMembershipCard(canvas, buildCardData(data, qrImage)).catch(() =>
+        setCardError('تعذر رسم البطاقة، حاول مرة أخرى')
+      );
+    }
+  }, [data, staffData, qrImage]);
 
   const handleDownload = async (kind: 'png' | 'pdf') => {
     const canvas = cardCanvasRef.current;
-    if (!canvas || !data || downloading) return;
+    if (!canvas || (!data && !staffData) || downloading) return;
     setDownloading(kind);
     setCardError('');
     try {
-      const name = `بطاقة-POWER111-${data.member.memberCode}.${kind === 'png' ? 'png' : 'pdf'}`;
+      const code = staffData ? staffData.staff.staffCode : data!.member.memberCode;
+      const name = `بطاقة-POWER111-${code}.${kind === 'png' ? 'png' : 'pdf'}`;
       if (kind === 'png') await downloadCardAsPng(canvas, name);
       else await downloadCardAsPdf(canvas, name);
     } catch {
@@ -186,7 +260,7 @@ export default function PortalPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ phone, memberCode })
+        body: JSON.stringify({ phone })
       });
       const body = await res.json();
       if (!res.ok) {
@@ -204,9 +278,9 @@ export default function PortalPage() {
   const handleLogout = async () => {
     await fetch('/api/portal/logout', { method: 'POST', credentials: 'include' });
     setData(null);
+    setStaffData(null);
     setQrImage('');
     setPhone('');
-    setMemberCode('');
   };
 
   // ===== Loading =====
@@ -219,7 +293,7 @@ export default function PortalPage() {
   }
 
   // ===== Login =====
-  if (!data) {
+  if (!data && !staffData) {
     return (
       <div className="min-h-screen bg-dark flex flex-col items-center justify-center px-5 py-10">
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-80 h-80 bg-yellow-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -227,7 +301,7 @@ export default function PortalPage() {
           <img src="/power-logo.jpg" alt="POWER 111" className="w-24 h-24 rounded-2xl ring-1 ring-yellow-500/40 shadow-xl" />
         </Link>
         <h1 className="relative mt-6 text-2xl font-extrabold">بوابة الأعضاء</h1>
-        <p className="relative mt-2 text-gray-400 text-sm">ادخل بياناتك لعرض اشتراكك وكود الحضور</p>
+        <p className="relative mt-2 text-gray-400 text-sm">دخول برقم الموبايل بس — من غير كود عضو</p>
 
         <form onSubmit={handleLogin} className="relative mt-8 w-full max-w-sm bg-dark-card border border-white/10 rounded-2xl p-6 space-y-5">
           {error && (
@@ -238,34 +312,27 @@ export default function PortalPage() {
             <input
               type="tel"
               required
+              autoFocus
               dir="ltr"
               inputMode="tel"
+              autoComplete="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="01xxxxxxxxx"
-              className="w-full px-4 py-3 bg-dark border border-dark-border rounded-xl text-white text-center focus:outline-none focus:border-yellow-500/60"
+              className="w-full px-4 py-4 bg-dark border border-dark-border rounded-xl text-white text-center text-lg tracking-wider focus:outline-none focus:border-yellow-500/60"
             />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">كود العضو</label>
-            <input
-              type="text"
-              required
-              dir="ltr"
-              value={memberCode}
-              onChange={(e) => setMemberCode(e.target.value.toUpperCase())}
-              placeholder="AB12CD34"
-              className="w-full px-4 py-3 bg-dark border border-dark-border rounded-xl text-white text-center font-mono tracking-widest uppercase focus:outline-none focus:border-yellow-500/60"
-            />
-            <p className="mt-2 text-xs text-gray-500">كود العضو موجود في بطاقتك أو عند موظف الاستقبال</p>
+            <p className="mt-2 text-xs text-gray-500">اكتب الرقم المسجل عند الجيم (11 رقم) واضغط دخول</p>
           </div>
           <button
             type="submit"
-            disabled={submitting}
-            className="w-full py-3 rounded-xl bg-gradient-to-l from-yellow-600 to-yellow-500 text-black font-bold hover:opacity-90 disabled:opacity-50 transition-opacity"
+            disabled={submitting || phone.replace(/\D/g, '').length < 10}
+            className="w-full py-3.5 rounded-xl bg-gradient-to-l from-yellow-600 to-yellow-500 text-black font-bold hover:opacity-90 disabled:opacity-40 transition-opacity"
           >
             {submitting ? 'جاري الدخول…' : 'دخول'}
           </button>
+          <p className="text-center text-xs text-gray-500 leading-relaxed">
+            الموظفين والمدربين بيدخلوا برقمهم كمان ويحصلوا على كارت الوردية
+          </p>
         </form>
 
         <Link to="/" className="relative mt-6 text-sm text-gray-400 hover:text-yellow-500 transition-colors">
@@ -275,7 +342,132 @@ export default function PortalPage() {
     );
   }
 
+  // ===== Staff dashboard =====
+  if (staffData) {
+    return (
+      <div className="min-h-screen bg-dark pb-16">
+        <header className="sticky top-0 z-40 bg-dark/90 backdrop-blur-md border-b border-white/10">
+          <div className="max-w-2xl mx-auto px-4 h-16 flex items-center justify-between">
+            <Link to="/" className="flex items-center gap-2.5">
+              <img src="/power-logo.jpg" alt="POWER 111" className="w-9 h-9 rounded-lg ring-1 ring-yellow-500/40" />
+              <span className="font-extrabold">POWER <span className="text-yellow-500">111</span></span>
+            </Link>
+            <button
+              onClick={handleLogout}
+              className="px-4 py-2 rounded-full min-h-10 text-sm text-gray-300 border border-white/15 hover:bg-white/5 transition-colors"
+            >
+              خروج
+            </button>
+          </div>
+        </header>
+
+        <main className="max-w-2xl mx-auto px-4 mt-6 space-y-5">
+          <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-yellow-500/10 to-transparent p-6">
+            <p className="text-gray-400 text-sm">لوحة الموظفين</p>
+            <h1 className="text-2xl font-extrabold mt-1">{staffData.staff.name}</h1>
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+              <span className="px-3 py-1 rounded-full bg-yellow-500/10 text-yellow-500 border border-yellow-500/30 font-mono tracking-widest" dir="ltr">
+                {staffData.staff.staffCode}
+              </span>
+              <span className="px-3 py-1 rounded-full bg-white/5 text-gray-300 border border-white/10">
+                {STAFF_ROLE_TEXT[staffData.staff.role] || staffData.staff.role}
+              </span>
+              {staffData.staff.branches.map(b => (
+                <span key={b.id} className="px-3 py-1 rounded-full bg-white/5 text-gray-300 border border-white/10">
+                  فرع {b.name}
+                </span>
+              ))}
+            </div>
+            <p className="mt-3 text-sm text-gray-400">
+              {staffData.present ? 'انت داخل الوردية دلوقتي — مختمش انصراف لسه' : 'مش في أي وردية دلوقتي'}
+            </p>
+          </div>
+
+          <section className="grid grid-cols-3 gap-3">
+            <div className="rounded-2xl border border-white/10 bg-dark-card p-4 text-center">
+              <p className="text-xs text-gray-500">ساعات اليوم</p>
+              <p className="text-lg font-extrabold text-yellow-500 mt-1">{staffData.hoursTodayLabel}</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-dark-card p-4 text-center">
+              <p className="text-xs text-gray-500">ساعات الشهر</p>
+              <p className="text-lg font-extrabold text-yellow-500 mt-1">{staffData.hoursMonthLabel}</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-dark-card p-4 text-center">
+              <p className="text-xs text-gray-500">أيام العمل</p>
+              <p className="text-lg font-extrabold text-white mt-1">{staffData.daysWorkedMonth}</p>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-white/10 bg-dark-card p-6 text-center">
+            <h2 className="text-lg font-bold">كود الحضور الخاص بك</h2>
+            <p className="text-sm text-gray-400 mt-1">اعرض الكود ده على الماسع عند الاستقبال لختم الدخول أو الانصراف</p>
+            <div className="mt-5 inline-block bg-white p-4 rounded-2xl">
+              {qrImage ? (
+                <img src={qrImage} alt="QR Code" className="w-56 h-56" />
+              ) : (
+                <div className="w-56 h-56 flex items-center justify-center text-gray-500 text-sm">جاري التحميل…</div>
+              )}
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-white/10 bg-dark-card p-6">
+            <h2 className="text-lg font-bold">كارت الموظف</h2>
+            <p className="text-sm text-gray-400 mt-1">نفس كارت العضو — بيختم بيه الدخول والخروج</p>
+
+            <canvas ref={cardCanvasRef} className="mt-5 w-full h-auto rounded-xl" />
+
+            {cardError && (
+              <div className="mt-4 p-3 bg-rose-500/10 border border-rose-500/40 rounded-lg text-rose-400 text-sm text-center">{cardError}</div>
+            )}
+
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <button
+                onClick={() => handleDownload('png')}
+                disabled={!qrImage || downloading !== ''}
+                className="py-3 rounded-xl bg-gradient-to-l from-yellow-600 to-yellow-500 text-black font-bold text-sm disabled:opacity-50 transition-opacity"
+              >
+                {downloading === 'png' ? 'جاري التحميل…' : 'تحميل الكارت'}
+              </button>
+              <button
+                onClick={() => handleDownload('pdf')}
+                disabled={!qrImage || downloading !== ''}
+                className="py-3 rounded-xl border border-white/15 text-sm font-bold text-gray-200 hover:bg-white/5 disabled:opacity-50 transition-colors"
+              >
+                {downloading === 'pdf' ? 'جاري التحميل…' : 'PDF للطباعة'}
+              </button>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-white/10 bg-dark-card p-6">
+            <h2 className="text-lg font-bold">آخر ١٤ يوم حضور</h2>
+            {staffData.shifts.length === 0 ? (
+              <p className="text-sm text-gray-400 mt-3">لسه مفيش ورديات مسجلة</p>
+            ) : (
+              <ul className="mt-4 divide-y divide-white/5">
+                {staffData.shifts.map(s => (
+                  <li key={s.id} className="py-3 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">{formatDate(s.checkInTime)}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{s.branchName}</p>
+                    </div>
+                    <div className="text-left flex-shrink-0">
+                      <p className="text-sm font-mono" dir="ltr">
+                        {fmtClock(s.checkInTime)} → {fmtClock(s.checkOutTime)}
+                      </p>
+                      <p className="text-xs text-yellow-500 mt-0.5">{fmtShiftMinutes(s.minutes)}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </main>
+      </div>
+    );
+  }
+
   // ===== Dashboard =====
+  if (!data) return null;
   const { member, currentSubscription, totalVisits, currentlyInBranch } = data;
   const remaining = currentSubscription ? daysRemaining(currentSubscription.endDate) : 0;
   const start = currentSubscription ? new Date(currentSubscription.startDate).getTime() : 0;

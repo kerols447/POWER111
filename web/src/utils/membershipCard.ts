@@ -11,6 +11,9 @@ export interface MembershipCardData {
   validUntil: string;
   isActive: boolean;
   qrDataUrl: string;
+  // Staff shift cards reuse the same artwork with staff wording.
+  kind?: 'member' | 'staff';
+  subtitle?: string;
 }
 
 const WHITE = '#FFFFFF';
@@ -183,6 +186,7 @@ export async function drawMembershipCard(
   const H = CARD_HEIGHT;
   const L = 54;
   const R = W - 54;
+  const isStaff = data.kind === 'staff';
 
   ctx.fillStyle = '#050505';
   ctx.fillRect(0, 0, W, H);
@@ -212,7 +216,7 @@ export async function drawMembershipCard(
 
   ctx.fillStyle = WHITE;
   ctx.font = `600 26px ${UI_FONT}`;
-  const typeWidth = drawTracked(ctx, 'MEMBERSHIP CARD', R, 96, 5, 'right');
+  const typeWidth = drawTracked(ctx, isStaff ? 'STAFF CARD' : 'MEMBERSHIP CARD', R, 96, 5, 'right');
   const ruleGradient = ctx.createLinearGradient(R - typeWidth, 0, R, 0);
   ruleGradient.addColorStop(0, 'rgba(255, 255, 255, 0.05)');
   ruleGradient.addColorStop(0.35, 'rgba(255, 255, 255, 0.85)');
@@ -224,7 +228,7 @@ export async function drawMembershipCard(
   ctx.textAlign = 'right';
   ctx.fillStyle = MUTED;
   ctx.font = `400 22px ${UI_FONT}`;
-  ctx.fillText('بطاقة عضوية', R, 150);
+  ctx.fillText(isStaff ? 'بطاقة موظف' : 'بطاقة عضوية', R, 150);
 
   ctx.fillStyle = FAINT;
   ctx.fillRect(L, 196, R - L, 1);
@@ -234,7 +238,7 @@ export async function drawMembershipCard(
   ctx.textAlign = 'left';
   ctx.fillStyle = MUTED;
   ctx.font = `500 20px ${UI_FONT}`;
-  drawTracked(ctx, 'MEMBER NAME', L, 224, 5);
+  drawTracked(ctx, isStaff ? 'STAFF NAME' : 'MEMBER NAME', L, 224, 5);
 
   ctx.direction = 'rtl';
   ctx.textAlign = 'left';
@@ -249,7 +253,7 @@ export async function drawMembershipCard(
   ctx.direction = 'ltr';
   ctx.fillStyle = MUTED;
   ctx.font = `500 18px ${UI_FONT}`;
-  drawTracked(ctx, 'MEMBERSHIP ID', L, 336, 4);
+  drawTracked(ctx, isStaff ? 'STAFF ID' : 'MEMBERSHIP ID', L, 336, 4);
   drawTracked(ctx, 'BRANCH', 556, 336, 4);
 
   ctx.fillStyle = WHITE;
@@ -272,11 +276,11 @@ export async function drawMembershipCard(
   ctx.textAlign = 'left';
   ctx.fillStyle = MUTED;
   ctx.font = `400 22px ${UI_FONT}`;
-  const planLine = `الباقة: ${data.planName}   •   صالح حتى ${data.validUntil}`;
+  const planLine = data.subtitle || `الباقة: ${data.planName}   •   صالح حتى ${data.validUntil}`;
   fitFont(ctx, planLine, R - L - 170, '400', 22);
   ctx.fillText(planLine, L, 420);
 
-  const statusText = data.isActive ? 'نشط' : 'منتهي';
+  const statusText = isStaff ? (data.isActive ? 'مُفعّل' : 'متوقف') : (data.isActive ? 'نشط' : 'منتهي');
   const statusColor = data.isActive ? '#10B981' : '#F43F5E';
   ctx.font = `700 21px ${UI_FONT}`;
   const statusWidth = ctx.measureText(statusText).width + 54;
@@ -327,7 +331,7 @@ export async function drawMembershipCard(
   ctx.textAlign = 'left';
   ctx.fillStyle = MUTED;
   ctx.font = `400 20px ${UI_FONT}`;
-  ctx.fillText('اعرض الكود على الماسح عند الاستقبال لتسجيل الحضور', L, 622);
+  ctx.fillText(isStaff ? 'اعرض الكارت على الماسع لختم الدخول والخروج' : 'اعرض الكود على الماسح عند الاستقبال لتسجيل الحضور', L, 622);
 
   ctx.direction = 'ltr';
   ctx.fillStyle = MUTED;

@@ -3,6 +3,7 @@ import PlansSection from '../components/PlansSection';
 import { useAuth } from '../contexts/AuthContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { addPendingOperation, getCachedMembersForBranch } from '../utils/offlineDb';
+import { displayPhone } from '../utils/whatsapp';
 
 interface Subscription {
   id: string;
@@ -1095,7 +1096,7 @@ function SubscriptionsPage() {
                         </div>
                         <div>
                           <div className="text-white font-medium text-sm">{selectedMember.person.name}</div>
-                          <div className="text-xs text-gray-400">{selectedMember.memberCode} — {selectedMember.person.phone}</div>
+                          <div className="text-xs text-gray-400">{selectedMember.memberCode}{displayPhone(selectedMember.person.phone) === '—' ? '' : ` — ${selectedMember.person.phone}`}</div>
                         </div>
                       </div>
                       <button type="button" onClick={() => setSelectedMember(null)} className="text-xs text-amber-400 hover:text-amber-300 font-medium px-2 py-1 rounded-lg hover:bg-amber-500/10 transition-colors">
@@ -1126,7 +1127,7 @@ function SubscriptionsPage() {
                               className="w-full text-right px-4 py-2.5 hover:bg-amber-500/10 border-b border-gray-700/30 last:border-0 transition-colors"
                             >
                               <div className="text-white text-sm font-medium">{m.person.name}</div>
-                              <div className="text-xs text-gray-400 mt-0.5">{m.memberCode} — {m.person.phone} — {m.branch.code}</div>
+                              <div className="text-xs text-gray-400 mt-0.5">{[m.memberCode, displayPhone(m.person.phone), m.branch.code].filter((v) => v && v !== '—').join(' — ')}</div>
                             </button>
                           ))}
                         </div>
@@ -1332,7 +1333,7 @@ function SubscriptionsPage() {
                     <IconPhone className="w-3.5 h-3.5 text-amber-400/60 group-hover:text-amber-400 transition-colors" />
                     <span className="text-xs text-gray-500">الهاتف</span>
                   </div>
-                  <div className="text-white text-sm font-medium" dir="ltr">{selectedSub.member.person.phone}</div>
+                  <div className="text-white text-sm font-medium" dir="ltr">{displayPhone(selectedSub.member.person.phone)}</div>
                 </div>
                 <div className="p-3.5 bg-gray-900/60 border border-gray-700/30 rounded-xl hover:border-gray-600/50 transition-colors group">
                   <div className="flex items-center gap-2 mb-1">
@@ -1643,7 +1644,7 @@ function SubscriptionsPage() {
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">الهاتف:</span>
-                  <span className="text-gray-800">{selectedSub.member.person.phone}</span>
+                  <span className="text-gray-800">{displayPhone(selectedSub.member.person.phone)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">الخطة:</span>

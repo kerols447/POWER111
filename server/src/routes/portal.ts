@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { prisma } from '../index.js';
 import { normalizePhone } from 'shared';
+import { shiftMinutes, hoursLabel } from './staff.js';
 
 const router = Router();
 
@@ -41,37 +42,68 @@ export function requireMemberAuth(req: Request, res: Response, next: NextFunctio
   next();
 }
 
-// POST /api/portal/login — member login with phone + member code
+function requireStaffAuth(req: Request): { userId: string } | null {
+  const staffUser = (req.session as any).staffUser;
+  return staffUser && staffUser.userId ? staffUser : null;
+}
+
+// POST /api/portal/login — the phone number alone opens the portal
 router.post('/login', async (req: Request, res: Response) => {
   try {
     const schema = z.object({
-      phone: z.string().min(6, 'رقم الموبايل غير صحيح'),
-      memberCode: z.string().min(4, 'كود العضو غير صحيح')
+      phone: z.string().min(6, 'رقم الموبايل غير صحيح')
     });
     const data = schema.parse(req.body);
 
     const phoneNormalized = normalizePhone(data.phone);
-    const memberCode = data.memberCode.trim().toUpperCase();
-    const rateKey = `${phoneNormalized}:${memberCode}`;
+    const rateKey = phoneNormalized;
 
     if (isRateLimited(rateKey)) {
-      return res.status(429).json({ error: 'Too many attempts', message: 'محاولات كثيرة خاطئة. حاول بعد 10 دقائق' });
+      return res.status(429).json({ error: 'Too many attempts', message: 'محاولات كثيرة. حاول بعد 10 دقائق' });
     }
 
+    // Employees and trainers sign in here with their own phone. Checked first so a trainer
+    // who is also a member never loses his check-in card.
+    const staffCandidates = await prisma.user.findMany({
+      where: { isActive: true, role: { not: 'OWNER' }, staffCode: { not: null } },
+      include: { branchAccess: { select: { branch: { select: { name: true } } } } }
+    });
+    const staffUser = staffCandidates.find(u => normalizePhone(u.phone || '') === phoneNormalized);
+
+    if (staffUser) {
+      clearFailures(rateKey);
+      delete (req.session as any).member;
+      (req.session as any).staffUser = { userId: staffUser.id };
+
+      return res.json({
+        success: true,
+        data: {
+          kind: 'staff',
+          name: staffUser.name,
+          memberCode: staffUser.staffCode,
+          role: staffUser.role,
+          branchName: staffUser.branchAccess.map(b => b.branch.name).join('، ') || null
+        }
+      });
+    }
+
+    // One phone can hold memberships in both branches; the live one comes first
     const member = await prisma.member.findFirst({
-      where: {
-        memberCode,
-        person: { phoneNormalized }
-      },
+      where: { person: { phoneNormalized } },
+      orderBy: { status: 'asc' },
       include: { person: true, branch: true }
     });
 
     if (!member) {
       recordFailure(rateKey);
-      return res.status(401).json({ error: 'Invalid credentials', message: 'رقم الموبايل أو كود العضو غير صحيح' });
+      return res.status(401).json({
+        error: 'Invalid credentials',
+        message: 'الرقم ده مش مسجل عندنا في الجيم — اتصل على 01055002069'
+      });
     }
 
     clearFailures(rateKey);
+    delete (req.session as any).staffUser;
     (req.session as any).member = { memberId: member.id };
 
     res.json({
@@ -98,8 +130,76 @@ router.post('/logout', (req: Request, res: Response) => {
   });
 });
 
-// GET /api/portal/me — member dashboard data
-router.get('/me', requireMemberAuth, async (req: Request, res: Response) => {
+// GET /api/portal/me — staff session gets the staff view (never member or money data)
+router.get('/me', async (req: Request, res: Response, next: NextFunction) => {
+  const staff = requireStaffAuth(req);
+  if (!staff) return next();
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: staff.userId },
+      include: { branchAccess: { select: { branch: { select: { id: true, name: true, code: true } } } } }
+    });
+
+    if (!user || !user.isActive) {
+      req.session.destroy(() => {});
+      return res.status(401).json({ error: 'Not authenticated', message: 'انتهت الجلسة، سجل الدخول من جديد' });
+    }
+
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+    const recentStart = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+    const queryStart = monthStart < recentStart ? monthStart : recentStart;
+
+    const shifts = await prisma.staffAttendance.findMany({
+      where: { userId: user.id, checkInTime: { gte: queryStart } },
+      include: { branch: { select: { name: true } } },
+      orderBy: { checkInTime: 'desc' }
+    });
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const now = new Date();
+
+    const todayMinutes = shifts.filter(s => s.checkInTime >= todayStart).reduce((sum, s) => sum + shiftMinutes(s, now), 0);
+    const monthShifts = shifts.filter(s => s.checkInTime >= monthStart);
+    const monthMinutes = monthShifts.reduce((sum, s) => sum + shiftMinutes(s, now), 0);
+    const openShift = shifts.find(s => !s.checkOutTime && s.checkInTime >= todayStart) || null;
+
+    res.json({
+      success: true,
+      data: {
+        kind: 'staff',
+        staff: {
+          id: user.id,
+          name: user.name,
+          staffCode: user.staffCode,
+          role: user.role,
+          phone: user.phone,
+          branches: user.branchAccess.map(b => b.branch)
+        },
+        present: !!openShift,
+        hoursToday: todayMinutes,
+        hoursTodayLabel: hoursLabel(todayMinutes),
+        hoursMonth: monthMinutes,
+        hoursMonthLabel: hoursLabel(monthMinutes),
+        daysWorkedMonth: new Set(monthShifts.map(s => s.checkInTime.toDateString())).size,
+        shifts: shifts.map(s => ({
+          id: s.id,
+          checkInTime: s.checkInTime,
+          checkOutTime: s.checkOutTime,
+          branchName: s.branch.name,
+          method: s.method,
+          minutes: shiftMinutes(s, now)
+        }))
+      }
+    });
+  } catch (error) {
+    console.error('Error portal staff me:', error);
+    res.status(500).json({ error: 'Internal server error', message: 'حدث خطأ في جلب بياناتك' });
+  }
+}, requireMemberAuth, async (req: Request, res: Response) => {
   try {
     const session = (req.session as any).member;
     const member = await prisma.member.findUnique({
@@ -173,8 +273,33 @@ router.get('/me', requireMemberAuth, async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/portal/qr — member's QR code (payload identical to staff-generated QR)
-router.get('/qr', requireMemberAuth, async (req: Request, res: Response) => {
+// GET /api/portal/qr — session QR (member card or staff shift card)
+router.get('/qr', async (req: Request, res: Response, next: NextFunction) => {
+  const staff = requireStaffAuth(req);
+  if (!staff) return next();
+
+  const user = await prisma.user.findUnique({
+    where: { id: staff.userId },
+    include: { branchAccess: { select: { branch: { select: { code: true } } } } }
+  });
+
+  if (!user || !user.staffCode) {
+    return res.status(404).json({ error: 'Not found', message: 'الكارت غير متاح' });
+  }
+
+  const QRCode = await import('qrcode');
+  const qrImage = await QRCode.toDataURL(
+    JSON.stringify({
+      staffCode: user.staffCode,
+      name: user.name,
+      branch: user.branchAccess[0]?.branch.code || null,
+      type: 'STAFF'
+    }),
+    { width: 400, margin: 2, color: { dark: '#000000', light: '#FFFFFF' } }
+  );
+
+  res.json({ success: true, data: { qrImage } });
+}, requireMemberAuth, async (req: Request, res: Response) => {
   try {
     const session = (req.session as any).member;
     const member = await prisma.member.findUnique({

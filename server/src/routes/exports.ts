@@ -215,7 +215,8 @@ router.get('/members', requireAuth, requirePermission('VIEW_MEMBERS'), async (re
         index + 1,
         member.person.name,
         member.memberCode,
-        member.person.phone,
+        // Members imported without a number carry a "pending-<code>" placeholder — keep it out of his sheets
+        member.person.phone.startsWith('pending-') ? '' : member.person.phone,
         member.branch.name,
         MEMBER_STATUS_AR[member.status] || member.status,
         subscription?.plan?.nameAr || subscription?.plan?.name || '—',
