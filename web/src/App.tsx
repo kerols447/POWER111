@@ -13,6 +13,7 @@ import MembersPage from './pages/MembersPage';
 import MemberDetailPage from './pages/MemberDetailPage';
 import SubscriptionsPage from './pages/SubscriptionsPage';
 import AttendancePage from './pages/AttendancePage';
+import StaffPage from './pages/StaffPage';
 import ProductsPage from './pages/ProductsPage';
 import SalesPage from './pages/SalesPage';
 import ExpensesPage from './pages/ExpensesPage';
@@ -76,6 +77,7 @@ function App() {
             <Route path="members/:id" element={<MemberDetailPage />} />
             <Route path="subscriptions" element={<SubscriptionsPage />} />
             <Route path="attendance" element={<AttendancePage />} />
+            <Route path="staff" element={<StaffPage />} />
             <Route path="products" element={<ProductsPage />} />
             <Route path="sales" element={<SalesPage />} />
             <Route path="expenses" element={<ExpensesPage />} />

@@ -91,6 +91,7 @@ model User {
   name          String
   role          Role
   phone         String?
+  staffCode     String?   @unique // scannable card code, e.g. "S01"
   isActive      Boolean   @default(true)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -102,6 +103,7 @@ model User {
   permissions   UserPermission[]
   
   auditLogs     AuditLog[]
+  staffShifts   StaffAttendance[]
 
   @@map("users")
 }
@@ -125,6 +127,7 @@ model Branch {
   plans         Plan[]
   subscriptions Subscription[]
   attendances   Attendance[]
+  staffShifts   StaffAttendance[]
   payments      Payment[]
   products      Product[]
   sales         Sale[]
@@ -341,6 +344,25 @@ enum CheckInMethod {
   QR_CODE
   BARCODE
   OFFLINE_SYNC
+}
+
+// Staff shifts are kept apart from member visits so member lists, exports and
+// financial reports never count a trainer as a gym member.
+model StaffAttendance {
+  id              String        @id @default(cuid())
+  userId          String
+  branchId        String
+  checkInTime     DateTime      @default(now())
+  checkOutTime    DateTime?
+  method          CheckInMethod @default(MANUAL)
+  notes           String?
+
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branch          Branch        @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@index([userId, checkInTime])
+  @@index([branchId, checkInTime])
+  @@map("staff_attendances")
 }
 
 // ========== Products & Inventory ==========

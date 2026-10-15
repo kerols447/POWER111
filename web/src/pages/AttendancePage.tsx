@@ -200,7 +200,7 @@ export default function AttendancePage() {
   const [summary, setSummary] = useState({ total: 0, checkedIn: 0, checkedOut: 0, flagged: 0 });
   const [loading, setLoading] = useState(false);
   const [scanning, setScanning] = useState(false);
-  const [lastScan, setLastScan] = useState<{ success: boolean; message: string; memberName?: string; type: 'success' | 'error' | 'warning' } | null>(null);
+  const [lastScan, setLastScan] = useState<{ success: boolean; message: string; memberName?: string; kind?: 'member' | 'staff'; code?: string; type: 'success' | 'error' | 'warning' } | null>(null);
   const [manualCode, setManualCode] = useState('');
   const [scanMode, setScanMode] = useState<'qr' | 'barcode'>('qr');
   const scannerRef = useRef<Html5Qrcode | null>(null);
@@ -338,19 +338,35 @@ export default function AttendancePage() {
     setScanning(false);
   };
 
+  // Staff card codes are "S" + digits (S01, S02…); member codes are always 8 characters,
+  // so a short S-code can never be mistaken for a member.
+  const isStaffCode = (code: string) => /^S\d{1,6}$/i.test(code.trim());
+
   const onScanSuccess = async (decodedText: string) => {
-    let memberCode = decodedText;
+    let code = decodedText;
+    let staffCode: string | null = null;
 
     try {
       const data = JSON.parse(decodedText);
-      if (data.memberCode) {
-        memberCode = data.memberCode;
+      if (data.staffCode) {
+        staffCode = data.staffCode;
+      } else if (data.memberCode) {
+        code = data.memberCode;
       }
     } catch {
       // Plain text - use as-is (barcode typically returns plain member code)
     }
 
-    await handleCheckin(memberCode);
+    if (!staffCode && isStaffCode(code)) {
+      staffCode = code.trim().toUpperCase();
+    }
+
+    if (staffCode) {
+      await handleStaffPunch(staffCode);
+    } else {
+      await handleCheckin(code);
+    }
+
     if (navigator.vibrate) {
       navigator.vibrate(200);
     }
@@ -387,6 +403,8 @@ export default function AttendancePage() {
           success: true,
           message: data.message || `تم تسجيل حضور ${data.data.memberName}`,
           memberName: data.data.memberName,
+          kind: 'member',
+          code: data.data.memberCode,
           type: data.data.flagged ? 'warning' : 'success'
         });
         if (activeTab === 'today') {
@@ -411,6 +429,65 @@ export default function AttendancePage() {
     }
 
     setTimeout(() => setLastScan(null), 5000);
+  };
+
+  const handleStaffPunch = async (staffCode: string) => {
+    if (!selectedBranch) {
+      setLastScan({ success: false, message: 'الرجاء اختيار الفرع أولاً', kind: 'staff', type: 'error' });
+      return;
+    }
+
+    if (!isOnline) {
+      setLastScan({ success: false, message: 'ختم الموظفين محتاج إنترنت — اربط الجهاز بالشبكة الأول', kind: 'staff', code: staffCode, type: 'error' });
+      return;
+    }
+
+    const method = scanMode === 'barcode' ? 'BARCODE' : 'QR_CODE';
+
+    try {
+      let res = await fetch('/api/staff/checkin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ staffCode, branchId: selectedBranch, method })
+      });
+      let data = await res.json();
+
+      // The same card scanned again closes the open shift — like a fingerprint machine
+      if (res.status === 409 && data.data?.id) {
+        res = await fetch(`/api/staff/${data.data.id}/checkout`, {
+          method: 'POST',
+          credentials: 'include'
+        });
+        data = await res.json();
+      }
+
+      if (data.success) {
+        const rec = data.data || {};
+        setScanCount(prev => prev + 1);
+        setLastScan({
+          success: true,
+          message: data.message,
+          memberName: rec.staffName,
+          kind: 'staff',
+          code: rec.staffCode,
+          type: 'success'
+        });
+      } else {
+        setLastScan({
+          success: false,
+          message: data.message || 'حدث خطأ في تسجيل الوردية',
+          kind: 'staff',
+          code: staffCode,
+          type: 'error'
+        });
+      }
+    } catch (error) {
+      console.error('Error recording staff shift:', error);
+      setLastScan({ success: false, message: 'حدث خطأ في تسجيل الوردية', kind: 'staff', code: staffCode, type: 'error' });
+    }
+
+    setTimeout(() => setLastScan(null), 6000);
   };
 
   const handleOfflineCheckin = async (memberCode: string) => {
@@ -457,8 +534,14 @@ export default function AttendancePage() {
 
   const handleManualCheckin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!manualCode.trim()) return;
-    await handleCheckin(manualCode.trim());
+    const code = manualCode.trim();
+    if (!code) return;
+
+    if (isStaffCode(code)) {
+      await handleStaffPunch(code.toUpperCase());
+    } else {
+      await handleCheckin(code);
+    }
     setManualCode('');
   };
 
@@ -741,7 +824,7 @@ export default function AttendancePage() {
                 <div className="flex items-center gap-2 mb-3">
                   <SearchIcon className="w-3.5 h-3.5 text-gray-500" />
                   <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                    أو أدخل كود العضو يدوياً
+                    أو أدخل كود العضو / الموظف يدوياً
                   </label>
                 </div>
                 <form onSubmit={handleManualCheckin} className="flex gap-2">
@@ -796,11 +879,16 @@ export default function AttendancePage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     {lastScan.memberName && (
-                      <p className={`text-sm font-bold truncate ${
+                      <p className={`text-sm font-bold truncate flex items-center gap-2 ${
                         lastScan.type === 'success' ? 'text-emerald-300' :
                         lastScan.type === 'warning' ? 'text-amber-300' : 'text-rose-300'
                       }`}>
                         {lastScan.memberName}
+                        {lastScan.kind === 'staff' && (
+                          <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-gray-300">
+                            وردية موظف{lastScan.code ? ` · ${lastScan.code}` : ''}
+                          </span>
+                        )}
                       </p>
                     )}
                     <p className={`text-sm mt-0.5 ${

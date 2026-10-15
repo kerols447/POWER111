@@ -17,6 +17,7 @@ const allMenuItems: SidebarItem[] = [
   { label: 'الأعضاء', path: '/admin/members', icon: '', permission: 'VIEW_MEMBERS' },
   { label: 'الاشتراكات', path: '/admin/subscriptions', icon: '📋', permission: 'VIEW_SUBSCRIPTIONS' },
   { label: 'الحضور', path: '/admin/attendance', icon: '✅', permission: 'VIEW_ATTENDANCE' },
+  { label: 'الموظفين', path: '/admin/staff', icon: '💼', permission: 'VIEW_ATTENDANCE' },
   { label: 'المنتجات', path: '/admin/products', icon: '📦', permission: 'VIEW_PRODUCTS' },
   { label: 'المبيعات', path: '/admin/sales', icon: '💰', permission: 'VIEW_SALES' },
   { label: 'المصروفات', path: '/admin/expenses', icon: '💸', permission: 'VIEW_EXPENSES' },

@@ -20,6 +20,7 @@ import expenseRoutes from './routes/expenses.js';
 import reportRoutes from './routes/reports.js';
 import settingsRoutes from './routes/settings.js';
 import userRoutes from './routes/users.js';
+import staffRoutes from './routes/staff.js';
 import portalRoutes from './routes/portal.js';
 import publicRoutes from './routes/public.js';
 import syncRoutes from './routes/sync.js';
@@ -125,6 +126,7 @@ app.use('/api/offers', offerRoutes);
 app.use('/api/exports', exportRoutes);
 app.use('/api/backup', backupRoutes);
 app.use('/api/imports', importRoutes);
+app.use('/api/staff', staffRoutes);
 
 // Serve uploaded files
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));

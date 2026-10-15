@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { prisma } from '../index.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { initializeUserPermissions, ROLE_PERMISSIONS } from '../utils/permissions.js';
+import { assignStaffCode, isStaffCode } from './staff.js';
 
 const router = Router();
 
@@ -22,6 +23,7 @@ const updateUserSchema = z.object({
   name: z.string().min(1, 'Name is required').optional(),
   role: z.enum(['OWNER', 'BRANCH_MANAGER', 'RECEPTIONIST', 'ACCOUNTANT', 'TRAINER', 'CONTENT_MANAGER']).optional(),
   phone: z.string().optional(),
+  staffCode: z.string().trim().min(1).optional(),
   isActive: z.boolean().optional(),
   branchIds: z.array(z.string()).optional()
 });
@@ -36,6 +38,7 @@ router.get('/', requireAuth, requireRole('OWNER'), async (req: Request, res: Res
         name: true,
         role: true,
         phone: true,
+        staffCode: true,
         isActive: true,
         createdAt: true,
         branchAccess: {
@@ -91,6 +94,7 @@ router.get('/:id', requireAuth, requireRole('OWNER'), async (req: Request, res: 
         name: true,
         role: true,
         phone: true,
+        staffCode: true,
         isActive: true,
         createdAt: true,
         branchAccess: {
@@ -137,6 +141,9 @@ router.post('/', requireAuth, requireRole('OWNER'), async (req: Request, res: Re
     // Hash password
     const passwordHash = await bcrypt.hash(data.password, 10);
 
+    // Every employee/trainer account gets a scannable card code for its shift card
+    const staffCode = data.role === 'OWNER' ? null : await assignStaffCode();
+
     // Create user
     const user = await prisma.user.create({
       data: {
@@ -144,7 +151,8 @@ router.post('/', requireAuth, requireRole('OWNER'), async (req: Request, res: Re
         passwordHash,
         name: data.name,
         role: data.role,
-        phone: data.phone
+        phone: data.phone,
+        staffCode
       },
       select: {
         id: true,
@@ -152,6 +160,7 @@ router.post('/', requireAuth, requireRole('OWNER'), async (req: Request, res: Re
         name: true,
         role: true,
         phone: true,
+        staffCode: true,
         isActive: true,
         createdAt: true
       }
@@ -179,6 +188,7 @@ router.post('/', requireAuth, requireRole('OWNER'), async (req: Request, res: Re
         name: true,
         role: true,
         phone: true,
+        staffCode: true,
         isActive: true,
         createdAt: true,
         branchAccess: {
@@ -236,6 +246,29 @@ router.put('/:id', requireAuth, requireRole('OWNER'), async (req: Request, res: 
     if (data.role) updateData.role = data.role;
     if (data.phone !== undefined) updateData.phone = data.phone;
     if (data.isActive !== undefined) updateData.isActive = data.isActive;
+    if (data.staffCode !== undefined && data.staffCode.trim()) {
+      const code = data.staffCode.trim().toUpperCase();
+      if (!isStaffCode(code)) {
+        return res.status(400).json({ error: 'Invalid code', message: 'كود الكارت لازم يكون S ومتبوع بأرقام، مثلاً S01' });
+      }
+      const taken = await prisma.user.findFirst({
+        where: { staffCode: code, id: { not: id } },
+        select: { id: true }
+      });
+      if (taken) {
+        return res.status(400).json({ error: 'كود الموظف مستخدم بالفعل', message: `الكود ${code} مربوط بحساب تاني` });
+      }
+      if ((updateData.role || existing.role) === 'OWNER') {
+        return res.status(400).json({ error: 'Invalid code', message: 'حساب المالك ملهوش كارت وردية' });
+      }
+      updateData.staffCode = code;
+    }
+    // Only employees and trainers carry a shift card — an owner account never punches in
+    if (updateData.role === 'OWNER') updateData.staffCode = null;
+    // An account that turns into staff needs a card code
+    if (updateData.role && updateData.role !== 'OWNER' && !existing.staffCode && !updateData.staffCode) {
+      updateData.staffCode = await assignStaffCode();
+    }
     if (data.password) {
       updateData.passwordHash = await bcrypt.hash(data.password, 10);
     }
@@ -278,6 +311,7 @@ router.put('/:id', requireAuth, requireRole('OWNER'), async (req: Request, res: 
         name: true,
         role: true,
         phone: true,
+        staffCode: true,
         isActive: true,
         createdAt: true,
         branchAccess: {
@@ -374,6 +408,7 @@ router.put('/:id/permissions', requireAuth, requireRole('OWNER'), async (req: Re
         name: true,
         role: true,
         phone: true,
+        staffCode: true,
         isActive: true,
         permissions: {
           select: {
