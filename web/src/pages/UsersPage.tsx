@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import ConfirmDialog from '../components/ConfirmDialog';
+import NoticeBanner from '../components/NoticeBanner';
 
 interface Branch {
   id: string;
@@ -12,6 +14,7 @@ interface User {
   name: string;
   role: string;
   phone?: string;
+  staffCode?: string | null;
   isActive: boolean;
   createdAt: string;
   branchAccess: {
@@ -158,10 +161,20 @@ function UsersPage() {
     name: '',
     role: 'RECEPTIONIST',
     phone: '',
+    staffCode: '',
     branchIds: [] as string[],
     permissions: [] as string[]
   });
   const [customPermissions, setCustomPermissions] = useState<string[]>([]);
+  const [notice, setNotice] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<User | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(null), 5000);
+    return () => clearTimeout(timer);
+  }, [notice]);
 
   useEffect(() => {
     fetchUsers();
@@ -227,6 +240,11 @@ function UsersPage() {
         branchIds: formData.branchIds
       };
 
+      // Staff card code — left empty on create so the server assigns the next S-number
+      if (formData.role !== 'OWNER' && formData.staffCode.trim()) {
+        payload.staffCode = formData.staffCode.trim();
+      }
+
       if (formData.password) {
         payload.password = formData.password;
       }
@@ -250,15 +268,16 @@ function UsersPage() {
         }
         setShowModal(false);
         setEditingUser(null);
-        setFormData({ email: '', password: '', name: '', role: 'RECEPTIONIST', phone: '', branchIds: [], permissions: [] });
+        setFormData({ email: '', password: '', name: '', role: 'RECEPTIONIST', phone: '', staffCode: '', branchIds: [], permissions: [] });
+        setNotice({ kind: 'ok', text: editingUser ? 'تم تحديث المستخدم' : 'تم إضافة المستخدم وكارت الوردية بتاعه' });
         fetchUsers();
       } else {
         const data = await res.json();
-        alert(data.error || 'حدث خطأ');
+        setNotice({ kind: 'err', text: data.message || data.error || 'حدث خطأ' });
       }
     } catch (error) {
       console.error('Error saving user:', error);
-      alert('حدث خطأ في حفظ البيانات');
+      setNotice({ kind: 'err', text: 'حدث خطأ في حفظ البيانات' });
     }
   };
 
@@ -270,17 +289,18 @@ function UsersPage() {
       name: user.name,
       role: user.role,
       phone: user.phone || '',
+      staffCode: user.staffCode || '',
       branchIds: user.branchAccess.map(ba => ba.branch.id),
       permissions: rolePermissions[user.role] || []
     });
     setShowModal(true);
   };
 
-  const handleDelete = async (user: User) => {
-    if (!confirm(`هل أنت متأكد من حذف المستخدم "${user.name}"؟`)) {
-      return;
-    }
+  const handleDelete = async () => {
+    const user = pendingDelete;
+    if (!user) return;
 
+    setDeleting(true);
     try {
       const res = await fetch(`/api/users/${user.id}`, {
         method: 'DELETE',
@@ -288,14 +308,18 @@ function UsersPage() {
       });
 
       if (res.ok) {
+        setNotice({ kind: 'ok', text: `تم حذف ${user.name}` });
         fetchUsers();
       } else {
         const data = await res.json();
-        alert(data.error || 'حدث خطأ');
+        setNotice({ kind: 'err', text: data.message || data.error || 'حدث خطأ' });
       }
     } catch (error) {
       console.error('Error deleting user:', error);
-      alert('حدث خطأ في حذف المستخدم');
+      setNotice({ kind: 'err', text: 'حدث خطأ في حذف المستخدم' });
+    } finally {
+      setDeleting(false);
+      setPendingDelete(null);
     }
   };
 
@@ -362,13 +386,14 @@ function UsersPage() {
       if (res.ok) {
         setShowPermissionsModal(false);
         setPermissionsUser(null);
+        setNotice({ kind: 'ok', text: 'تم حفظ الصلاحيات' });
         fetchUsers();
       } else {
-        alert('حدث خطأ في حفظ الصلاحيات');
+        setNotice({ kind: 'err', text: 'حدث خطأ في حفظ الصلاحيات' });
       }
     } catch (error) {
       console.error('Error saving permissions:', error);
-      alert('حدث خطأ في حفظ الصلاحيات');
+      setNotice({ kind: 'err', text: 'حدث خطأ في حفظ الصلاحيات' });
     }
   };
 
@@ -400,6 +425,8 @@ function UsersPage() {
 
   return (
     <div className="space-y-6" dir="rtl">
+      {notice && <NoticeBanner kind={notice.kind} text={notice.text} onDismiss={() => setNotice(null)} />}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -416,7 +443,7 @@ function UsersPage() {
         <button
           onClick={() => {
             setEditingUser(null);
-            setFormData({ email: '', password: '', name: '', role: 'RECEPTIONIST', phone: '', branchIds: [], permissions: rolePermissions['RECEPTIONIST'] || [] });
+            setFormData({ email: '', password: '', name: '', role: 'RECEPTIONIST', phone: '', staffCode: '', branchIds: [], permissions: rolePermissions['RECEPTIONIST'] || [] });
             setShowModal(true);
           }}
           className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-xl font-medium transition-all duration-300 shadow-lg shadow-amber-500/20 hover:shadow-xl hover:shadow-amber-500/30 transform hover:-translate-y-0.5"
@@ -513,6 +540,12 @@ function UsersPage() {
                       <div>
                         <p className="text-white font-medium">{user.name}</p>
                         <p className="text-xs text-gray-500 md:hidden">{user.email}</p>
+                        {user.staffCode && (
+                          <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/15 text-xs font-mono text-amber-300">
+                            <span className="text-gray-500">كارت</span>
+                            <span dir="ltr">{user.staffCode}</span>
+                          </span>
+                        )}
                       </div>
                     </div>
                   </td>
@@ -571,7 +604,7 @@ function UsersPage() {
                         <span className="hidden sm:inline">تعديل</span>
                       </button>
                       <button
-                        onClick={() => handleDelete(user)}
+                        onClick={() => setPendingDelete(user)}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-rose-500/10 text-rose-300 rounded-lg border border-rose-500/20 hover:bg-rose-500/20 transition-all duration-200"
                       >
                         <TrashIcon />
@@ -596,6 +629,12 @@ function UsersPage() {
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold text-white truncate">{user.name}</p>
                   <p className="text-xs text-gray-500 font-mono break-all mt-0.5">{user.email}</p>
+                  {user.staffCode && (
+                    <span className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/15 text-xs font-mono text-amber-300">
+                      <span className="text-gray-500">كارت</span>
+                      <span dir="ltr">{user.staffCode}</span>
+                    </span>
+                  )}
                 </div>
                 <span className={`shrink-0 inline-flex px-2.5 py-1 rounded-full text-xs font-medium border ${getRoleBadgeColor(user.role)}`}>
                   {roleLabels[user.role] || user.role}
@@ -644,7 +683,7 @@ function UsersPage() {
                   <span>تعديل</span>
                 </button>
                 <button
-                  onClick={() => handleDelete(user)}
+                  onClick={() => setPendingDelete(user)}
                   className="inline-flex items-center gap-1.5 px-3 py-2 min-h-10 text-xs font-medium bg-rose-500/10 text-rose-300 rounded-lg border border-rose-500/20 active:bg-rose-500/20 transition-all duration-200"
                 >
                   <TrashIcon />
@@ -679,7 +718,7 @@ function UsersPage() {
                   onClick={() => {
                     setShowModal(false);
                     setEditingUser(null);
-                    setFormData({ email: '', password: '', name: '', role: 'RECEPTIONIST', phone: '', branchIds: [], permissions: [] });
+                    setFormData({ email: '', password: '', name: '', role: 'RECEPTIONIST', phone: '', staffCode: '', branchIds: [], permissions: [] });
                   }}
                   className="w-10 h-10 shrink-0 rounded-lg bg-gray-700/50 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
                 >
@@ -748,16 +787,38 @@ function UsersPage() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-2">رقم الهاتف</label>
-                  <input
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-gray-900/50 border border-gray-700/50 rounded-xl text-white font-mono placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
-                    placeholder="01234567890"
-                    dir="ltr"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-2">رقم الهاتف</label>
+                    <input
+                      type="tel"
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      className="w-full px-4 py-2.5 bg-gray-900/50 border border-gray-700/50 rounded-xl text-white font-mono placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
+                      placeholder="01234567890"
+                      dir="ltr"
+                    />
+                  </div>
+
+                  {formData.role !== 'OWNER' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-400 mb-2">كود كارت الوردية</label>
+                      <input
+                        type="text"
+                        value={formData.staffCode}
+                        onChange={(e) => setFormData({ ...formData, staffCode: e.target.value })}
+                        className="w-full px-4 py-2.5 bg-gray-900/50 border border-gray-700/50 rounded-xl text-white font-mono placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
+                        placeholder={editingUser ? '' : 'يتعيّن تلقائياً'}
+                        dir="ltr"
+                        maxLength={8}
+                      />
+                      <p className="mt-1.5 text-xs text-gray-500">
+                        {editingUser
+                          ? 'اكتب رقم الكارت نفسه اللي على البطاقة، مثلاً S01. سيبه فاضي لو عايز يظل زي ما هو.'
+                          : 'سيبه فاضي ياخد أقرب رقم فاضي (S04 مثلاً).'}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -845,7 +906,7 @@ function UsersPage() {
                     onClick={() => {
                       setShowModal(false);
                       setEditingUser(null);
-                      setFormData({ email: '', password: '', name: '', role: 'RECEPTIONIST', phone: '', branchIds: [], permissions: [] });
+                      setFormData({ email: '', password: '', name: '', role: 'RECEPTIONIST', phone: '', staffCode: '', branchIds: [], permissions: [] });
                     }}
                     className="flex-1 px-5 py-2.5 bg-gray-700/50 hover:bg-gray-700 text-white rounded-xl font-medium transition-all duration-200 border border-gray-600/30"
                   >
@@ -950,6 +1011,15 @@ function UsersPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="حذف المستخدم"
+        description={pendingDelete ? `سيتم حذف حساب "${pendingDelete.name}" نهائياً. سجل الحضور بتاعه هيتمسح معاه.` : ''}
+        busy={deleting}
+        onConfirm={handleDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }
