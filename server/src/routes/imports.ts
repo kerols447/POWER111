@@ -3,6 +3,7 @@ import { MemberStatus, SubscriptionStatus } from '@prisma/client';
 import { prisma } from '../index.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { createAuditLog } from './audit.js';
+import { normalizePhone, isValidEgyptianPhone } from 'shared';
 
 const router = Router();
 
@@ -261,6 +262,189 @@ router.post('/members', requireAuth, requireRole('OWNER'), async (req: Request, 
       ? error.message
       : 'فشل الاستيراد — راجع الشيت والفرع';
     res.status(500).json({ error: 'Import failed', message });
+  }
+});
+
+const collapseSpaces = (value: string) => value.replace(/\s+/g, ' ').trim();
+
+interface ContactRow {
+  code: string;
+  name: string;
+  phoneLocal: string;
+  phoneNormalized: string;
+  gender: string | null;
+  status: MemberStatus;
+}
+
+function validateContactRow(row: any): string | null {
+  if (!row || typeof row !== 'object') return 'صف غير صالح';
+  if (typeof row.code !== 'string' || !row.code.trim()) return 'كود فارغ';
+  if (row.code.trim().length > 24) return `كود طويل جدًا: ${row.code}`;
+  if (typeof row.name !== 'string' || !collapseSpaces(row.name)) return `اسم فارغ للكود ${row.code}`;
+  return null;
+}
+
+// POST /api/imports/member-contacts — the owner's numbers sheet: real names and phone
+// numbers for the imported members, plus the people the first pass left out because his
+// sheet also keeps everyone who is not active. Idempotent; never deletes or touches a
+// subscription, and an existing member keeps the status his own dates produce.
+router.post('/member-contacts', requireAuth, requireRole('OWNER'), async (req: Request, res: Response) => {
+  try {
+    const { branchId, rows, dryRun } = req.body ?? {};
+    if (typeof branchId !== 'string' || !branchId) {
+      return res.status(400).json({ error: 'Validation', message: 'محتاج branchId' });
+    }
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return res.status(400).json({ error: 'Validation', message: 'مفيش صفوف' });
+    }
+
+    const branch = await prisma.branch.findUnique({ where: { id: branchId } });
+    if (!branch) return res.status(404).json({ error: 'Not found', message: 'الفرع غير موجود' });
+
+    const wanted: ContactRow[] = [];
+    const skipped: { code: string; name?: string; reason: string }[] = [];
+    const seenCodes = new Set<string>();
+
+    for (const row of rows) {
+      const problem = validateContactRow(row);
+      if (problem) {
+        skipped.push({ code: String(row?.code ?? `#${wanted.length + skipped.length}`), reason: problem });
+        continue;
+      }
+
+      const code = row.code.trim();
+      const name = collapseSpaces(row.name);
+      if (seenCodes.has(code)) {
+        skipped.push({ code, name, reason: 'الكود مكرر في نفس الشيت' });
+        continue;
+      }
+      seenCodes.add(code);
+
+      const phoneLocal = typeof row.phone === 'string' ? row.phone.trim() : '';
+      const phoneNormalized = normalizePhone(phoneLocal || '0');
+      wanted.push({
+        code,
+        name,
+        phoneLocal,
+        phoneNormalized: isValidEgyptianPhone(phoneNormalized) ? phoneNormalized : '',
+        gender: row.gender === 'Male' || row.gender === 'Female' ? row.gender : null,
+        status: row.active === false ? 'INACTIVE' : 'ACTIVE'
+      });
+    }
+
+    const summary = {
+      sheetRows: wanted.length,
+      matched: 0,
+      created: 0,
+      phonesSet: 0,
+      namesFixed: 0,
+      gendersSet: 0,
+      statusConflicts: [] as { code: string; name: string; sheet: string; system: string }[]
+    };
+
+    await prisma.$transaction(async tx => {
+      const members = await tx.member.findMany({ include: { person: true } });
+      const byCode = new Map<string, (typeof members)[number]>(members.map(m => [m.memberCode, m]));
+      // One phone number belongs to one person in this app, so a number already held by
+      // another account — or already claimed earlier in the same sheet — can only be written once.
+      const claimed = new Set(members.map(m => m.person.phoneNormalized));
+
+      for (const row of wanted) {
+        const member = byCode.get(row.code);
+
+        if (!member) {
+          const usable = row.phoneNormalized && !claimed.has(row.phoneNormalized);
+          if (!usable) {
+            skipped.push({
+              code: row.code,
+              name: row.name,
+              reason: row.phoneNormalized ? `الرقم ${row.phoneLocal} مستخدم لعضو تاني` : `رقم غير صحيح في الشيت: ${row.phoneLocal || 'فاضي'}`
+            });
+          }
+
+          const phoneNormalized = usable ? row.phoneNormalized : `pending-${row.code}`;
+          const person = await tx.person.create({
+            data: {
+              name: row.name,
+              phone: usable ? row.phoneLocal : phoneNormalized,
+              phoneNormalized,
+              gender: row.gender
+            }
+          });
+          await tx.member.create({ data: { personId: person.id, branchId, memberCode: row.code, status: row.status } });
+
+          claimed.add(phoneNormalized);
+          summary.created++;
+          continue;
+        }
+
+        summary.matched++;
+        const person = member.person;
+        const personData: any = {};
+
+        if (person.name !== row.name) {
+          personData.name = row.name;
+          summary.namesFixed++;
+        }
+        if (!person.gender && row.gender) {
+          personData.gender = row.gender;
+          summary.gendersSet++;
+        }
+        if (row.phoneNormalized) {
+          if (claimed.has(row.phoneNormalized) && person.phoneNormalized !== row.phoneNormalized) {
+            skipped.push({ code: row.code, name: row.name, reason: `الرقم ${row.phoneLocal} مستخدم لعضو تاني` });
+          } else if (person.phoneNormalized !== row.phoneNormalized) {
+            personData.phone = row.phoneLocal;
+            personData.phoneNormalized = row.phoneNormalized;
+            claimed.add(row.phoneNormalized);
+            summary.phonesSet++;
+          }
+        } else {
+          skipped.push({ code: row.code, name: row.name, reason: `رقم غير صحيح في الشيت: ${row.phoneLocal || 'فاضي'}` });
+        }
+
+        if (Object.keys(personData).length > 0) {
+          await tx.person.update({ where: { id: person.id }, data: personData });
+        }
+
+        const sheetStatus = row.status;
+        if (member.status !== sheetStatus) {
+          summary.statusConflicts.push({
+            code: row.code,
+            name: row.name,
+            sheet: sheetStatus === 'ACTIVE' ? 'نشط' : 'غير نشط',
+            system: member.status
+          });
+        }
+      }
+
+      if (dryRun) {
+        const abort = new DryRunAbort();
+        (abort as any).payload = { dryRun: true, branchName: branch.name, ...summary, skipped };
+        throw abort;
+      }
+    }, { timeout: 120000, maxWait: 10000 });
+
+    const payload = { dryRun: !!dryRun, branchName: branch.name, ...summary, skipped };
+
+    if (!dryRun) {
+      await createAuditLog(
+        (req.session as any).user.id,
+        'IMPORT_MEMBER_CONTACTS',
+        'Member',
+        undefined,
+        branchId,
+        { action: 'contacts-imported', summary, skippedCount: skipped.length }
+      );
+    }
+
+    res.json({ success: true, data: payload });
+  } catch (error) {
+    if (error instanceof DryRunAbort) {
+      return res.json({ success: true, data: { ...(error as any).payload, dryRun: true } });
+    }
+    console.error('Member contacts import failed:', error);
+    res.status(500).json({ error: 'Import failed', message: 'فشل استيراد الأرقام — راجع الشيت والفرع' });
   }
 });
 
