@@ -12,6 +12,7 @@ const router = Router();
 const createMemberSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
   phone: z.string().min(10, 'Phone is required'),
+  memberCode: z.string().max(24, 'الكود أطول من 24 حرف').optional().or(z.literal('')),
   email: z.string().email().optional().or(z.literal('')),
   gender: z.enum(['Male', 'Female']).optional(),
   dateOfBirth: z.string().optional(),
@@ -25,6 +26,7 @@ const createMemberSchema = z.object({
 const updateMemberSchema = z.object({
   name: z.string().min(2).optional(),
   phone: z.string().min(10).optional(),
+  memberCode: z.string().max(24, 'الكود أطول من 24 حرف').optional().or(z.literal('')),
   email: z.string().email().optional().or(z.literal('')),
   gender: z.enum(['Male', 'Female']).optional(),
   dateOfBirth: z.string().optional(),
@@ -34,6 +36,25 @@ const updateMemberSchema = z.object({
   notes: z.string().optional(),
   status: z.enum(['ACTIVE', 'EXPIRED', 'SUSPENDED', 'FROZEN', 'INACTIVE']).optional()
 });
+
+// Codes he types himself are the old system's numbers; auto-generated ones stay 8 chars
+async function resolveMemberCode(
+  raw: string | undefined,
+  exceptMemberId?: string
+): Promise<{ code?: string; error?: string }> {
+  const code = (raw || '').trim().toUpperCase();
+  if (!code) return { code: await generateUniqueCode() };
+
+  if (/\s/.test(code)) return { error: 'الكود لازم يكون من غير مسافات' };
+
+  const clash = await prisma.member.findFirst({
+    where: { memberCode: code, ...(exceptMemberId ? { id: { not: exceptMemberId } } : {}) },
+    include: { person: { select: { name: true } } }
+  });
+  if (clash) return { error: `الكود ${code} مستخدم بالفعل للعضو ${clash.person.name}` };
+
+  return { code };
+}
 
 // GET /api/members - List members with search and filters
 router.get('/', requireAuth, requirePermission('VIEW_MEMBERS'), async (req: Request, res: Response) => {
@@ -87,7 +108,11 @@ router.get('/', requireAuth, requirePermission('VIEW_MEMBERS'), async (req: Requ
       ];
     }
 
-    const [members, total] = await Promise.all([
+    // Status filter applies to the list only; the summary cards need the whole
+    // branch/search result, so count them from the same filters without status.
+    const { status: _ignoredStatus, ...whereForCounts } = where;
+
+    const [members, total, grouped] = await Promise.all([
       prisma.member.findMany({
         where,
         include: {
@@ -118,12 +143,29 @@ router.get('/', requireAuth, requirePermission('VIEW_MEMBERS'), async (req: Requ
         skip: (Number(page) - 1) * Number(pageSize),
         take: Number(pageSize)
       }),
-      prisma.member.count({ where })
+      prisma.member.count({ where }),
+      prisma.member.groupBy({
+        by: ['status'],
+        where: whereForCounts,
+        _count: { _all: true }
+      })
     ]);
+
+    const statusCounts: Record<string, number> = {
+      ACTIVE: 0,
+      EXPIRED: 0,
+      SUSPENDED: 0,
+      FROZEN: 0,
+      INACTIVE: 0
+    };
+    grouped.forEach(g => {
+      statusCounts[g.status] = g._count._all;
+    });
 
     res.json({
       success: true,
       data: members,
+      statusCounts,
       pagination: {
         page: Number(page),
         pageSize: Number(pageSize),
@@ -220,6 +262,12 @@ router.post('/', requireAuth, requirePermission('CREATE_MEMBERS'), async (req: R
       });
     }
 
+    const resolvedCode = await resolveMemberCode(data.memberCode);
+    if (resolvedCode.error) {
+      return res.status(409).json({ error: 'Duplicate', message: resolvedCode.error });
+    }
+    const memberCode = resolvedCode.code as string;
+
     // Check for duplicate phone (across all persons)
     const existingPerson = await prisma.person.findUnique({
       where: { phoneNormalized: normalizedPhone }
@@ -243,7 +291,6 @@ router.post('/', requireAuth, requirePermission('CREATE_MEMBERS'), async (req: R
       }
 
       // Same person, different branch - allow but flag
-      const memberCode = await generateUniqueCode();
       const member = await prisma.member.create({
         data: {
           personId: existingPerson.id,
@@ -270,8 +317,6 @@ router.post('/', requireAuth, requirePermission('CREATE_MEMBERS'), async (req: R
     }
 
     // New person
-    const memberCode = await generateUniqueCode();
-
     const person = await prisma.person.create({
       data: {
         name: data.name,
@@ -365,6 +410,17 @@ router.patch('/:id', requireAuth, requirePermission('EDIT_MEMBERS'), async (req:
             message: 'رقم الهاتف غير صحيح'
           });
         }
+        // The phone is the portal login key, so one number can belong to only one person
+        const holder = await prisma.person.findUnique({
+          where: { phoneNormalized: normalizedPhone },
+          select: { id: true, name: true }
+        });
+        if (holder && holder.id !== member.personId) {
+          return res.status(409).json({
+            error: 'Duplicate',
+            message: `الرقم ده مسجل بالفعل للعضو ${holder.name}`
+          });
+        }
         personUpdates.phone = data.phone;
         personUpdates.phoneNormalized = normalizedPhone;
       }
@@ -382,6 +438,16 @@ router.patch('/:id', requireAuth, requirePermission('EDIT_MEMBERS'), async (req:
     // Update member status
     if (data.status) {
       updates.status = data.status;
+    }
+
+    // He reuses the old system's codes and sometimes needs to fix one
+    const wantedCode = (data.memberCode || '').trim();
+    if (wantedCode && wantedCode.toUpperCase() !== member.memberCode) {
+      const resolvedCode = await resolveMemberCode(wantedCode, id);
+      if (resolvedCode.error) {
+        return res.status(409).json({ error: 'Duplicate', message: resolvedCode.error });
+      }
+      updates.memberCode = resolvedCode.code;
     }
 
     const updatedMember = await prisma.member.update({

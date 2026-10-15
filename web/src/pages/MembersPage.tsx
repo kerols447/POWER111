@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { addPendingOperation } from '../utils/offlineDb';
-import { whatsappLink } from '../utils/whatsapp';
+import { whatsappLink, displayPhone } from '../utils/whatsapp';
 import { downloadWorkbook } from '../utils/downloadWorkbook';
 import ConfirmDialog from '../components/ConfirmDialog';
 import NoticeBanner from '../components/NoticeBanner';
+import MemberFormModal, { MemberFormValues } from '../components/MemberFormModal';
 
 interface Member {
   id: string;
@@ -55,17 +56,11 @@ function MembersPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [statusCounts, setStatusCounts] = useState<Record<string, number> | null>(null);
   const [showModal, setShowModal] = useState(false);
-  const [formData, setFormData] = useState({
-    name: '',
-    phone: '',
-    email: '',
-    gender: 'Male',
-    branchId: ''
-  });
+  const [editing, setEditing] = useState<Member | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [exporting, setExporting] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -104,6 +99,7 @@ function MembersPage() {
       if (data.success) {
         setMembers(data.data);
         setTotalPages(data.pagination.totalPages);
+        setStatusCounts(data.statusCounts || null);
       }
     } catch (err) {
       console.error('Error fetching members:', err);
@@ -199,27 +195,71 @@ function MembersPage() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleEdit = (member: Member) => {
     setError('');
-    setSuccess('');
+    setEditing(member);
+    setShowModal(true);
+  };
+
+  const handleSubmit = async (values: MemberFormValues) => {
+    setError('');
     setSubmitting(true);
 
-    const branchId = singleBranchUser && user?.branches?.[0] ? user.branches[0].id : formData.branchId;
+    const branchId = singleBranchUser && user?.branches?.[0] ? user.branches[0].id : values.branchId;
+
+    if (editing) {
+      if (!isOnline) {
+        setError('تعديل بيانات العض محتاج إنترنت');
+        setSubmitting(false);
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/members/${editing.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            name: values.name,
+            phone: values.phone,
+            email: values.email,
+            gender: values.gender,
+            status: values.status,
+            memberCode: values.memberCode
+          })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          setError(data.message || 'حدث خطأ في تعديل العضو');
+          return;
+        }
+
+        setShowModal(false);
+        setEditing(null);
+        fetchMembers();
+        setNotice({ kind: 'ok', text: `تم تحديث بيانات "${values.name}"` });
+      } catch {
+        setError('حدث خطأ في الاتصال بالخادم');
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
 
     if (!isOnline) {
       try {
         await addPendingOperation({
           id: generateOperationId(),
           type: 'NEW_MEMBER',
-          payload: { name: formData.name, phone: formData.phone, email: formData.email || undefined, gender: formData.gender, branchId },
+          payload: { name: values.name, phone: values.phone, email: values.email || undefined, gender: values.gender, branchId },
           timestamp: Date.now(),
           branchId,
           userId: user!.id
         });
         setNotice({ kind: 'ok', text: 'تم حفظ العضو محلياً — سيتم التزامن عند عودة الاتصال' });
         setShowModal(false);
-        setFormData({ name: '', phone: '', email: '', gender: 'Male', branchId: '' });
         fetchMembers();
       } catch {
         setError('حدث خطأ في الحفظ المحلي');
@@ -234,7 +274,14 @@ function MembersPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          name: values.name,
+          phone: values.phone,
+          email: values.email,
+          gender: values.gender,
+          memberCode: values.memberCode,
+          branchId
+        })
       });
 
       const data = await res.json();
@@ -246,26 +293,24 @@ function MembersPage() {
 
       const newMemberId = data.data?.id;
       setShowModal(false);
-      setFormData({ name: '', phone: '', email: '', gender: 'Male', branchId: '' });
       fetchMembers();
 
       if (newMemberId) {
         navigate(`/admin/members/${newMemberId}`);
       } else {
-        setSuccess(data.warning || 'تم إنشاء العضو بنجاح');
+        setNotice({ kind: 'ok', text: data.warning || 'تم إنشاء العضو بنجاح' });
       }
     } catch (err) {
       try {
         await addPendingOperation({
           id: generateOperationId(),
           type: 'NEW_MEMBER',
-          payload: { name: formData.name, phone: formData.phone, email: formData.email || undefined, gender: formData.gender, branchId },
+          payload: { name: values.name, phone: values.phone, email: values.email || undefined, gender: values.gender, branchId },
           timestamp: Date.now(),
           branchId,
           userId: user!.id
         });
         setShowModal(false);
-        setFormData({ name: '', phone: '', email: '', gender: 'Male', branchId: '' });
         setNotice({ kind: 'ok', text: 'تم حفظ العضو محلياً — سيتم التزامن عند عودة الاتصال' });
         fetchMembers();
       } catch {
@@ -312,6 +357,25 @@ function MembersPage() {
       </span>
     );
   };
+
+  // The cards describe the whole filtered result across every page, not the 20 rows shown.
+  const cardCounts = statusCounts
+    ? {
+        total: Object.values(statusCounts).reduce((sum, n) => sum + n, 0),
+        active: statusCounts.ACTIVE || 0,
+        expired: statusCounts.EXPIRED || 0,
+        paused: (statusCounts.SUSPENDED || 0) + (statusCounts.FROZEN || 0)
+      }
+    : {
+        total: members.length,
+        active: members.filter(m => m.status === 'ACTIVE').length,
+        expired: members.filter(m => m.status === 'EXPIRED').length,
+        paused: members.filter(m => m.status === 'SUSPENDED' || m.status === 'FROZEN').length
+      };
+
+  const scopeLabel = search
+    ? 'نتيجة البحث'
+    : (branchFilter ? (branches.find(b => b.id === branchFilter)?.name || 'الفرع المحدد') : 'كل الفروع');
 
   if (loading) {
     return (
@@ -371,8 +435,7 @@ function MembersPage() {
           <button
             onClick={() => {
               setError('');
-              setSuccess('');
-              setFormData({ name: '', phone: '', email: '', gender: 'Male', branchId: singleBranchUser && user?.branches?.[0] ? user.branches[0].id : '' });
+              setEditing(null);
               setShowModal(true);
             }}
             className="relative overflow-hidden inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-amber-600 hover:from-amber-600 hover:to-primary text-white rounded-xl font-semibold text-sm transition-all shadow-lg shadow-primary/20 hover:shadow-primary/30 group"
@@ -399,10 +462,10 @@ function MembersPage() {
               </div>
               <span className="text-xs text-primary/70 font-medium">إجمالي الأعضاء</span>
             </div>
-            <p className="text-xl sm:text-2xl font-black text-primary tracking-tight">{members.length}</p>
+            <p className="text-xl sm:text-2xl font-black text-primary tracking-tight">{cardCounts.total}</p>
             <div className="mt-2 flex items-center gap-1">
               <div className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
-              <span className="text-[10px] text-primary/50">في هذه الصفحة</span>
+              <span className="text-[10px] text-primary/50 truncate min-w-0">{scopeLabel}</span>
             </div>
           </div>
         </div>
@@ -419,7 +482,7 @@ function MembersPage() {
               <span className="text-xs text-emerald-400/70 font-medium">نشط</span>
             </div>
             <p className="text-xl sm:text-2xl font-black text-emerald-400 tracking-tight">
-              {members.filter(m => m.status === 'ACTIVE').length}
+              {cardCounts.active}
             </p>
             <div className="mt-2 flex items-center gap-1">
               <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
@@ -440,7 +503,7 @@ function MembersPage() {
               <span className="text-xs text-rose-400/70 font-medium">منتهي</span>
             </div>
             <p className="text-xl sm:text-2xl font-black text-rose-400 tracking-tight">
-              {members.filter(m => m.status === 'EXPIRED').length}
+              {cardCounts.expired}
             </p>
             <div className="mt-2 flex items-center gap-1">
               <div className="w-1.5 h-1.5 bg-rose-400 rounded-full animate-pulse" />
@@ -461,7 +524,7 @@ function MembersPage() {
               <span className="text-xs text-amber-400/70 font-medium">موقوف / مجمد</span>
             </div>
             <p className="text-xl sm:text-2xl font-black text-amber-400 tracking-tight">
-              {members.filter(m => m.status === 'SUSPENDED' || m.status === 'FROZEN').length}
+              {cardCounts.paused}
             </p>
             <div className="mt-2 flex items-center gap-1">
               <div className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse" />
@@ -644,7 +707,7 @@ function MembersPage() {
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-2">
-                          <span className="text-sm text-gray-300 font-mono">{member.person.phone}</span>
+                          <span className="text-sm text-gray-300 font-mono">{displayPhone(member.person.phone)}</span>
                           {whatsappLink(member.person.phone) && (
                             <a
                               href={whatsappLink(member.person.phone) as string}
@@ -676,6 +739,21 @@ function MembersPage() {
                         </span>
                       </td>
                       <td className="px-5 py-4">
+                        <div className="flex items-center gap-2">
+                        {hasPermission('EDIT_MEMBERS') && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEdit(member);
+                            }}
+                            className="inline-flex items-center gap-1.5 px-3 py-2 min-h-10 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-medium rounded-lg border border-primary/20 hover:border-primary/40 transition-all"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" />
+                            </svg>
+                            تعديل
+                          </button>
+                        )}
                         {hasPermission('DELETE_MEMBERS') && (
                           <button
                             onClick={(e) => {
@@ -690,6 +768,7 @@ function MembersPage() {
                             حذف
                           </button>
                         )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -715,7 +794,7 @@ function MembersPage() {
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-white truncate">{member.person.name}</p>
                         <div className="flex items-center gap-1.5 mt-0.5">
-                          <p className="text-xs text-gray-500 font-mono">{member.person.phone}</p>
+                          <p className="text-xs text-gray-500 font-mono">{displayPhone(member.person.phone)}</p>
                           {whatsappLink(member.person.phone) && (
                             <a
                               href={whatsappLink(member.person.phone) as string}
@@ -751,6 +830,21 @@ function MembersPage() {
                         {new Date(member.createdAt).toLocaleDateString('ar-EG')}
                       </span>
                     </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                    {hasPermission('EDIT_MEMBERS') && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEdit(member);
+                        }}
+                        className="inline-flex items-center gap-1 px-3 py-2 min-h-10 bg-primary/10 text-primary text-xs font-medium rounded-lg border border-primary/20"
+                      >
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" />
+                        </svg>
+                        تعديل
+                      </button>
+                    )}
                     {hasPermission('DELETE_MEMBERS') && (
                       <button
                         onClick={(e) => {
@@ -765,6 +859,7 @@ function MembersPage() {
                         حذف
                       </button>
                     )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -806,226 +901,30 @@ function MembersPage() {
 
       {/* Add Member Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="relative overflow-hidden bg-dark-card border border-dark-border rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl shadow-black/50">
-            {/* Modal Header Gradient */}
-            <div className="relative bg-gradient-to-br from-primary/10 via-dark-card to-dark-card p-5 sm:p-6 border-b border-dark-border">
-              <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-primary/60 via-primary/20 to-transparent" />
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-primary/20 to-primary/5 rounded-xl flex items-center justify-center border border-primary/10">
-                    <svg className="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7.5v3m0 0v3m0-3h3m-3 0h-3M2.25 9.75h19.5a2.25 2.25 0 012.25 2.25v6a2.25 2.25 0 01-2.25 2.25H2.25A2.25 2.25 0 010 18v-6a2.25 2.25 0 012.25-2.25z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-white">إضافة عضو جديد</h2>
-                    <p className="text-xs text-gray-500 mt-0.5">أدخل بيانات العضو أدناه</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShowModal(false)}
-                  className="w-10 h-10 shrink-0 flex items-center justify-center rounded-lg bg-dark border border-dark-border text-gray-400 hover:text-white hover:border-gray-500 transition-colors"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            <div className="p-5 sm:p-6">
-              {error && (
-                <div className="mb-5 flex items-center gap-3 p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-xl">
-                  <div className="w-8 h-8 bg-rose-500/15 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <svg className="w-4 h-4 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-                    </svg>
-                  </div>
-                  <p className="text-sm text-rose-400 font-medium">{error}</p>
-                </div>
-              )}
-
-              {success && (
-                <div className="mb-5 flex items-center gap-3 p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl">
-                  <div className="w-8 h-8 bg-emerald-500/15 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <p className="text-sm text-emerald-400 font-medium">{success}</p>
-                </div>
-              )}
-
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Name */}
-                <div>
-                  <label className="flex items-center gap-2 text-sm font-medium text-gray-300 mb-2">
-                    <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                    </svg>
-                    الاسم <span className="text-primary">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white text-sm focus:outline-none focus:border-primary/60 transition-colors placeholder:text-gray-600"
-                    placeholder="أدخل اسم العضو"
-                  />
-                </div>
-
-                {/* Phone */}
-                <div>
-                  <label className="flex items-center gap-2 text-sm font-medium text-gray-300 mb-2">
-                    <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
-                    </svg>
-                    الهاتف <span className="text-primary">*</span>
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="tel"
-                      required
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      placeholder="01xxxxxxxxx"
-                      className="flex-1 min-w-0 px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white text-sm focus:outline-none focus:border-primary/60 transition-colors placeholder:text-gray-600 font-mono"
-                      dir="ltr"
-                    />
-                    {(() => {
-                      const link = whatsappLink(formData.phone);
-                      return link ? (
-                        <a
-                          href={link}
-                          target="_blank"
-                          rel="noreferrer"
-                          title="فتح محادثة واتساب"
-                          className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 transition-all text-xs font-medium flex-shrink-0"
-                        >
-                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M12.04 2a9.9 9.9 0 0 0-8.51 14.94L2 22l5.2-1.49A9.9 9.9 0 1 0 12.04 2z" />
-                          </svg>
-                          واتساب
-                        </a>
-                      ) : null;
-                    })()}
-                  </div>
-                </div>
-
-                {/* Email */}
-                <div>
-                  <label className="flex items-center gap-2 text-sm font-medium text-gray-300 mb-2">
-                    <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
-                    </svg>
-                    البريد الإلكتروني
-                  </label>
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white text-sm focus:outline-none focus:border-primary/60 transition-colors placeholder:text-gray-600"
-                    placeholder="example@email.com"
-                    dir="ltr"
-                  />
-                </div>
-
-                {/* Gender */}
-                <div>
-                  <label className="flex items-center gap-2 text-sm font-medium text-gray-300 mb-2">
-                    <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0" />
-                    </svg>
-                    النوع
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setFormData({ ...formData, gender: 'Male' })}
-                      className={`py-2.5 rounded-xl text-sm font-medium border transition-all ${
-                        formData.gender === 'Male'
-                          ? 'bg-primary/10 border-primary/40 text-primary'
-                          : 'bg-dark border-dark-border text-gray-400 hover:border-gray-500'
-                      }`}
-                    >
-                      ذكر
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFormData({ ...formData, gender: 'Female' })}
-                      className={`py-2.5 rounded-xl text-sm font-medium border transition-all ${
-                        formData.gender === 'Female'
-                          ? 'bg-primary/10 border-primary/40 text-primary'
-                          : 'bg-dark border-dark-border text-gray-400 hover:border-gray-500'
-                      }`}
-                    >
-                      أنثى
-                    </button>
-                  </div>
-                </div>
-
-                {/* Branch */}
-                <div>
-                  <label className="flex items-center gap-2 text-sm font-medium text-gray-300 mb-2">
-                    <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3H21m-3.75 3H21" />
-                    </svg>
-                    الفرع <span className="text-primary">*</span>
-                  </label>
-                  {singleBranchUser ? (
-                    <div className="w-full px-4 py-2.5 bg-dark/50 border border-dark-border rounded-xl text-gray-400 text-sm flex items-center gap-2">
-                      <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      {user?.branches?.[0]?.name}
-                    </div>
-                  ) : (
-                    <select
-                      required
-                      value={formData.branchId}
-                      onChange={(e) => setFormData({ ...formData, branchId: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white text-sm focus:outline-none focus:border-primary/60 transition-colors appearance-none"
-                    >
-                      <option value="">اختر الفرع</option>
-                      {branches.map(b => (
-                        <option key={b.id} value={b.id}>{b.name}</option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-
-                {/* Actions */}
-                <div className="flex gap-3 pt-4 border-t border-dark-border">
-                  <button
-                    type="button"
-                    onClick={() => setShowModal(false)}
-                    className="flex-1 py-2.5 bg-dark border border-dark-border text-white rounded-xl text-sm font-medium hover:bg-white/[0.03] hover:border-gray-600 transition-all"
-                  >
-                    إلغاء
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={submitting}
-                    className={`flex-1 py-2.5 text-white rounded-xl text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg ${
-                      !isOnline
-                        ? 'bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-600 shadow-amber-900/20'
-                        : 'bg-gradient-to-r from-primary to-amber-600 hover:from-amber-600 hover:to-primary shadow-primary/20'
-                    }`}
-                  >
-                    {submitting ? (
-                      <span className="inline-flex items-center gap-2">
-                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        جاري الحفظ...
-                      </span>
-                    ) : !isOnline ? 'حفظ محلياً' : 'حفظ'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
+        <MemberFormModal
+          key={editing ? editing.id : 'new'}
+          mode={editing ? 'edit' : 'create'}
+          initial={
+            editing
+              ? {
+                  name: editing.person.name,
+                  phone: editing.person.phone.startsWith('pending-') ? '' : editing.person.phone,
+                  memberCode: editing.memberCode,
+                  email: editing.person.email || '',
+                  gender: editing.person.gender === 'Female' ? 'Female' : 'Male',
+                  branchId: editing.branch.id,
+                  status: editing.status
+                }
+              : { branchId: singleBranchUser && user?.branches?.[0] ? user.branches[0].id : '' }
+          }
+          branches={branches}
+          lockedBranchName={editing ? editing.branch.name : singleBranchUser ? user?.branches?.[0]?.name || null : null}
+          submitting={submitting}
+          offline={!isOnline}
+          error={error}
+          onClose={() => { setShowModal(false); setEditing(null); setError(''); }}
+          onSubmit={handleSubmit}
+        />
       )}
 
       <ConfirmDialog

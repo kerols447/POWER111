@@ -4,9 +4,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { addPendingOperation } from '../utils/offlineDb';
 import JsBarcode from 'jsbarcode';
-import { whatsappLink } from '../utils/whatsapp';
+import { whatsappLink, displayPhone } from '../utils/whatsapp';
 import ConfirmDialog from '../components/ConfirmDialog';
 import NoticeBanner from '../components/NoticeBanner';
+import MemberFormModal, { MemberFormValues } from '../components/MemberFormModal';
 
 interface Member {
   id: string;
@@ -63,6 +64,9 @@ function MemberDetailPage() {
   const [qrImage, setQrImage] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+  const [editError, setEditError] = useState('');
+  const [editSubmitting, setEditSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [notice, setNotice] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const [activeTab, setActiveTab] = useState<'info' | 'subscriptions' | 'attendance'>('info');
@@ -119,6 +123,48 @@ function MemberDetailPage() {
       }
     } catch (err) {
       console.error('Error fetching QR:', err);
+    }
+  };
+
+  const handleMemberEdit = async (values: MemberFormValues) => {
+    if (!member) return;
+    if (!isOnline) {
+      setEditError('تعديل بيانات العض محتاج إنترنت');
+      return;
+    }
+
+    setEditSubmitting(true);
+    setEditError('');
+    try {
+      const res = await fetch(`/api/members/${member.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: values.name,
+          phone: values.phone,
+          email: values.email,
+          gender: values.gender,
+          status: values.status,
+          memberCode: values.memberCode
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setEditError(data.message || 'حدث خطأ في تعديل العضو');
+        return;
+      }
+
+      setShowEdit(false);
+      setNotice({ kind: 'ok', text: `تم تحديث بيانات "${values.name}"` });
+      fetchMember();
+      fetchQR();
+    } catch {
+      setEditError('حدث خطأ في الاتصال بالخادم');
+    } finally {
+      setEditSubmitting(false);
     }
   };
 
@@ -249,6 +295,17 @@ function MemberDetailPage() {
         </div>
         <div className="flex items-center gap-3">
           {getStatusBadge(member.status)}
+          {hasPermission('EDIT_MEMBERS') && (
+            <button
+              onClick={() => {
+                setEditError('');
+                setShowEdit(true);
+              }}
+              className="px-4 py-2.5 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/30 text-sm rounded-lg transition-colors"
+            >
+              تعديل البيانات
+            </button>
+          )}
           {hasPermission('DELETE_MEMBERS') && (
             <button
               onClick={() => setConfirmOpen(true)}
@@ -310,7 +367,7 @@ function MemberDetailPage() {
               <div>
                 <label className="block text-sm text-gray-400 mb-1">الهاتف</label>
                 <div className="flex items-center gap-3">
-                  <p className="text-white font-medium">{member.person.phone}</p>
+                  <p className="text-white font-medium">{displayPhone(member.person.phone)}</p>
                   {whatsappLink(member.person.phone) && (
                     <a
                       href={whatsappLink(member.person.phone) as string}
@@ -521,6 +578,29 @@ function MemberDetailPage() {
             </div>
           )}
         </div>
+      )}
+
+      {showEdit && member && (
+        <MemberFormModal
+          key={member.id}
+          mode="edit"
+          initial={{
+            name: member.person.name,
+            phone: member.person.phone.startsWith('pending-') ? '' : member.person.phone,
+            memberCode: member.memberCode,
+            email: member.person.email || '',
+            gender: member.person.gender === 'Female' ? 'Female' : 'Male',
+            branchId: member.branch.id,
+            status: member.status
+          }}
+          branches={[]}
+          lockedBranchName={member.branch.name}
+          submitting={editSubmitting}
+          offline={!isOnline}
+          error={editError}
+          onClose={() => { setShowEdit(false); setEditError(''); }}
+          onSubmit={handleMemberEdit}
+        />
       )}
 
       <ConfirmDialog
