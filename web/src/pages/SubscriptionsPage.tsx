@@ -3,6 +3,7 @@ import PlansSection from '../components/PlansSection';
 import { useAuth } from '../contexts/AuthContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { addPendingOperation, getCachedMembersForBranch } from '../utils/offlineDb';
+import { arDate, localDate } from '../utils/dates';
 import { displayPhone } from '../utils/whatsapp';
 
 interface Subscription {
@@ -211,7 +212,7 @@ function SubscriptionsPage() {
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
-  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState(localDate);
   const [discount, setDiscount] = useState(0);
   const [initialPayment, setInitialPayment] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState('CASH');
@@ -312,7 +313,7 @@ function SubscriptionsPage() {
     setDiscount(0);
     setInitialPayment(0);
     setSubNotes('');
-    setStartDate(new Date().toISOString().split('T')[0]);
+    setStartDate(localDate());
     setShowNewSub(true);
   };
 
@@ -679,7 +680,7 @@ function SubscriptionsPage() {
     printWindow.print();
   };
 
-  const formatPrice = (piasters: number) => `${(piasters / 100).toLocaleString('ar-EG')} ج.م`;
+  const formatPrice = (piasters: number) => `${(piasters / 100).toLocaleString('ar-EG-u-nu-latn')} ج.م`;
 
   const getStatusBadge = (status: string) => {
     const config: Record<string, { bg: string; text: string; border: string; dot: string; label: string }> = {
@@ -737,7 +738,7 @@ function SubscriptionsPage() {
       )}
 
       {/* Header */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border border-gray-700/50 p-4 sm:p-6 lg:p-8">
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-dark-card via-dark-card to-dark-card border border-dark-border/50 p-4 sm:p-6 lg:p-8">
         {/* Decorative elements */}
         <div className="absolute top-0 left-0 w-32 h-32 sm:w-48 sm:h-48 bg-gradient-to-br from-amber-500/10 to-transparent rounded-full -translate-x-1/2 -translate-y-1/2 blur-2xl" />
         <div className="absolute bottom-0 right-0 w-24 h-24 sm:w-36 sm:h-36 bg-gradient-to-tl from-amber-500/5 to-transparent rounded-full translate-x-1/3 translate-y-1/3 blur-xl" />
@@ -767,13 +768,13 @@ function SubscriptionsPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 p-1 bg-gray-800/50 rounded-xl border border-gray-700/50 w-fit">
+      <div className="flex gap-1 p-1 bg-dark-card/50 rounded-xl border border-dark-border/50 w-fit">
         <button
           onClick={() => setTab('subscriptions')}
           className={`relative flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 min-h-10 rounded-lg font-medium text-sm transition-all duration-300 ${
             tab === 'subscriptions'
               ? 'bg-gradient-to-r from-amber-500/20 to-amber-600/10 text-amber-400 shadow-sm'
-              : 'text-gray-400 hover:text-white hover:bg-gray-700/30'
+              : 'text-gray-400 hover:text-white hover:bg-dark-hover/30'
           }`}
         >
           <IconSubscription className="w-4 h-4" />
@@ -784,7 +785,7 @@ function SubscriptionsPage() {
           className={`relative flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 min-h-10 rounded-lg font-medium text-sm transition-all duration-300 ${
             tab === 'plans'
               ? 'bg-gradient-to-r from-amber-500/20 to-amber-600/10 text-amber-400 shadow-sm'
-              : 'text-gray-400 hover:text-white hover:bg-gray-700/30'
+              : 'text-gray-400 hover:text-white hover:bg-dark-hover/30'
           }`}
         >
           <IconLayers className="w-4 h-4" />
@@ -797,7 +798,7 @@ function SubscriptionsPage() {
       {tab === 'subscriptions' && (
         <>
           {/* Filters */}
-          <div className="relative overflow-hidden bg-gradient-to-br from-gray-800/80 to-gray-900/80 border border-gray-700/50 rounded-xl p-4 sm:p-5">
+          <div className="relative overflow-hidden bg-gradient-to-br from-dark-card/80 to-dark-card/80 border border-dark-border/50 rounded-xl p-4 sm:p-5">
             <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-xl" />
             <div className="relative">
               <div className="flex items-center gap-2 mb-3 sm:mb-4">
@@ -816,7 +817,7 @@ function SubscriptionsPage() {
                     placeholder="بحث بالاسم، الهاتف، أو كود العضو..."
                     value={search}
                     onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-                    className="w-full pr-10 pl-4 py-2.5 bg-gray-900/60 border border-gray-700/50 rounded-xl text-white text-sm placeholder-gray-500 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all duration-200"
+                    className="w-full pr-10 pl-4 py-2.5 bg-dark-card/60 border border-dark-border/50 rounded-xl text-white text-sm placeholder-gray-500 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all duration-200"
                   />
                 </div>
                 {!singleBranchUser && (
@@ -827,7 +828,7 @@ function SubscriptionsPage() {
                     <select
                       value={branchFilter}
                       onChange={(e) => { setBranchFilter(e.target.value); setPage(1); }}
-                      className="w-full pr-10 pl-4 py-2.5 bg-gray-900/60 border border-gray-700/50 rounded-xl text-white text-sm focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all duration-200 appearance-none"
+                      className="w-full pr-10 pl-4 py-2.5 bg-dark-card/60 border border-dark-border/50 rounded-xl text-white text-sm focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all duration-200 appearance-none"
                     >
                       <option value="">كل الفروع</option>
                       {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
@@ -841,7 +842,7 @@ function SubscriptionsPage() {
                   <select
                     value={statusFilter}
                     onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-                    className="w-full pr-10 pl-4 py-2.5 bg-gray-900/60 border border-gray-700/50 rounded-xl text-white text-sm focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all duration-200 appearance-none"
+                    className="w-full pr-10 pl-4 py-2.5 bg-dark-card/60 border border-dark-border/50 rounded-xl text-white text-sm focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all duration-200 appearance-none"
                   >
                     <option value="">كل الحالات</option>
                     <option value="ACTIVE">نشط</option>
@@ -855,17 +856,17 @@ function SubscriptionsPage() {
           </div>
 
           {/* Table / Cards */}
-          <div className="relative overflow-hidden bg-gradient-to-br from-gray-800/80 to-gray-900/80 border border-gray-700/50 rounded-xl">
+          <div className="relative overflow-hidden bg-gradient-to-br from-dark-card/80 to-dark-card/80 border border-dark-border/50 rounded-xl">
             {loading ? (
               <div className="p-8 sm:p-12 text-center">
-                <div className="inline-flex items-center gap-3 px-5 py-3 bg-gray-700/30 rounded-xl border border-gray-600/30">
+                <div className="inline-flex items-center gap-3 px-5 py-3 bg-dark-hover/30 rounded-xl border border-dark-border/30">
                   <div className="w-5 h-5 border-2 border-amber-500/30 border-t-amber-400 rounded-full animate-spin" />
                   <span className="text-gray-400 text-sm">جاري التحميل...</span>
                 </div>
               </div>
             ) : subscriptions.length === 0 ? (
               <div className="p-8 sm:p-12 text-center">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gray-700/30 flex items-center justify-center">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-dark-hover/30 flex items-center justify-center">
                   <IconSubscription className="w-8 h-8 text-gray-500" />
                 </div>
                 <p className="text-gray-400 text-sm">لا توجد اشتراكات</p>
@@ -876,18 +877,18 @@ function SubscriptionsPage() {
                 <div className="hidden lg:block overflow-x-auto">
                   <table className="w-full">
                     <thead>
-                      <tr className="border-b border-gray-700/50">
+                      <tr className="border-b border-dark-border/50">
                         <th className="px-5 py-3.5 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">العضو</th>
                         <th className="px-5 py-3.5 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">الخطة</th>
                         <th className="px-5 py-3.5 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">الفرع</th>
-                        <th className="px-5 py-3.5 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">تاريخ البدء</th>
+                        <th className="hidden xl:table-cell px-5 py-3.5 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">تاريخ البدء</th>
                         <th className="px-5 py-3.5 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">تاريخ الانتهاء</th>
                         <th className="px-5 py-3.5 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">السعر</th>
                         <th className="px-5 py-3.5 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">المدفوع</th>
                         <th className="px-5 py-3.5 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">الحالة</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-700/30">
+                    <tbody className="divide-y divide-dark-border/30">
                       {subscriptions.map(sub => {
                         const progress = getPaymentProgress(sub.paidPiasters, sub.pricePiasters);
                         return (
@@ -916,16 +917,16 @@ function SubscriptionsPage() {
                                 {sub.branch.code}
                               </span>
                             </td>
-                            <td className="px-5 py-4">
+                            <td className="hidden xl:table-cell px-5 py-4">
                               <div className="flex items-center gap-1.5 text-sm text-gray-400">
                                 <IconCalendar className="w-3.5 h-3.5 text-gray-500" />
-                                {new Date(sub.startDate).toLocaleDateString('ar-EG')}
+                                {arDate(sub.startDate)}
                               </div>
                             </td>
                             <td className="px-5 py-4">
                               <div className="flex items-center gap-1.5 text-sm text-gray-400">
                                 <IconClock className="w-3.5 h-3.5 text-gray-500" />
-                                {new Date(sub.endDate).toLocaleDateString('ar-EG')}
+                                {arDate(sub.endDate)}
                               </div>
                             </td>
                             <td className="px-5 py-4 text-sm font-semibold text-white">{formatPrice(sub.pricePiasters)}</td>
@@ -934,7 +935,7 @@ function SubscriptionsPage() {
                                 <span className={`text-sm font-medium ${progress >= 100 ? 'text-emerald-400' : 'text-amber-400'}`}>
                                   {formatPrice(sub.paidPiasters)}
                                 </span>
-                                <div className="w-16 h-1 bg-gray-700/50 rounded-full overflow-hidden">
+                                <div className="w-16 h-1 bg-dark-hover/50 rounded-full overflow-hidden">
                                   <div
                                     className={`h-full rounded-full transition-all duration-500 ${progress >= 100 ? 'bg-gradient-to-r from-emerald-500 to-emerald-400' : 'bg-gradient-to-r from-amber-500 to-amber-400'}`}
                                     style={{ width: `${progress}%` }}
@@ -951,7 +952,7 @@ function SubscriptionsPage() {
                 </div>
 
                 {/* Mobile Cards */}
-                <div className="lg:hidden divide-y divide-gray-700/30">
+                <div className="lg:hidden divide-y divide-dark-border/30">
                   {subscriptions.map(sub => {
                     const progress = getPaymentProgress(sub.paidPiasters, sub.pricePiasters);
                     return (
@@ -974,11 +975,11 @@ function SubscriptionsPage() {
                         </div>
 
                         <div className="flex items-center gap-2 mb-3 text-xs text-gray-400">
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-700/30 rounded-md">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-dark-hover/30 rounded-md">
                             <IconLayers className="w-3 h-3" />
                             {sub.plan.nameAr}
                           </span>
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-700/30 rounded-md">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-dark-hover/30 rounded-md">
                             <IconBuilding className="w-3 h-3" />
                             {sub.branch.code}
                           </span>
@@ -987,12 +988,12 @@ function SubscriptionsPage() {
                         <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
                           <div className="flex items-center gap-1">
                             <IconCalendar className="w-3 h-3" />
-                            {new Date(sub.startDate).toLocaleDateString('ar-EG')}
+                            {arDate(sub.startDate)}
                           </div>
                           <IconChevronLeft className="w-3 h-3 text-gray-600" />
                           <div className="flex items-center gap-1">
                             <IconClock className="w-3 h-3" />
-                            {new Date(sub.endDate).toLocaleDateString('ar-EG')}
+                            {arDate(sub.endDate)}
                           </div>
                         </div>
 
@@ -1004,7 +1005,7 @@ function SubscriptionsPage() {
                                 {progress}%
                               </span>
                             </div>
-                            <div className="w-full h-1.5 bg-gray-700/50 rounded-full overflow-hidden">
+                            <div className="w-full h-1.5 bg-dark-hover/50 rounded-full overflow-hidden">
                               <div
                                 className={`h-full rounded-full transition-all duration-500 ${progress >= 100 ? 'bg-gradient-to-r from-emerald-500 to-emerald-400' : 'bg-gradient-to-r from-amber-500 to-amber-400'}`}
                                 style={{ width: `${progress}%` }}
@@ -1024,14 +1025,14 @@ function SubscriptionsPage() {
             )}
 
             {totalPages > 1 && (
-              <div className="flex items-center justify-between px-4 sm:px-5 py-3.5 border-t border-gray-700/50 bg-gray-900/30">
+              <div className="flex items-center justify-between px-4 sm:px-5 py-3.5 border-t border-dark-border/50 bg-dark-card/30">
                 <button
                   onClick={() => setPage(p => Math.max(1, p - 1))}
                   disabled={page === 1}
-                  className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg bg-gray-800/80 border border-gray-700/50 text-white text-sm font-medium disabled:opacity-40 hover:bg-gray-700/80 hover:border-gray-600/50 transition-all duration-200 disabled:hover:bg-gray-800/80"
+                  className="inline-flex items-center gap-1.5 px-3 sm:px-4 min-h-11 rounded-xl bg-dark border border-dark-border text-white text-sm font-medium disabled:opacity-40 hover:bg-dark-hover hover:border-primary/30 transition-all duration-200"
                 >
                   <IconChevronRight className="w-4 h-4" />
-                  <span className="hidden sm:inline">السابق</span>
+                  السابق
                 </button>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-gray-400 font-medium">
@@ -1041,9 +1042,9 @@ function SubscriptionsPage() {
                 <button
                   onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                   disabled={page === totalPages}
-                  className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg bg-gray-800/80 border border-gray-700/50 text-white text-sm font-medium disabled:opacity-40 hover:bg-gray-700/80 hover:border-gray-600/50 transition-all duration-200 disabled:hover:bg-gray-800/80"
+                  className="inline-flex items-center gap-1.5 px-3 sm:px-4 min-h-11 rounded-xl bg-dark border border-dark-border text-white text-sm font-medium disabled:opacity-40 hover:bg-dark-hover hover:border-primary/30 transition-all duration-200"
                 >
-                  <span className="hidden sm:inline">التالي</span>
+                  التالي
                   <IconChevronLeft className="w-4 h-4" />
                 </button>
               </div>
@@ -1055,7 +1056,7 @@ function SubscriptionsPage() {
       {/* ──────── New Subscription Modal ──────── */}
       {showNewSub && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4" onClick={() => setShowNewSub(false)}>
-          <div className="relative bg-gradient-to-b from-gray-800 to-gray-900 border border-gray-700/50 rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl shadow-black/50" onClick={e => e.stopPropagation()}>
+          <div className="relative bg-gradient-to-b from-dark-card to-dark-card border border-dark-border/50 rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl shadow-black/50" onClick={e => e.stopPropagation()}>
             {/* Modal header gradient line */}
             <div className="h-1 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-600 rounded-t-2xl" />
 
@@ -1067,7 +1068,7 @@ function SubscriptionsPage() {
                   </div>
                   <h2 className="text-lg sm:text-xl font-bold text-white">اشتراك جديد</h2>
                 </div>
-                <button onClick={() => setShowNewSub(false)} className="w-10 h-10 shrink-0 rounded-lg bg-gray-700/50 hover:bg-gray-600/50 flex items-center justify-center text-gray-400 hover:text-white transition-all duration-200">
+                <button onClick={() => setShowNewSub(false)} className="w-10 h-10 shrink-0 rounded-lg bg-dark-hover/50 hover:bg-dark-border flex items-center justify-center text-gray-400 hover:text-white transition-all duration-200">
                   <IconClose className="w-4 h-4" />
                 </button>
               </div>
@@ -1089,7 +1090,7 @@ function SubscriptionsPage() {
                     العضو *
                   </label>
                   {selectedMember ? (
-                    <div className="flex items-center justify-between p-3.5 bg-gray-900/60 border border-gray-700/50 rounded-xl">
+                    <div className="flex items-center justify-between p-3.5 bg-dark-card/60 border border-dark-border/50 rounded-xl">
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-amber-500/20 to-amber-600/10 flex items-center justify-center">
                           <IconUser className="w-4 h-4 text-amber-400" />
@@ -1114,17 +1115,17 @@ function SubscriptionsPage() {
                           placeholder="ابحث عن عضو بالاسم أو الهاتف أو الكود..."
                           value={memberSearch}
                           onChange={(e) => { setMemberSearch(e.target.value); searchMembers(e.target.value); }}
-                          className="w-full pr-10 pl-4 py-2.5 bg-gray-900/60 border border-gray-700/50 rounded-xl text-white text-sm placeholder-gray-500 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all"
+                          className="w-full pr-10 pl-4 py-2.5 bg-dark-card/60 border border-dark-border/50 rounded-xl text-white text-sm placeholder-gray-500 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all"
                         />
                       </div>
                       {memberResults.length > 0 && (
-                        <div className="mt-2 bg-gray-800 border border-gray-700/50 rounded-xl max-h-40 overflow-y-auto shadow-xl">
+                        <div className="mt-2 bg-dark-card border border-dark-border/50 rounded-xl max-h-40 overflow-y-auto shadow-xl">
                           {memberResults.map(m => (
                             <button
                               key={m.id}
                               type="button"
                               onClick={() => selectMember(m)}
-                              className="w-full text-right px-4 py-2.5 hover:bg-amber-500/10 border-b border-gray-700/30 last:border-0 transition-colors"
+                              className="w-full text-right px-4 py-2.5 hover:bg-amber-500/10 border-b border-dark-border/30 last:border-0 transition-colors"
                             >
                               <div className="text-white text-sm font-medium">{m.person.name}</div>
                               <div className="text-xs text-gray-400 mt-0.5">{[m.memberCode, displayPhone(m.person.phone), m.branch.code].filter((v) => v && v !== '—').join(' — ')}</div>
@@ -1157,7 +1158,7 @@ function SubscriptionsPage() {
                             className={`p-3.5 rounded-xl border text-right transition-all duration-200 ${
                               selectedPlan?.id === p.id
                                 ? 'bg-gradient-to-br from-amber-500/20 to-amber-600/10 border-amber-500/50 text-white shadow-sm shadow-amber-500/10'
-                                : 'bg-gray-900/60 border-gray-700/50 text-gray-300 hover:border-amber-500/30 hover:bg-gray-800/60'
+                                : 'bg-dark-card/60 border-dark-border/50 text-gray-300 hover:border-amber-500/30 hover:bg-dark-card/60'
                             }`}
                           >
                             <div className="font-semibold text-sm">{p.nameAr}</div>
@@ -1184,7 +1185,7 @@ function SubscriptionsPage() {
                         type="date"
                         value={startDate}
                         onChange={(e) => setStartDate(e.target.value)}
-                        className="w-full px-4 py-2.5 bg-gray-900/60 border border-gray-700/50 rounded-xl text-white text-sm focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all"
+                        className="w-full px-4 py-2.5 bg-dark-card/60 border border-dark-border/50 rounded-xl text-white text-sm focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all"
                       />
                     </div>
 
@@ -1200,7 +1201,7 @@ function SubscriptionsPage() {
                           step="0.01"
                           value={discount}
                           onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
-                          className="w-full px-4 py-2.5 bg-gray-900/60 border border-gray-700/50 rounded-xl text-white text-sm focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all"
+                          className="w-full px-4 py-2.5 bg-dark-card/60 border border-dark-border/50 rounded-xl text-white text-sm focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all"
                         />
                       </div>
                       <div>
@@ -1224,7 +1225,7 @@ function SubscriptionsPage() {
                           step="0.01"
                           value={initialPayment}
                           onChange={(e) => setInitialPayment(parseFloat(e.target.value) || 0)}
-                          className="w-full px-4 py-2.5 bg-gray-900/60 border border-gray-700/50 rounded-xl text-white text-sm focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all"
+                          className="w-full px-4 py-2.5 bg-dark-card/60 border border-dark-border/50 rounded-xl text-white text-sm focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all"
                         />
                       </div>
                       <div>
@@ -1235,7 +1236,7 @@ function SubscriptionsPage() {
                         <select
                           value={paymentMethod}
                           onChange={(e) => setPaymentMethod(e.target.value)}
-                          className="w-full px-4 py-2.5 bg-gray-900/60 border border-gray-700/50 rounded-xl text-white text-sm focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all appearance-none"
+                          className="w-full px-4 py-2.5 bg-dark-card/60 border border-dark-border/50 rounded-xl text-white text-sm focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all appearance-none"
                         >
                           <option value="CASH">نقدي</option>
                           <option value="BANK_TRANSFER">تحويل بنكي</option>
@@ -1262,14 +1263,14 @@ function SubscriptionsPage() {
                         type="text"
                         value={subNotes}
                         onChange={(e) => setSubNotes(e.target.value)}
-                        className="w-full px-4 py-2.5 bg-gray-900/60 border border-gray-700/50 rounded-xl text-white text-sm focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all"
+                        className="w-full px-4 py-2.5 bg-dark-card/60 border border-dark-border/50 rounded-xl text-white text-sm focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all"
                       />
                     </div>
                   </>
                 )}
 
-                <div className="flex gap-3 pt-4 border-t border-gray-700/30">
-                  <button type="button" onClick={() => setShowNewSub(false)} className="flex-1 py-2.5 bg-gray-800/80 border border-gray-700/50 text-white rounded-xl hover:bg-gray-700/80 transition-all duration-200 text-sm font-medium">
+                <div className="flex gap-3 pt-4 border-t border-dark-border/30">
+                  <button type="button" onClick={() => setShowNewSub(false)} className="flex-1 py-2.5 bg-dark-card/80 border border-dark-border/50 text-white rounded-xl hover:bg-dark-hover/80 transition-all duration-200 text-sm font-medium">
                     إلغاء
                   </button>
                   <button
@@ -1298,7 +1299,7 @@ function SubscriptionsPage() {
       {/* ──────── Detail Modal ──────── */}
       {showDetail && selectedSub && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4" onClick={() => setShowDetail(false)}>
-          <div className="relative bg-gradient-to-b from-gray-800 to-gray-900 border border-gray-700/50 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl shadow-black/50" onClick={e => e.stopPropagation()}>
+          <div className="relative bg-gradient-to-b from-dark-card to-dark-card border border-dark-border/50 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl shadow-black/50" onClick={e => e.stopPropagation()}>
             {/* Header gradient bar */}
             <div className="h-1 bg-gradient-to-r from-amber-500 via-emerald-500 to-amber-600 rounded-t-2xl" />
 
@@ -1313,14 +1314,14 @@ function SubscriptionsPage() {
                     <div className="mt-1">{getStatusBadge(selectedSub.status)}</div>
                   </div>
                 </div>
-                <button onClick={() => setShowDetail(false)} className="w-10 h-10 shrink-0 rounded-lg bg-gray-700/50 hover:bg-gray-600/50 flex items-center justify-center text-gray-400 hover:text-white transition-all duration-200">
+                <button onClick={() => setShowDetail(false)} className="w-10 h-10 shrink-0 rounded-lg bg-dark-hover/50 hover:bg-dark-border flex items-center justify-center text-gray-400 hover:text-white transition-all duration-200">
                   <IconClose className="w-4 h-4" />
                 </button>
               </div>
 
               {/* Info grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
-                <div className="p-3.5 bg-gray-900/60 border border-gray-700/30 rounded-xl hover:border-gray-600/50 transition-colors group">
+                <div className="p-3.5 bg-dark-card/60 border border-dark-border/30 rounded-xl hover:border-dark-border/50 transition-colors group">
                   <div className="flex items-center gap-2 mb-1">
                     <IconUser className="w-3.5 h-3.5 text-amber-400/60 group-hover:text-amber-400 transition-colors" />
                     <span className="text-xs text-gray-500">العضو</span>
@@ -1328,14 +1329,14 @@ function SubscriptionsPage() {
                   <div className="text-white font-semibold text-sm">{selectedSub.member.person.name}</div>
                   <div className="text-xs text-amber-400/70 font-mono mt-0.5">{selectedSub.member.memberCode}</div>
                 </div>
-                <div className="p-3.5 bg-gray-900/60 border border-gray-700/30 rounded-xl hover:border-gray-600/50 transition-colors group">
+                <div className="p-3.5 bg-dark-card/60 border border-dark-border/30 rounded-xl hover:border-dark-border/50 transition-colors group">
                   <div className="flex items-center gap-2 mb-1">
                     <IconPhone className="w-3.5 h-3.5 text-amber-400/60 group-hover:text-amber-400 transition-colors" />
                     <span className="text-xs text-gray-500">الهاتف</span>
                   </div>
                   <div className="text-white text-sm font-medium" dir="ltr">{displayPhone(selectedSub.member.person.phone)}</div>
                 </div>
-                <div className="p-3.5 bg-gray-900/60 border border-gray-700/30 rounded-xl hover:border-gray-600/50 transition-colors group">
+                <div className="p-3.5 bg-dark-card/60 border border-dark-border/30 rounded-xl hover:border-dark-border/50 transition-colors group">
                   <div className="flex items-center gap-2 mb-1">
                     <IconLayers className="w-3.5 h-3.5 text-amber-400/60 group-hover:text-amber-400 transition-colors" />
                     <span className="text-xs text-gray-500">الخطة</span>
@@ -1346,31 +1347,31 @@ function SubscriptionsPage() {
                     {selectedSub.plan.durationDays} يوم
                   </div>
                 </div>
-                <div className="p-3.5 bg-gray-900/60 border border-gray-700/30 rounded-xl hover:border-gray-600/50 transition-colors group">
+                <div className="p-3.5 bg-dark-card/60 border border-dark-border/30 rounded-xl hover:border-dark-border/50 transition-colors group">
                   <div className="flex items-center gap-2 mb-1">
                     <IconBuilding className="w-3.5 h-3.5 text-amber-400/60 group-hover:text-amber-400 transition-colors" />
                     <span className="text-xs text-gray-500">الفرع</span>
                   </div>
                   <div className="text-white text-sm font-medium">{selectedSub.branch.name}</div>
                 </div>
-                <div className="p-3.5 bg-gray-900/60 border border-gray-700/30 rounded-xl hover:border-gray-600/50 transition-colors group">
+                <div className="p-3.5 bg-dark-card/60 border border-dark-border/30 rounded-xl hover:border-dark-border/50 transition-colors group">
                   <div className="flex items-center gap-2 mb-1">
                     <IconCalendar className="w-3.5 h-3.5 text-amber-400/60 group-hover:text-amber-400 transition-colors" />
                     <span className="text-xs text-gray-500">تاريخ البدء</span>
                   </div>
-                  <div className="text-white text-sm">{new Date(selectedSub.startDate).toLocaleDateString('ar-EG')}</div>
+                  <div className="text-white text-sm">{arDate(selectedSub.startDate)}</div>
                 </div>
-                <div className="p-3.5 bg-gray-900/60 border border-gray-700/30 rounded-xl hover:border-gray-600/50 transition-colors group">
+                <div className="p-3.5 bg-dark-card/60 border border-dark-border/30 rounded-xl hover:border-dark-border/50 transition-colors group">
                   <div className="flex items-center gap-2 mb-1">
                     <IconClock className="w-3.5 h-3.5 text-amber-400/60 group-hover:text-amber-400 transition-colors" />
                     <span className="text-xs text-gray-500">تاريخ الانتهاء</span>
                   </div>
-                  <div className="text-white text-sm">{new Date(selectedSub.endDate).toLocaleDateString('ar-EG')}</div>
+                  <div className="text-white text-sm">{arDate(selectedSub.endDate)}</div>
                 </div>
               </div>
 
               {/* Financial summary */}
-              <div className="relative overflow-hidden p-4 sm:p-5 bg-gradient-to-br from-gray-900/80 to-gray-800/50 border border-gray-700/30 rounded-xl mb-6">
+              <div className="relative overflow-hidden p-4 sm:p-5 bg-gradient-to-br from-dark-card/80 to-dark-card/50 border border-dark-border/30 rounded-xl mb-6">
                 <div className="absolute top-0 right-0 w-20 h-20 bg-amber-500/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-lg" />
                 <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-300 mb-4">
                   <IconCash className="w-4 h-4 text-amber-400" />
@@ -1390,7 +1391,7 @@ function SubscriptionsPage() {
                   </div>
                   {/* Progress bar */}
                   <div className="py-1">
-                    <div className="w-full h-2 bg-gray-700/50 rounded-full overflow-hidden">
+                    <div className="w-full h-2 bg-dark-hover/50 rounded-full overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all duration-700 ${
                           getPaymentProgress(selectedSub.paidPiasters, selectedSub.pricePiasters) >= 100
@@ -1404,7 +1405,7 @@ function SubscriptionsPage() {
                       {getPaymentProgress(selectedSub.paidPiasters, selectedSub.pricePiasters)}% مكتمل
                     </div>
                   </div>
-                  <div className="flex justify-between items-center pt-2 border-t border-gray-700/30">
+                  <div className="flex justify-between items-center pt-2 border-t border-dark-border/30">
                     <span className="text-gray-400 text-sm font-medium">المتبقي</span>
                     <span className={`font-bold text-base ${selectedSub.outstandingPiasters > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
                       {formatPrice(selectedSub.outstandingPiasters)}
@@ -1451,7 +1452,7 @@ function SubscriptionsPage() {
                 </button>
                 <button
                   onClick={openReceipt}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-gray-500/15 to-gray-600/10 text-gray-400 border border-gray-500/30 rounded-xl hover:from-gray-500/25 hover:to-gray-600/20 hover:border-gray-500/50 text-sm font-medium transition-all duration-200 hover:-translate-y-0.5"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-dark-hover/40 text-gray-400 border border-dark-border rounded-xl hover:bg-dark-hover/70 hover:border-primary/30 hover:text-white text-sm font-medium transition-all duration-200 hover:-translate-y-0.5"
                 >
                   <IconReceipt className="w-4 h-4" />
                   إيصال
@@ -1466,14 +1467,14 @@ function SubscriptionsPage() {
                 </h3>
                 {!isOnline && selectedSub.payments.length === 0 ? (
                   <div className="text-center py-6">
-                    <div className="w-12 h-12 mx-auto mb-2 rounded-xl bg-gray-700/30 flex items-center justify-center">
+                    <div className="w-12 h-12 mx-auto mb-2 rounded-xl bg-dark-hover/30 flex items-center justify-center">
                       <IconWifiOff className="w-6 h-6 text-gray-500" />
                     </div>
                     <p className="text-gray-500 text-sm">سجل المدفوعات غير متاح بدون اتصال</p>
                   </div>
                 ) : selectedSub.payments.length === 0 ? (
                   <div className="text-center py-6">
-                    <div className="w-12 h-12 mx-auto mb-2 rounded-xl bg-gray-700/30 flex items-center justify-center">
+                    <div className="w-12 h-12 mx-auto mb-2 rounded-xl bg-dark-hover/30 flex items-center justify-center">
                       <IconCreditCard className="w-6 h-6 text-gray-500" />
                     </div>
                     <p className="text-gray-500 text-sm">لا توجد مدفوعات</p>
@@ -1481,7 +1482,7 @@ function SubscriptionsPage() {
                 ) : (
                   <div className="space-y-2">
                     {selectedSub.payments.map(p => (
-                      <div key={p.id} className="flex items-center justify-between p-3.5 bg-gray-900/60 border border-gray-700/30 rounded-xl hover:border-gray-600/40 transition-colors">
+                      <div key={p.id} className="flex items-center justify-between p-3.5 bg-dark-card/60 border border-dark-border/30 rounded-xl hover:border-dark-border/40 transition-colors">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
                             {getMethodIcon(p.method)}
@@ -1501,7 +1502,7 @@ function SubscriptionsPage() {
                         </div>
                         <div className="text-xs text-gray-500 flex items-center gap-1">
                           <IconCalendar className="w-3 h-3" />
-                          {new Date(p.createdAt).toLocaleDateString('ar-EG')}
+                          {arDate(p.createdAt)}
                         </div>
                       </div>
                     ))}
@@ -1516,7 +1517,7 @@ function SubscriptionsPage() {
       {/* ──────── Payment Modal ──────── */}
       {showPayment && selectedSub && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[60] p-3 sm:p-4" onClick={() => setShowPayment(false)}>
-          <div className="relative bg-gradient-to-b from-gray-800 to-gray-900 border border-gray-700/50 rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl shadow-black/50" onClick={e => e.stopPropagation()}>
+          <div className="relative bg-gradient-to-b from-dark-card to-dark-card border border-dark-border/50 rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl shadow-black/50" onClick={e => e.stopPropagation()}>
             {/* Header gradient bar */}
             <div className="h-1 bg-gradient-to-r from-emerald-500 via-emerald-400 to-emerald-600 rounded-t-2xl" />
 
@@ -1530,7 +1531,7 @@ function SubscriptionsPage() {
                     {!isOnline ? 'تسجيل دفعة (محلياً)' : 'تسجيل دفعة'}
                   </h2>
                 </div>
-                <button onClick={() => setShowPayment(false)} className="w-10 h-10 shrink-0 rounded-lg bg-gray-700/50 hover:bg-gray-600/50 flex items-center justify-center text-gray-400 hover:text-white transition-all duration-200">
+                <button onClick={() => setShowPayment(false)} className="w-10 h-10 shrink-0 rounded-lg bg-dark-hover/50 hover:bg-dark-border flex items-center justify-center text-gray-400 hover:text-white transition-all duration-200">
                   <IconClose className="w-4 h-4" />
                 </button>
               </div>
@@ -1563,7 +1564,7 @@ function SubscriptionsPage() {
                     step="0.01"
                     value={payAmount}
                     onChange={(e) => setPayAmount(parseFloat(e.target.value) || 0)}
-                    className="w-full px-4 py-2.5 bg-gray-900/60 border border-gray-700/50 rounded-xl text-white text-sm focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all"
+                    className="w-full px-4 py-2.5 bg-dark-card/60 border border-dark-border/50 rounded-xl text-white text-sm focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all"
                   />
                 </div>
                 <div>
@@ -1574,7 +1575,7 @@ function SubscriptionsPage() {
                   <select
                     value={payMethod}
                     onChange={(e) => setPayMethod(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-gray-900/60 border border-gray-700/50 rounded-xl text-white text-sm focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all appearance-none"
+                    className="w-full px-4 py-2.5 bg-dark-card/60 border border-dark-border/50 rounded-xl text-white text-sm focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all appearance-none"
                   >
                     <option value="CASH">نقدي</option>
                     <option value="BANK_TRANSFER">تحويل بنكي</option>
@@ -1589,7 +1590,7 @@ function SubscriptionsPage() {
                     value={payRef}
                     onChange={(e) => setPayRef(e.target.value)}
                     placeholder="رقم العملية أو التحويل"
-                    className="w-full px-4 py-2.5 bg-gray-900/60 border border-gray-700/50 rounded-xl text-white text-sm placeholder-gray-500 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all"
+                    className="w-full px-4 py-2.5 bg-dark-card/60 border border-dark-border/50 rounded-xl text-white text-sm placeholder-gray-500 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all"
                   />
                 </div>
                 <div>
@@ -1598,11 +1599,11 @@ function SubscriptionsPage() {
                     type="text"
                     value={payNotes}
                     onChange={(e) => setPayNotes(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-gray-900/60 border border-gray-700/50 rounded-xl text-white text-sm focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all"
+                    className="w-full px-4 py-2.5 bg-dark-card/60 border border-dark-border/50 rounded-xl text-white text-sm focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all"
                   />
                 </div>
-                <div className="flex gap-3 pt-4 border-t border-gray-700/30">
-                  <button type="button" onClick={() => setShowPayment(false)} className="flex-1 py-2.5 bg-gray-800/80 border border-gray-700/50 text-white rounded-xl hover:bg-gray-700/80 transition-all duration-200 text-sm font-medium">
+                <div className="flex gap-3 pt-4 border-t border-dark-border/30">
+                  <button type="button" onClick={() => setShowPayment(false)} className="flex-1 py-2.5 bg-dark-card/80 border border-dark-border/50 text-white rounded-xl hover:bg-dark-hover/80 transition-all duration-200 text-sm font-medium">
                     إلغاء
                   </button>
                   <button
@@ -1627,10 +1628,10 @@ function SubscriptionsPage() {
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4" onClick={() => setShowReceipt(false)}>
           <div className="relative bg-white rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl shadow-black/50" onClick={e => e.stopPropagation()}>
             <div className="p-5 sm:p-6" ref={receiptRef} dir="rtl">
-              <div className="text-center border-b-2 border-gray-800 pb-4 mb-4">
+              <div className="text-center border-b-2 border-dark-border pb-4 mb-4">
                 <h2 className="text-xl font-bold text-gray-800">POWER 111</h2>
                 <p className="text-sm text-gray-600 mt-1">إيصال اشتراك</p>
-                <p className="text-xs text-gray-500 mt-1">{new Date().toLocaleDateString('ar-EG')}</p>
+                <p className="text-xs text-gray-500 mt-1">{arDate()}</p>
               </div>
 
               <div className="space-y-2.5 mb-4">
@@ -1659,11 +1660,11 @@ function SubscriptionsPage() {
               <div className="border-t border-dashed border-gray-400 pt-3 mb-3">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">من:</span>
-                  <span className="text-gray-800">{new Date(selectedSub.startDate).toLocaleDateString('ar-EG')}</span>
+                  <span className="text-gray-800">{arDate(selectedSub.startDate)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">إلى:</span>
-                  <span className="text-gray-800">{new Date(selectedSub.endDate).toLocaleDateString('ar-EG')}</span>
+                  <span className="text-gray-800">{arDate(selectedSub.endDate)}</span>
                 </div>
               </div>
 
@@ -1699,7 +1700,7 @@ function SubscriptionsPage() {
                         <tr key={p.id} className="border-b border-gray-200">
                           <td className="py-1.5 text-gray-800">{formatPrice(p.amountPiasters)}</td>
                           <td className="py-1.5 text-gray-600">{getMethodLabel(p.method)}</td>
-                          <td className="py-1.5 text-gray-600">{new Date(p.createdAt).toLocaleDateString('ar-EG')}</td>
+                          <td className="py-1.5 text-gray-600">{arDate(p.createdAt)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1707,7 +1708,7 @@ function SubscriptionsPage() {
                 </div>
               )}
 
-              <div className="border-t-2 border-gray-800 pt-3 mt-4 text-center text-xs text-gray-500">
+              <div className="border-t-2 border-dark-border pt-3 mt-4 text-center text-xs text-gray-500">
                 شكراً لاشتراككم معنا
               </div>
             </div>

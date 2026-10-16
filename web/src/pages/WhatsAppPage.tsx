@@ -338,7 +338,7 @@ function WhatsAppPage() {
                   className={`flex items-center gap-3 p-2.5 rounded-xl border cursor-pointer transition-all ${
                     isSelected
                       ? 'bg-primary/5 border-primary/30'
-                      : 'bg-dark border-dark-border hover:border-gray-600'
+                      : 'bg-dark border-dark-border hover:border-primary/30'
                   }`}
                 >
                   <input
@@ -352,7 +352,7 @@ function WhatsAppPage() {
                     <p className="text-xs text-gray-500 font-mono" dir="ltr">{displayPhone(member.person.phone)}</p>
                   </div>
                   <span
-                    className={`text-[10px] px-2 py-0.5 rounded-md font-medium flex-shrink-0 ${
+                    className={`text-[11px] px-2 py-0.5 rounded-md font-medium flex-shrink-0 ${
                       days === null || days <= 0
                         ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
                         : days <= 7

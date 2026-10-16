@@ -240,7 +240,7 @@ function OffersPage() {
   };
 
   const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('ar-EG', {
+    return new Date(dateStr).toLocaleDateString('ar-EG-u-nu-latn', {
       year: 'numeric',
       month: 'short',
       day: 'numeric'
@@ -296,7 +296,7 @@ function OffersPage() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="relative overflow-hidden bg-gradient-to-br from-gray-800/80 via-gray-800/60 to-gray-900/80 backdrop-blur-sm rounded-2xl border border-gray-700/50 p-5">
+        <div className="relative overflow-hidden bg-gradient-to-br from-dark-card/80 via-dark-card/60 to-dark-card/80 backdrop-blur-sm rounded-2xl border border-dark-border/50 p-5">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.06),transparent_50%)]"></div>
           <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-amber-500/20 to-transparent"></div>
           <div className="relative">
@@ -310,7 +310,7 @@ function OffersPage() {
           </div>
         </div>
 
-        <div className="relative overflow-hidden bg-gradient-to-br from-gray-800/80 via-gray-800/60 to-gray-900/80 backdrop-blur-sm rounded-2xl border border-gray-700/50 p-5">
+        <div className="relative overflow-hidden bg-gradient-to-br from-dark-card/80 via-dark-card/60 to-dark-card/80 backdrop-blur-sm rounded-2xl border border-dark-border/50 p-5">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.06),transparent_50%)]"></div>
           <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-emerald-500/20 to-transparent"></div>
           <div className="relative">
@@ -324,7 +324,7 @@ function OffersPage() {
           </div>
         </div>
 
-        <div className="relative overflow-hidden bg-gradient-to-br from-gray-800/80 via-gray-800/60 to-gray-900/80 backdrop-blur-sm rounded-2xl border border-gray-700/50 p-5">
+        <div className="relative overflow-hidden bg-gradient-to-br from-dark-card/80 via-dark-card/60 to-dark-card/80 backdrop-blur-sm rounded-2xl border border-dark-border/50 p-5">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.06),transparent_50%)]"></div>
           <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-amber-500/20 to-transparent"></div>
           <div className="relative">
@@ -340,12 +340,12 @@ function OffersPage() {
       </div>
 
       {/* Offers Table */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-gray-800/80 via-gray-800/60 to-gray-900/80 backdrop-blur-sm rounded-2xl border border-gray-700/50">
+      <div className="relative overflow-hidden bg-gradient-to-br from-dark-card/80 via-dark-card/60 to-dark-card/80 backdrop-blur-sm rounded-2xl border border-dark-border/50">
         <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-amber-500/20 to-transparent"></div>
         <div className="hidden sm:block overflow-x-auto">
           <table className="w-full min-w-[700px]">
             <thead>
-              <tr className="border-b border-gray-700/50">
+              <tr className="border-b border-dark-border/50">
                 <th className="px-4 sm:px-6 py-4 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">العنوان</th>
                 <th className="px-4 sm:px-6 py-4 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider hidden md:table-cell">الفرع</th>
                 <th className="px-4 sm:px-6 py-4 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">الخصم</th>
@@ -355,11 +355,11 @@ function OffersPage() {
                 <th className="px-4 sm:px-6 py-4 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">إجراءات</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-700/30">
+            <tbody className="divide-y divide-dark-border/30">
               {offers.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-12 text-center">
-                    <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gray-700/30 flex items-center justify-center">
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-dark-hover/30 flex items-center justify-center">
                       <TagIcon />
                     </div>
                     <p className="text-gray-400 text-lg font-medium">لا توجد عروض حالياً</p>
@@ -413,7 +413,7 @@ function OffersPage() {
                               ? isActive
                                 ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 hover:bg-emerald-500/20'
                                 : 'bg-amber-500/10 text-amber-300 border border-amber-500/20 hover:bg-amber-500/20'
-                              : 'bg-gray-700/30 text-gray-400 border border-gray-600/30 hover:bg-gray-700/50'
+                              : 'bg-dark-hover/30 text-gray-400 border border-dark-border/30 hover:bg-dark-hover/50'
                           }`}
                         >
                           <span className={`w-1.5 h-1.5 rounded-full ${
@@ -451,10 +451,10 @@ function OffersPage() {
         </div>
 
         {/* Phone: one card per offer, no sideways scrolling */}
-        <div className="sm:hidden divide-y divide-gray-700/30">
+        <div className="sm:hidden divide-y divide-dark-border/30">
           {offers.length === 0 ? (
             <div className="p-8 text-center">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gray-700/30 flex items-center justify-center">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-dark-hover/30 flex items-center justify-center">
                 <TagIcon />
               </div>
               <p className="text-gray-400 text-lg font-medium">لا توجد عروض حالياً</p>
@@ -499,7 +499,7 @@ function OffersPage() {
                           ? isActive
                             ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20 active:bg-emerald-500/20'
                             : 'bg-amber-500/10 text-amber-300 border-amber-500/20 active:bg-amber-500/20'
-                          : 'bg-gray-700/30 text-gray-400 border-gray-600/30 active:bg-gray-700/50'
+                          : 'bg-dark-hover/30 text-gray-400 border-dark-border/30 active:bg-dark-hover/50'
                       }`}
                     >
                       <span className={`w-1.5 h-1.5 rounded-full ${
@@ -533,7 +533,7 @@ function OffersPage() {
       {showModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowModal(false)}>
           <div
-            className="relative bg-gradient-to-br from-gray-800 via-gray-800 to-gray-900 rounded-2xl border border-gray-700/50 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
+            className="relative bg-gradient-to-br from-dark-card via-dark-card to-dark-card rounded-2xl border border-dark-border/50 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-amber-500/40 to-transparent"></div>
@@ -554,7 +554,7 @@ function OffersPage() {
                     setEditingOffer(null);
                     resetForm();
                   }}
-                  className="w-10 h-10 shrink-0 rounded-lg bg-gray-700/50 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+                  className="w-10 h-10 shrink-0 rounded-lg bg-dark-hover/50 flex items-center justify-center text-gray-400 hover:text-white hover:bg-dark-hover transition-colors"
                 >
                   <CloseIcon />
                 </button>
@@ -571,7 +571,7 @@ function OffersPage() {
                       required
                       value={formData.title}
                       onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-gray-900/50 border border-gray-700/50 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
+                      className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
                       placeholder="Summer Sale"
                       dir="ltr"
                     />
@@ -585,7 +585,7 @@ function OffersPage() {
                       type="text"
                       value={formData.titleAr}
                       onChange={(e) => setFormData({ ...formData, titleAr: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-gray-900/50 border border-gray-700/50 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
+                      className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
                       placeholder="تخفيضات الصيف"
                     />
                   </div>
@@ -599,7 +599,7 @@ function OffersPage() {
                     <textarea
                       value={formData.description}
                       onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-gray-900/50 border border-gray-700/50 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200 resize-none"
+                      className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200 resize-none"
                       rows={3}
                       placeholder="Description..."
                       dir="ltr"
@@ -613,7 +613,7 @@ function OffersPage() {
                     <textarea
                       value={formData.descriptionAr}
                       onChange={(e) => setFormData({ ...formData, descriptionAr: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-gray-900/50 border border-gray-700/50 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200 resize-none"
+                      className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200 resize-none"
                       rows={3}
                       placeholder="الوصف..."
                     />
@@ -628,7 +628,7 @@ function OffersPage() {
                     <select
                       value={formData.branchId}
                       onChange={(e) => setFormData({ ...formData, branchId: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-gray-900/50 border border-gray-700/50 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
+                      className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
                     >
                       <option value="">جميع الفروع</option>
                       {branches.map(branch => (
@@ -649,13 +649,13 @@ function OffersPage() {
                       max="100"
                       value={formData.discountPercent}
                       onChange={(e) => setFormData({ ...formData, discountPercent: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-gray-900/50 border border-gray-700/50 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
+                      className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
                       placeholder="20"
                     />
                   </div>
 
                   <div className="flex items-end">
-                    <label className="flex items-center gap-3 cursor-pointer group py-2.5 px-4 bg-gray-900/50 border border-gray-700/50 rounded-xl w-full hover:border-amber-500/30 transition-all duration-200">
+                    <label className="flex items-center gap-3 cursor-pointer group py-2.5 px-4 bg-dark-card/50 border border-dark-border/50 rounded-xl w-full hover:border-amber-500/30 transition-all duration-200">
                       <div className="relative">
                         <input
                           type="checkbox"
@@ -663,7 +663,7 @@ function OffersPage() {
                           onChange={(e) => setFormData({ ...formData, isPublished: e.target.checked })}
                           className="sr-only peer"
                         />
-                        <div className="w-5 h-5 rounded-md border-2 border-gray-600 peer-checked:border-amber-500 peer-checked:bg-amber-500 transition-all duration-200 flex items-center justify-center">
+                        <div className="w-5 h-5 rounded-md border-2 border-white/25 peer-checked:border-amber-500 peer-checked:bg-amber-500 transition-all duration-200 flex items-center justify-center">
                           {formData.isPublished && (
                             <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
@@ -686,7 +686,7 @@ function OffersPage() {
                       required
                       value={formData.startDate}
                       onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-gray-900/50 border border-gray-700/50 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
+                      className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
                     />
                   </div>
 
@@ -699,7 +699,7 @@ function OffersPage() {
                       required
                       value={formData.endDate}
                       onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-gray-900/50 border border-gray-700/50 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
+                      className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
                     />
                   </div>
                 </div>
@@ -718,7 +718,7 @@ function OffersPage() {
                       setEditingOffer(null);
                       resetForm();
                     }}
-                    className="flex-1 px-5 py-2.5 bg-gray-700/50 hover:bg-gray-700 text-white rounded-xl font-medium transition-all duration-200 border border-gray-600/30"
+                    className="flex-1 px-5 py-2.5 bg-dark-hover/50 hover:bg-dark-hover text-white rounded-xl font-medium transition-all duration-200 border border-dark-border/30"
                   >
                     إلغاء
                   </button>

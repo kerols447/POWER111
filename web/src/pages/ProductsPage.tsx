@@ -79,7 +79,7 @@ function BarcodePrintModal({ product, onClose }: { product: Product; onClose: ()
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4" onClick={onClose}>
-      <div className="relative bg-gradient-to-br from-gray-800 via-gray-800 to-gray-900 rounded-2xl border border-gray-700/50 max-w-sm w-full max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
+      <div className="relative bg-gradient-to-br from-dark-card via-dark-card to-dark-card rounded-2xl border border-dark-border/50 max-w-sm w-full max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary via-amber-400 to-primary rounded-t-2xl" />
         <div className="p-6">
           <div className="flex items-center justify-between mb-6">
@@ -87,7 +87,7 @@ function BarcodePrintModal({ product, onClose }: { product: Product; onClose: ()
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-amber-600 flex items-center justify-center"><BarcodeIcon /></div>
               <h2 className="text-lg font-bold text-white">طباعة الباركود</h2>
             </div>
-            <button onClick={onClose} className="w-10 h-10 shrink-0 rounded-lg bg-gray-700/50 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"><CloseIcon /></button>
+            <button onClick={onClose} className="w-10 h-10 shrink-0 rounded-lg bg-dark-hover/50 flex items-center justify-center text-gray-400 hover:text-white hover:bg-dark-hover transition-colors"><CloseIcon /></button>
           </div>
           <div className="bg-white/5 rounded-xl p-6 mb-6">
             <p className="text-center text-sm text-gray-300 mb-3 font-medium">{product.nameAr || product.name}</p>
@@ -100,7 +100,7 @@ function BarcodePrintModal({ product, onClose }: { product: Product; onClose: ()
             <button onClick={handlePrint} className="flex-1 inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-amber-600 text-white rounded-xl font-medium transition-all duration-300 shadow-lg shadow-amber-500/20 hover:shadow-xl">
               <PrinterIcon /> طباعة
             </button>
-            <button onClick={onClose} className="flex-1 px-5 py-2.5 bg-gray-700/50 hover:bg-gray-700 text-white rounded-xl font-medium transition-all duration-200 border border-gray-600/30">إغلاق</button>
+            <button onClick={onClose} className="flex-1 px-5 py-2.5 bg-dark-hover/50 hover:bg-dark-hover text-white rounded-xl font-medium transition-all duration-200 border border-dark-border/30">إغلاق</button>
           </div>
         </div>
       </div>
@@ -327,7 +327,7 @@ export default function ProductsPage() {
             <label className="flex items-center gap-3 cursor-pointer group py-2.5 px-4 bg-dark border border-dark-border rounded-xl w-full hover:border-primary/30 transition-all duration-200">
               <div className="relative">
                 <input type="checkbox" checked={lowStockOnly} onChange={(e) => setLowStockOnly(e.target.checked)} className="sr-only peer" />
-                <div className="w-5 h-5 rounded-md border-2 border-gray-600 peer-checked:border-primary peer-checked:bg-primary transition-all duration-200 flex items-center justify-center">
+                <div className="w-5 h-5 rounded-md border-2 border-white/25 peer-checked:border-primary peer-checked:bg-primary transition-all duration-200 flex items-center justify-center">
                   {lowStockOnly && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
                 </div>
               </div>
@@ -349,7 +349,7 @@ export default function ProductsPage() {
           </div>
         ) : products.length === 0 ? (
           <div className="p-12 text-center">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gray-700/30 flex items-center justify-center"><PackageIcon /></div>
+            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-dark-hover/30 flex items-center justify-center"><PackageIcon /></div>
             <p className="text-gray-400 text-lg font-medium">لا توجد منتجات</p>
             <p className="text-gray-500 text-sm mt-1">قم بإضافة منتج جديد للبدء</p>
           </div>
@@ -373,7 +373,7 @@ export default function ProductsPage() {
                     <tr key={product.id} className="hover:bg-primary/5 transition-colors duration-200 group">
                       <td className="px-4 sm:px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-700/30 flex-shrink-0 flex items-center justify-center border border-dark-border/50">
+                          <div className="w-10 h-10 rounded-lg overflow-hidden bg-dark-hover/30 flex-shrink-0 flex items-center justify-center border border-dark-border/50">
                             {product.image ? <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
                               : <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>}
                           </div>
@@ -408,7 +408,7 @@ export default function ProductsPage() {
                               متوفر
                             </span>
                           )}
-                          {!product.isActive && <span className="px-2.5 py-1 text-xs font-medium bg-gray-700/50 text-gray-400 rounded-full border border-gray-600/30">معطل</span>}
+                          {!product.isActive && <span className="px-2.5 py-1 text-xs font-medium bg-dark-hover/50 text-gray-400 rounded-full border border-dark-border/30">معطل</span>}
                         </div>
                       </td>
                       <td className="px-4 sm:px-6 py-4">
@@ -434,7 +434,7 @@ export default function ProductsPage() {
               {products.map(product => (
                 <div key={product.id} className="p-4 hover:bg-primary/5 transition-colors">
                   <div className="flex items-start gap-3">
-                    <div className="w-14 h-14 rounded-xl overflow-hidden bg-gray-700/30 flex-shrink-0 flex items-center justify-center border border-dark-border/50">
+                    <div className="w-14 h-14 rounded-xl overflow-hidden bg-dark-hover/30 flex-shrink-0 flex items-center justify-center border border-dark-border/50">
                       {product.image ? <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
                         : <svg className="w-7 h-7 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>}
                     </div>
@@ -448,8 +448,8 @@ export default function ProductsPage() {
                       </div>
                       <div className="flex items-center gap-2 mt-2">
                         <span className="text-sm font-semibold text-primary">{formatPrice(product.pricePiasters)}</span>
-                        {isLowStock(product) && <span className="px-2 py-0.5 text-[10px] font-medium bg-rose-500/10 text-rose-300 rounded-full border border-rose-500/20">منخفض</span>}
-                        {!product.isActive && <span className="px-2 py-0.5 text-[10px] font-medium bg-gray-700/50 text-gray-400 rounded-full">معطل</span>}
+                        {isLowStock(product) && <span className="px-2 py-0.5 text-[11px] font-medium bg-rose-500/10 text-rose-300 rounded-full border border-rose-500/20">منخفض</span>}
+                        {!product.isActive && <span className="px-2 py-0.5 text-[11px] font-medium bg-dark-hover/50 text-gray-400 rounded-full">معطل</span>}
                       </div>
                       {product.barcode && (
                         <button onClick={() => setBarcodeProduct(product)} className="flex items-center gap-1.5 mt-1 min-h-10 text-xs text-gray-400 hover:text-primary transition-colors">
@@ -484,7 +484,7 @@ export default function ProductsPage() {
                   <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-amber-600 flex items-center justify-center shadow-lg shadow-primary/20"><PackageIcon /></div>
                   <h2 className="text-lg sm:text-xl font-bold text-white">{editingProduct ? 'تعديل المنتج' : 'إضافة منتج جديد'}</h2>
                 </div>
-                <button onClick={() => setShowModal(false)} className="w-10 h-10 shrink-0 rounded-lg bg-gray-700/50 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"><CloseIcon /></button>
+                <button onClick={() => setShowModal(false)} className="w-10 h-10 shrink-0 rounded-lg bg-dark-hover/50 flex items-center justify-center text-gray-400 hover:text-white hover:bg-dark-hover transition-colors"><CloseIcon /></button>
               </div>
             </div>
 
@@ -493,18 +493,18 @@ export default function ProductsPage() {
               <div>
                 <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wider">صورة المنتج</label>
                 <div className="flex items-center gap-4">
-                  <div className="w-24 h-24 rounded-xl border-2 border-dashed border-gray-600 overflow-hidden flex items-center justify-center cursor-pointer hover:border-primary/50 transition-colors bg-dark flex-shrink-0" onClick={() => fileInputRef.current?.click()}>
+                  <div className="w-24 h-24 rounded-xl border-2 border-dashed border-dark-border overflow-hidden flex items-center justify-center cursor-pointer hover:border-primary/50 transition-colors bg-dark flex-shrink-0" onClick={() => fileInputRef.current?.click()}>
                     {imagePreview ? <img src={imagePreview} alt="preview" className="w-full h-full object-cover" />
-                      : <div className="text-center"><CameraIcon /><p className="text-[10px] text-gray-500 mt-1">اختر صورة</p></div>}
+                      : <div className="text-center"><CameraIcon /><p className="text-[11px] text-gray-500 mt-1">اختر صورة</p></div>}
                   </div>
                   <div className="flex-1">
                     <p className="text-xs text-gray-500 mb-2">PNG, JPG, WEBP (حد أقصى 5MB)</p>
                     <div className="flex gap-2">
-                      <button type="button" onClick={() => fileInputRef.current?.click()} className="px-3 py-1.5 text-xs font-medium bg-primary/10 text-amber-300 rounded-lg border border-primary/20 hover:bg-primary/20 transition-all">
+                      <button type="button" onClick={() => fileInputRef.current?.click()} className="px-3.5 min-h-11 py-2 text-xs font-medium bg-primary/10 text-amber-300 rounded-lg border border-primary/20 hover:bg-primary/20 transition-all">
                         {imagePreview ? 'تغيير' : 'رفع صورة'}
                       </button>
                       {imagePreview && (
-                        <button type="button" onClick={removeImage} className="px-3 py-1.5 text-xs font-medium bg-rose-500/10 text-rose-300 rounded-lg border border-rose-500/20 hover:bg-rose-500/20 transition-all">إزالة</button>
+                        <button type="button" onClick={removeImage} className="px-3.5 min-h-11 py-2 text-xs font-medium bg-rose-500/10 text-rose-300 rounded-lg border border-rose-500/20 hover:bg-rose-500/20 transition-all">إزالة</button>
                       )}
                     </div>
                   </div>
@@ -557,7 +557,7 @@ export default function ProductsPage() {
                 <button type="submit" disabled={uploading} className="flex-1 px-5 py-2.5 bg-gradient-to-r from-primary to-amber-600 text-white rounded-xl font-medium transition-all duration-300 shadow-lg shadow-primary/20 hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed">
                   {uploading ? 'جاري الحفظ...' : (editingProduct ? 'تحديث' : 'إضافة')}
                 </button>
-                <button type="button" onClick={() => setShowModal(false)} className="flex-1 px-5 py-2.5 bg-gray-700/50 hover:bg-gray-700 text-white rounded-xl font-medium transition-all duration-200 border border-gray-600/30">إلغاء</button>
+                <button type="button" onClick={() => setShowModal(false)} className="flex-1 px-5 py-2.5 bg-dark-hover/50 hover:bg-dark-hover text-white rounded-xl font-medium transition-all duration-200 border border-dark-border/30">إلغاء</button>
               </div>
             </form>
           </div>
@@ -575,7 +575,7 @@ export default function ProductsPage() {
                   <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center"><StockIcon /></div>
                   <div><h2 className="text-lg font-bold text-white">تعديل المخزون</h2><p className="text-sm text-gray-400">{stockProduct.nameAr || stockProduct.name}</p></div>
                 </div>
-                <button onClick={() => setShowStockModal(false)} className="w-10 h-10 shrink-0 rounded-lg bg-gray-700/50 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"><CloseIcon /></button>
+                <button onClick={() => setShowStockModal(false)} className="w-10 h-10 shrink-0 rounded-lg bg-dark-hover/50 flex items-center justify-center text-gray-400 hover:text-white hover:bg-dark-hover transition-colors"><CloseIcon /></button>
               </div>
               <div className="relative overflow-hidden mb-6 p-4 bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 rounded-xl border border-emerald-500/20">
                 <div className="flex items-center justify-between">
@@ -602,7 +602,7 @@ export default function ProductsPage() {
                 </div>
                 <div className="flex gap-3 pt-2">
                   <button type="submit" className="flex-1 px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-xl font-medium transition-all duration-300 shadow-lg shadow-emerald-500/20 hover:shadow-xl">تأكيد</button>
-                  <button type="button" onClick={() => setShowStockModal(false)} className="flex-1 px-5 py-2.5 bg-gray-700/50 hover:bg-gray-700 text-white rounded-xl font-medium transition-all duration-200 border border-gray-600/30">إلغاء</button>
+                  <button type="button" onClick={() => setShowStockModal(false)} className="flex-1 px-5 py-2.5 bg-dark-hover/50 hover:bg-dark-hover text-white rounded-xl font-medium transition-all duration-200 border border-dark-border/30">إلغاء</button>
                 </div>
               </form>
             </div>

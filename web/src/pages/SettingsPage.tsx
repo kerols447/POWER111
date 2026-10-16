@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import NoticeBanner from '../components/NoticeBanner';
+import { localDate } from '../utils/dates';
 
 interface Branch {
   id: string;
@@ -213,7 +214,7 @@ export default function SettingsPage() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `نسخة-احتياطية-POWER111-${new Date().toISOString().slice(0, 10)}.json`;
+      link.download = `نسخة-احتياطية-POWER111-${localDate()}.json`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -319,13 +320,13 @@ export default function SettingsPage() {
         onChange={(e) => onChange(e.target.checked)}
         className="sr-only peer"
       />
-      <div className="relative w-12 h-6 shrink-0 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-amber-500/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:right-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-amber-500 peer-checked:to-amber-600 transition-colors duration-200"></div>
+      <div className="relative w-12 h-6 shrink-0 bg-dark-hover peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-amber-500/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:right-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-amber-500 peer-checked:to-amber-600 transition-colors duration-200"></div>
     </label>
   );
 
   // Section Card Component
   const SectionCard = ({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) => (
-    <div className="relative overflow-hidden bg-gradient-to-br from-gray-800/80 via-gray-800/60 to-gray-900/80 backdrop-blur-sm rounded-2xl border border-gray-700/50 p-6">
+    <div className="relative overflow-hidden bg-gradient-to-br from-dark-card/80 via-dark-card/60 to-dark-card/80 backdrop-blur-sm rounded-2xl border border-dark-border/50 p-6">
       <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-amber-500/20 to-transparent"></div>
       <div className="flex items-center gap-3 mb-5">
         <div className="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400">
@@ -355,26 +356,26 @@ export default function SettingsPage() {
       </div>
 
       {/* Branch Selector */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-gray-800/80 via-gray-800/60 to-gray-900/80 backdrop-blur-sm rounded-2xl border border-gray-700/50 p-5">
+      <div className="relative overflow-hidden bg-gradient-to-br from-dark-card/80 via-dark-card/60 to-dark-card/80 backdrop-blur-sm rounded-2xl border border-dark-border/50 p-5">
         <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-amber-500/20 to-transparent"></div>
-        <label className="block text-sm font-medium text-gray-400 mb-2">
-          اختر الفرع
-        </label>
-        <select
-          value={selectedBranch}
-          onChange={(e) => setSelectedBranch(e.target.value)}
-          className="w-full sm:w-auto px-4 py-2.5 bg-gray-900/50 border border-gray-700/50 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200 min-w-[200px]"
-        >
-          {branches.map((branch) => (
-            <option key={branch.id} value={branch.id}>
-              {branch.name}
-            </option>
-          ))}
-        </select>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <label className="text-sm font-medium text-gray-400">اختر الفرع</label>
+          <select
+            value={selectedBranch}
+            onChange={(e) => setSelectedBranch(e.target.value)}
+            className="w-full sm:w-auto px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200 min-w-[200px]"
+          >
+            {branches.map((branch) => (
+              <option key={branch.id} value={branch.id}>
+                {branch.name}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {loading ? (
-        <div className="relative overflow-hidden bg-gradient-to-br from-gray-800/80 via-gray-800/60 to-gray-900/80 backdrop-blur-sm rounded-2xl border border-gray-700/50 p-12 text-center">
+        <div className="relative overflow-hidden bg-gradient-to-br from-dark-card/80 via-dark-card/60 to-dark-card/80 backdrop-blur-sm rounded-2xl border border-dark-border/50 p-12 text-center">
           <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-amber-500/20 to-transparent"></div>
           <div className="inline-flex items-center gap-3 text-gray-400">
             <svg className="animate-spin w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24">
@@ -389,7 +390,7 @@ export default function SettingsPage() {
           {/* Tax Settings */}
           <SectionCard icon={<TaxIcon />} title="الضرائب">
             <div className="space-y-5">
-              <div className="flex items-center justify-between p-4 bg-gray-900/30 rounded-xl border border-gray-700/30">
+              <div className="flex items-center justify-between p-4 bg-dark-card/30 rounded-xl border border-dark-border/30">
                 <div>
                   <p className="text-white font-medium">تفعيل الضريبة</p>
                   <p className="text-sm text-gray-500 mt-0.5">تطبيق الضريبة على المبيعات</p>
@@ -401,8 +402,8 @@ export default function SettingsPage() {
               </div>
 
               {settings.taxEnabled && (
-                <div className="p-4 bg-gray-900/30 rounded-xl border border-gray-700/30">
-                  <label className="block text-sm font-medium text-gray-400 mb-2">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-dark-card/30 rounded-xl border border-dark-border/30">
+                  <label className="text-sm font-medium text-gray-400">
                     نسبة الضريبة (%)
                   </label>
                   <input
@@ -412,7 +413,7 @@ export default function SettingsPage() {
                     step="0.01"
                     value={settings.taxRatePercent / 100}
                     onChange={(e) => updateSetting('taxRatePercent', Math.round(parseFloat(e.target.value) * 100))}
-                    className="w-full sm:w-48 px-4 py-2.5 bg-gray-900/50 border border-gray-700/50 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
+                    className="w-full sm:w-48 px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
                   />
                 </div>
               )}
@@ -422,8 +423,8 @@ export default function SettingsPage() {
           {/* Freeze Settings */}
           <SectionCard icon={<SnowflakeIcon />} title="تجميد الاشتراكات">
             <div className="space-y-5">
-              <div className="p-4 bg-gray-900/30 rounded-xl border border-gray-700/30">
-                <label className="block text-sm font-medium text-gray-400 mb-2">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-dark-card/30 rounded-xl border border-dark-border/30">
+                <label className="text-sm font-medium text-gray-400">
                   الحد الأقصى لأيام التجميد
                 </label>
                 <input
@@ -431,11 +432,11 @@ export default function SettingsPage() {
                   min="0"
                   value={settings.maxFreezeDays}
                   onChange={(e) => updateSetting('maxFreezeDays', parseInt(e.target.value) || 0)}
-                  className="w-full sm:w-48 px-4 py-2.5 bg-gray-900/50 border border-gray-700/50 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
+                  className="w-full sm:w-48 px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
                 />
               </div>
 
-              <div className="flex items-center justify-between p-4 bg-gray-900/30 rounded-xl border border-gray-700/30">
+              <div className="flex items-center justify-between p-4 bg-dark-card/30 rounded-xl border border-dark-border/30">
                 <div>
                   <p className="text-white font-medium">يتطلب موافقة المدير</p>
                   <p className="text-sm text-gray-500 mt-0.5">تجميد الاشتراك يحتاج موافقة من المدير</p>
@@ -451,7 +452,7 @@ export default function SettingsPage() {
           {/* Attendance Settings */}
           <SectionCard icon={<ClockIcon />} title="الحضور">
             <div className="space-y-5">
-              <div className="flex items-center justify-between gap-4 p-4 bg-gray-900/30 rounded-xl border border-gray-700/30">
+              <div className="flex items-center justify-between gap-4 p-4 bg-dark-card/30 rounded-xl border border-dark-border/30">
                 <div className="min-w-0">
                   <p className="text-white font-medium">الحضور في فرع آخر</p>
                   <p className="text-sm text-gray-500 mt-0.5">
@@ -466,7 +467,7 @@ export default function SettingsPage() {
                 />
               </div>
 
-              <div className="flex items-center justify-between gap-4 p-4 bg-gray-900/30 rounded-xl border border-gray-700/30">
+              <div className="flex items-center justify-between gap-4 p-4 bg-dark-card/30 rounded-xl border border-dark-border/30">
                 <div className="min-w-0">
                   <p className="text-white font-medium">الانصراف التلقائي</p>
                   <p className="text-sm text-gray-500 mt-0.5">
@@ -481,8 +482,8 @@ export default function SettingsPage() {
                 />
               </div>
 
-              <div className={`p-4 bg-gray-900/30 rounded-xl border border-gray-700/30 ${settings.autoCheckoutEnabled ? '' : 'opacity-50'}`}>
-                <label className="block text-sm font-medium text-gray-400 mb-2">
+              <div className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-dark-card/30 rounded-xl border border-dark-border/30 ${settings.autoCheckoutEnabled ? '' : 'opacity-50'}`}>
+                <label className="text-sm font-medium text-gray-400">
                   مدة الانصراف التلقائي (بالدقائق)
                 </label>
                 <input
@@ -492,7 +493,7 @@ export default function SettingsPage() {
                   disabled={!settings.autoCheckoutEnabled}
                   value={settings.autoCheckoutMinutes ?? 90}
                   onChange={(e) => updateSetting('autoCheckoutMinutes', Math.min(Math.max(parseInt(e.target.value) || 0, 0), 1440))}
-                  className="w-full sm:w-48 px-4 py-2.5 bg-gray-900/50 border border-gray-700/50 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200 disabled:cursor-not-allowed"
+                  className="w-full sm:w-48 px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200 disabled:cursor-not-allowed"
                 />
                 {settings.autoCheckoutEnabled && (
                   <p className="text-xs text-amber-400/70 mt-2">
@@ -505,8 +506,8 @@ export default function SettingsPage() {
 
           {/* Inventory Settings */}
           <SectionCard icon={<BoxIcon />} title="المخزون">
-            <div className="p-4 bg-gray-900/30 rounded-xl border border-gray-700/30">
-              <label className="block text-sm font-medium text-gray-400 mb-2">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-dark-card/30 rounded-xl border border-dark-border/30">
+              <label className="text-sm font-medium text-gray-400">
                 حد المخزون المنخفض الافتراضي
               </label>
               <input
@@ -514,7 +515,7 @@ export default function SettingsPage() {
                 min="1"
                 value={settings.lowStockThreshold}
                 onChange={(e) => updateSetting('lowStockThreshold', parseInt(e.target.value) || 5)}
-                className="w-full sm:w-48 px-4 py-2.5 bg-gray-900/50 border border-gray-700/50 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
+                className="w-full sm:w-48 px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
               />
             </div>
           </SectionCard>
@@ -522,27 +523,27 @@ export default function SettingsPage() {
           {/* General Settings */}
           <SectionCard icon={<GlobeIcon />} title="عام">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="p-4 bg-gray-900/30 rounded-xl border border-gray-700/30">
-                <label className="block text-sm font-medium text-gray-400 mb-2">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-dark-card/30 rounded-xl border border-dark-border/30">
+                <label className="text-sm font-medium text-gray-400">
                   العملة
                 </label>
                 <input
                   type="text"
                   value={settings.currency}
                   onChange={(e) => updateSetting('currency', e.target.value)}
-                  className="w-full px-4 py-2.5 bg-gray-900/50 border border-gray-700/50 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
+                  className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
                 />
               </div>
 
-              <div className="p-4 bg-gray-900/30 rounded-xl border border-gray-700/30">
-                <label className="block text-sm font-medium text-gray-400 mb-2">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-dark-card/30 rounded-xl border border-dark-border/30">
+                <label className="text-sm font-medium text-gray-400">
                   المنطقة الزمنية
                 </label>
                 <input
                   type="text"
                   value={settings.timezone}
                   onChange={(e) => updateSetting('timezone', e.target.value)}
-                  className="w-full px-4 py-2.5 bg-gray-900/50 border border-gray-700/50 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
+                  className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
                 />
               </div>
             </div>
@@ -578,9 +579,9 @@ export default function SettingsPage() {
           </div>
         </div>
       ) : (
-        <div className="relative overflow-hidden bg-gradient-to-br from-gray-800/80 via-gray-800/60 to-gray-900/80 backdrop-blur-sm rounded-2xl border border-gray-700/50 p-12 text-center">
+        <div className="relative overflow-hidden bg-gradient-to-br from-dark-card/80 via-dark-card/60 to-dark-card/80 backdrop-blur-sm rounded-2xl border border-dark-border/50 p-12 text-center">
           <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-amber-500/20 to-transparent"></div>
-          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gray-700/30 flex items-center justify-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-dark-hover/30 flex items-center justify-center">
             <SettingsIcon />
           </div>
           <p className="text-gray-400 text-lg font-medium">لا توجد إعدادات لهذا الفرع</p>
@@ -625,7 +626,7 @@ export default function SettingsPage() {
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={restoring}
-              className="inline-flex items-center justify-center gap-2 min-h-11 px-5 bg-gray-900/50 border border-gray-700/50 text-gray-200 rounded-xl font-semibold transition-colors duration-200 hover:border-rose-500/50 hover:text-white disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-2 min-h-11 px-5 bg-dark-card/50 border border-dark-border/50 text-gray-200 rounded-xl font-semibold transition-colors duration-200 hover:border-rose-500/50 hover:text-white disabled:opacity-50"
             >
               <RestoreIcon />
               <span>استعادة من ملف</span>
@@ -646,13 +647,13 @@ export default function SettingsPage() {
               <p className="text-sm text-gray-400 mt-1 break-all" dir="ltr">{pendingRestore.fileName}</p>
               {pendingRestore.createdAt && (
                 <p className="text-sm text-gray-500 mt-1">
-                  تاريخ النسخة: {new Date(pendingRestore.createdAt).toLocaleString('ar-EG')}
+                  تاريخ النسخة: {new Date(pendingRestore.createdAt).toLocaleString('ar-EG-u-nu-latn')}
                 </p>
               )}
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-4">
                 {BACKUP_SUMMARY_ORDER.filter((key) => key in pendingRestore.counts).map((key) => (
-                  <div key={key} className="px-3 py-2 bg-gray-900/40 rounded-lg border border-gray-700/30">
+                  <div key={key} className="px-3 py-2 bg-dark-card/40 rounded-lg border border-dark-border/30">
                     <p className="text-xs text-gray-500">{BACKUP_LABELS[key]}</p>
                     <p className="text-white font-semibold">{pendingRestore.counts[key]}</p>
                   </div>
@@ -670,14 +671,14 @@ export default function SettingsPage() {
                 onChange={(e) => setRestoreConfirm(e.target.value)}
                 placeholder="RESTORE"
                 dir="ltr"
-                className="w-full sm:w-64 mt-3 px-4 py-3 bg-gray-900/50 border border-gray-700/50 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-rose-500/50 focus:border-rose-500/50 transition-all duration-200"
+                className="w-full sm:w-64 mt-3 px-4 py-3 bg-dark border border-dark-border rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-rose-500/50 focus:border-rose-500/50 transition-all duration-200"
               />
 
               <div className="grid grid-cols-2 gap-3 mt-4">
                 <button
                   onClick={cancelRestore}
                   disabled={restoring}
-                  className="min-h-11 px-4 bg-gray-900/50 border border-gray-700/50 text-gray-300 hover:text-white rounded-xl font-semibold transition-colors disabled:opacity-50"
+                  className="min-h-11 px-4 bg-dark-card/50 border border-dark-border/50 text-gray-300 hover:text-white rounded-xl font-semibold transition-colors disabled:opacity-50"
                 >
                   إلغاء
                 </button>

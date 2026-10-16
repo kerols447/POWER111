@@ -230,7 +230,7 @@ function PlansSection() {
     }
   };
 
-  const formatPrice = (piasters: number) => `${(piasters / 100).toLocaleString('ar-EG')} ج.م`;
+  const formatPrice = (piasters: number) => `${(piasters / 100).toLocaleString('ar-EG-u-nu-latn')} ج.م`;
 
   return (
     <div className="space-y-6">

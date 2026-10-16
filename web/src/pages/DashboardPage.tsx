@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
+import { localDate } from '../utils/dates';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 interface BranchStat {
   branch: { id: string; name: string; code: string };
@@ -42,7 +43,93 @@ function formatNumber(num: number): string {
   return num.toLocaleString('en-US');
 }
 
+const AR_MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+const AR_DAYS = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+
+// Every number on this page is Latin; 'ar-EG' would print the dates in Arabic-Indic digits.
+function formatDate(value: string | number | Date, withWeekday = false): string {
+  const d = new Date(value);
+  const text = `${d.getDate()} ${AR_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  return withWeekday ? `${AR_DAYS[d.getDay()]} ${text}` : text;
+}
+
+function daysUntil(value: string | number | Date): number {
+  const target = new Date(value);
+  target.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.round((target.getTime() - today.getTime()) / 86400000);
+}
+
+function branchCountLabel(count: number): string {
+  if (count === 1) return 'فرع واحد';
+  if (count === 2) return 'فرعين';
+  return `${count} فرع`;
+}
+
+function expiringInLabel(value: string | number | Date): string {
+  const days = daysUntil(value);
+  if (days <= 0) return 'ينتهي اليوم';
+  if (days === 1) return 'غداً';
+  if (days === 2) return 'بعد يومين';
+  return `خلال ${days} أيام`;
+}
+
 const COLORS = ['#F59E0B', '#D97706', '#FCD34D', '#B45309'];
+
+// A zero on these cards means "nothing happened yet", not "the club earned nothing" — say so plainly.
+function StatFooter({ dotClass, textClass, count, noun, emptyText }: {
+  dotClass: string;
+  textClass: string;
+  count: number;
+  noun: string;
+  emptyText: string;
+}) {
+  return (
+    <div className="mt-2 flex items-center gap-1.5 min-h-[16px]">
+      {count > 0 && <div className={`w-1.5 h-1.5 rounded-full animate-pulse shrink-0 ${dotClass}`} />}
+      <span className={`text-[11px] leading-tight ${textClass}`}>
+        {count > 0 ? `${formatNumber(count)} ${noun}` : emptyText}
+      </span>
+    </div>
+  );
+}
+
+const quickActions = [
+  {
+    label: 'حضور عضو',
+    hint: 'تسجيل الحضور',
+    path: '/admin/attendance',
+    d: [
+      'M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z',
+      'M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z'
+    ]
+  },
+  {
+    label: 'عضو جديد',
+    hint: 'إضافة عضو',
+    path: '/admin/members',
+    d: [
+      'M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM3 18.25a5.625 5.625 0 0111.25 0v1.5H3v-1.5z'
+    ]
+  },
+  {
+    label: 'نقطة بيع',
+    hint: 'بيع منتجات',
+    path: '/admin/sales',
+    d: [
+      'M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z'
+    ]
+  },
+  {
+    label: 'تجديد اشتراك',
+    hint: 'إدارة الاشتراكات',
+    path: '/admin/subscriptions',
+    d: [
+      'M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182M2.985 19.644l3.181-3.182'
+    ]
+  }
+];
 
 function DashboardPage() {
   const navigate = useNavigate();
@@ -55,10 +142,10 @@ function DashboardPage() {
   const { user, hasPermission, isOwner } = useAuth();
 
   const today = new Date();
-  const toStr = today.toISOString().split('T')[0];
+  const toStr = localDate(today);
   const weekAgo = new Date(today);
   weekAgo.setDate(weekAgo.getDate() - 6);
-  const fromStr = weekAgo.toISOString().split('T')[0];
+  const fromStr = localDate(weekAgo);
 
   useEffect(() => {
     fetchData();
@@ -142,85 +229,57 @@ function DashboardPage() {
     <div className="space-y-5 sm:space-y-7">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">لوحة التحكم</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            {isOwner ? 'نظرة عامة على جميع الفروع' : `فرعك — ${new Date().toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`}
+          <p className="text-sm text-gray-500 mt-1.5">
+            {isOwner ? 'نظرة عامة على جميع الفروع' : 'نظرة عامة على فرعك'}
+            <span className="mx-2 text-gray-700">·</span>
+            من {formatDate(fromStr)} إلى {formatDate(toStr)}
           </p>
         </div>
-        <select
-          value={selectedBranch}
-          onChange={(e) => setSelectedBranch(e.target.value)}
-          className="bg-dark-card border border-dark-border rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-primary/60 min-w-[180px] transition-colors"
-        >
-          <option value="all">جميع الفروع</option>
-          {branchStats.map(stat => (
-            <option key={stat.branch.id} value={stat.branch.id}>
-              {stat.branch.name}
-            </option>
-          ))}
-        </select>
+        <div className="relative shrink-0">
+          <select
+            value={selectedBranch}
+            onChange={(e) => setSelectedBranch(e.target.value)}
+            aria-label="اختيار الفرع"
+            className="appearance-none bg-dark-card border border-dark-border rounded-xl pr-4 pl-10 py-2.5 text-sm text-white focus:outline-none focus:border-primary/60 min-w-[190px] transition-colors cursor-pointer"
+          >
+            <option value="all">جميع الفروع</option>
+            {branchStats.map(stat => (
+              <option key={stat.branch.id} value={stat.branch.id}>
+                {stat.branch.name}
+              </option>
+            ))}
+          </select>
+          <svg className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </div>
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <button
-          onClick={() => navigate('/admin/attendance')}
-          className="relative overflow-hidden bg-dark-card border border-dark-border rounded-2xl p-4 sm:p-5 hover:border-primary/40 transition-all group text-right"
-        >
-          <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-primary/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-          <div className="w-12 h-12 bg-gradient-to-br from-primary/20 to-primary/5 rounded-xl flex items-center justify-center mb-3 group-hover:from-primary/30 group-hover:to-primary/10 transition-all">
-            <svg className="w-6 h-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {quickActions.map((action) => (
+          <button
+            key={action.path}
+            onClick={() => navigate(action.path)}
+            className="group relative overflow-hidden bg-dark-card border border-dark-border rounded-2xl px-3 sm:px-4 py-3.5 flex items-center gap-2 sm:gap-3 text-right hover:border-primary/40 hover:bg-primary/[0.03] transition-colors min-h-[64px]"
+          >
+            <div className="absolute top-0 right-0 h-full w-0.5 bg-gradient-to-b from-primary/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="w-10 h-10 shrink-0 bg-gradient-to-br from-primary/20 to-primary/5 rounded-xl flex items-center justify-center group-hover:from-primary/30 group-hover:to-primary/10 transition-colors">
+              <svg className="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6}>
+                {action.d.map((d, i) => <path key={i} strokeLinecap="round" strokeLinejoin="round" d={d} />)}
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-white truncate">{action.label}</p>
+              <p className="hidden sm:block text-[11px] text-gray-500 truncate mt-0.5">{action.hint}</p>
+            </div>
+            <svg className="hidden sm:block w-4 h-4 shrink-0 text-gray-700 group-hover:text-primary transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
             </svg>
-          </div>
-          <p className="text-sm font-semibold text-white">حضور عضو</p>
-          <p className="text-xs text-gray-500 mt-0.5">تسجيل الحضور</p>
-        </button>
-
-        <button
-          onClick={() => navigate('/admin/members')}
-          className="relative overflow-hidden bg-dark-card border border-dark-border rounded-2xl p-4 sm:p-5 hover:border-primary/40 transition-all group text-right"
-        >
-          <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-primary/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-          <div className="w-12 h-12 bg-gradient-to-br from-primary/20 to-primary/5 rounded-xl flex items-center justify-center mb-3 group-hover:from-primary/30 group-hover:to-primary/10 transition-all">
-            <svg className="w-6 h-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7.5v3m0 0v3m0-3h3m-3 0h-3M2.25 9.75h19.5a2.25 2.25 0 012.25 2.25v6a2.25 2.25 0 01-2.25 2.25H2.25A2.25 2.25 0 010 18v-6a2.25 2.25 0 012.25-2.25z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 2.25c1.105 0 2.25.895 2.25 2.25S13.105 6.75 12 6.75 9.75 5.855 9.75 4.5 10.895 2.25 12 2.25z" />
-            </svg>
-          </div>
-          <p className="text-sm font-semibold text-white">عضو جديد</p>
-          <p className="text-xs text-gray-500 mt-0.5">إضافة عضو</p>
-        </button>
-
-        <button
-          onClick={() => navigate('/admin/sales')}
-          className="relative overflow-hidden bg-dark-card border border-dark-border rounded-2xl p-4 sm:p-5 hover:border-amber-500/40 transition-all group text-right"
-        >
-          <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-amber-500/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-          <div className="w-12 h-12 bg-gradient-to-br from-amber-500/20 to-amber-500/5 rounded-xl flex items-center justify-center mb-3 group-hover:from-amber-500/30 group-hover:to-amber-500/10 transition-all">
-            <svg className="w-6 h-6 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
-            </svg>
-          </div>
-          <p className="text-sm font-semibold text-white">نقطة بيع</p>
-          <p className="text-xs text-gray-500 mt-0.5">بيع منتجات</p>
-        </button>
-
-        <button
-          onClick={() => navigate('/admin/subscriptions')}
-          className="relative overflow-hidden bg-dark-card border border-dark-border rounded-2xl p-4 sm:p-5 hover:border-yellow-500/40 transition-all group text-right"
-        >
-          <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-yellow-500/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-          <div className="w-12 h-12 bg-gradient-to-br from-yellow-500/20 to-yellow-500/5 rounded-xl flex items-center justify-center mb-3 group-hover:from-yellow-500/30 group-hover:to-yellow-500/10 transition-all">
-            <svg className="w-6 h-6 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182M2.985 19.644l3.181-3.182" />
-            </svg>
-          </div>
-          <p className="text-sm font-semibold text-white">تجديد اشتراك</p>
-          <p className="text-xs text-gray-500 mt-0.5">إدارة الاشتراكات</p>
-        </button>
+          </button>
+        ))}
       </div>
 
       {/* Hero Stats Row */}
@@ -238,10 +297,13 @@ function DashboardPage() {
                 <span className="text-xs text-emerald-400/70 font-medium">الإيرادات</span>
               </div>
               <p className="text-xl sm:text-2xl font-black text-emerald-400 tracking-tight">{formatPiasters(totalRevenue)}</p>
-              <div className="mt-2 flex items-center gap-1">
-                <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
-                <span className="text-[10px] text-emerald-400/50">{filteredStats.reduce((s, b) => s + b.salesCount, 0)} عملية بيع</span>
-              </div>
+              <StatFooter
+                dotClass="bg-emerald-400"
+                textClass="text-emerald-400/60"
+                count={filteredStats.reduce((s, b) => s + b.salesCount, 0)}
+                noun="عملية بيع"
+                emptyText="لا مبيعات في الفترة"
+              />
             </div>
           </div>
         )}
@@ -259,10 +321,13 @@ function DashboardPage() {
                 <span className="text-xs text-rose-400/70 font-medium">المصروفات</span>
               </div>
               <p className="text-xl sm:text-2xl font-black text-rose-400 tracking-tight">{formatPiasters(totalExpenses)}</p>
-              <div className="mt-2 flex items-center gap-1">
-                <div className="w-1.5 h-1.5 bg-rose-400 rounded-full animate-pulse" />
-                <span className="text-[10px] text-rose-400/50">{filteredStats.reduce((s, b) => s + b.expensesCount, 0)} مصروف</span>
-              </div>
+              <StatFooter
+                dotClass="bg-rose-400"
+                textClass="text-rose-400/60"
+                count={filteredStats.reduce((s, b) => s + b.expensesCount, 0)}
+                noun="مصروف"
+                emptyText="لا مصروفات في الفترة"
+              />
             </div>
           </div>
         )}
@@ -280,10 +345,14 @@ function DashboardPage() {
                 <span className={`text-xs ${totalProfit >= 0 ? 'text-primary/70' : 'text-rose-400/70'} font-medium`}>صافي الربح</span>
               </div>
               <p className={`text-xl sm:text-2xl font-black tracking-tight ${totalProfit >= 0 ? 'text-primary' : 'text-rose-400'}`}>{formatPiasters(totalProfit)}</p>
-              <div className="mt-2">
-                <span className={`text-[10px] px-1.5 py-0.5 rounded ${totalProfit >= 0 ? 'bg-primary/10 text-primary/70' : 'bg-rose-500/10 text-rose-400/70'}`}>
-                  {profitMargin}% هامش الربح
-                </span>
+              <div className="mt-2 min-h-[22px]">
+                {totalRevenue > 0 ? (
+                  <span className={`text-[11px] px-1.5 py-0.5 rounded ${totalProfit >= 0 ? 'bg-primary/10 text-primary/70' : 'bg-rose-500/10 text-rose-400/70'}`}>
+                    {profitMargin}% هامش الربح
+                  </span>
+                ) : (
+                  <span className="text-[11px] text-gray-600 leading-tight">لا إيرادات في الفترة</span>
+                )}
               </div>
             </div>
           </div>
@@ -302,10 +371,13 @@ function DashboardPage() {
                 <span className="text-xs text-amber-400/70 font-medium">مستحقات</span>
               </div>
               <p className="text-xl sm:text-2xl font-black text-amber-400 tracking-tight">{formatPiasters(totalOutstanding)}</p>
-              <div className="mt-2 flex items-center gap-1">
-                <div className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse" />
-                <span className="text-[10px] text-amber-400/50">{filteredStats.reduce((s, b) => s + b.paymentsCount, 0)} دفعة</span>
-              </div>
+              <StatFooter
+                dotClass="bg-amber-400"
+                textClass="text-amber-400/60"
+                count={filteredStats.reduce((s, b) => s + b.paymentsCount, 0)}
+                noun="دفعة مسجّلة"
+                emptyText="لا دفعات في الفترة"
+              />
             </div>
           </div>
         )}
@@ -313,50 +385,68 @@ function DashboardPage() {
 
       {/* Members & Subscriptions Row */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-        <div className="relative overflow-hidden bg-dark-card border border-dark-border rounded-2xl p-5 sm:p-6">
+        <button
+          onClick={() => navigate('/admin/members')}
+          className="group relative overflow-hidden bg-dark-card border border-dark-border rounded-2xl p-5 sm:p-6 text-right hover:border-primary/40 transition-colors"
+        >
           <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-primary/40 via-primary/20 to-transparent" />
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-500 mb-1">إجمالي الأعضاء</p>
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs text-gray-500 mb-1.5">الأعضاء النشطون</p>
               <p className="text-3xl sm:text-4xl font-black text-white tracking-tight">{formatNumber(totalMembers)}</p>
+              <p className="text-[11px] text-gray-600 mt-2">
+                {isOwner ? branchCountLabel(filteredStats.length) : 'في فرعك'} · اضغط للعرض
+              </p>
             </div>
-            <div className="w-14 h-14 bg-gradient-to-br from-primary/20 to-primary/5 rounded-2xl flex items-center justify-center">
+            <div className="w-14 h-14 bg-gradient-to-br from-primary/20 to-primary/5 rounded-2xl flex items-center justify-center shrink-0 group-hover:from-primary/30 group-hover:to-primary/10 transition-all">
               <svg className="w-7 h-7 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
               </svg>
             </div>
           </div>
-        </div>
+        </button>
 
-        <div className="relative overflow-hidden bg-dark-card border border-dark-border rounded-2xl p-5 sm:p-6">
+        <button
+          onClick={() => navigate('/admin/subscriptions')}
+          className="group relative overflow-hidden bg-dark-card border border-dark-border rounded-2xl p-5 sm:p-6 text-right hover:border-emerald-400/40 transition-colors"
+        >
           <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500/40 via-emerald-500/20 to-transparent" />
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-500 mb-1">الاشتراكات النشطة</p>
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs text-gray-500 mb-1.5">الاشتراكات النشطة</p>
               <p className="text-3xl sm:text-4xl font-black text-emerald-400 tracking-tight">{formatNumber(totalSubscriptions)}</p>
+              <p className="text-[11px] text-gray-600 mt-2">
+                {expiring.length > 0 ? `${formatNumber(expiring.length)} ينتهي خلال أسبوع` : 'لا اشتراكات تنتهي قريباً'}
+              </p>
             </div>
-            <div className="w-14 h-14 bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 rounded-2xl flex items-center justify-center">
+            <div className="w-14 h-14 bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 rounded-2xl flex items-center justify-center shrink-0 group-hover:from-emerald-500/30 group-hover:to-emerald-500/10 transition-all">
               <svg className="w-7 h-7 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
           </div>
-        </div>
+        </button>
 
-        <div className="relative overflow-hidden bg-dark-card border border-dark-border rounded-2xl p-5 sm:p-6">
+        <button
+          onClick={() => navigate('/admin/subscriptions')}
+          className="group relative overflow-hidden bg-dark-card border border-dark-border rounded-2xl p-5 sm:p-6 text-right hover:border-amber-400/40 transition-colors"
+        >
           <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500/40 via-amber-500/20 to-transparent" />
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-500 mb-1">تنتهي خلال 7 أيام</p>
-              <p className="text-3xl sm:text-4xl font-black text-amber-400 tracking-tight">{expiring.length}</p>
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs text-gray-500 mb-1.5">تنتهي خلال 7 أيام</p>
+              <p className={`text-3xl sm:text-4xl font-black tracking-tight ${expiring.length > 0 ? 'text-amber-400' : 'text-gray-600'}`}>{formatNumber(expiring.length)}</p>
+              <p className="text-[11px] text-gray-600 mt-2">
+                {expiring.length > 0 ? 'يحتاج تجديد — اضغط للبدء' : 'كل الاشتراكات في موعد'}
+              </p>
             </div>
-            <div className="w-14 h-14 bg-gradient-to-br from-amber-500/20 to-amber-500/5 rounded-2xl flex items-center justify-center">
+            <div className="w-14 h-14 bg-gradient-to-br from-amber-500/20 to-amber-500/5 rounded-2xl flex items-center justify-center shrink-0 group-hover:from-amber-500/30 group-hover:to-amber-500/10 transition-all">
               <svg className="w-7 h-7 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
               </svg>
             </div>
           </div>
-        </div>
+        </button>
       </div>
 
       {/* Currently in Gym — per branch */}
@@ -376,22 +466,29 @@ function DashboardPage() {
               </div>
             </div>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {filteredStats.map((stat, idx) => {
               const count = branchCounts[stat.branch.id] ?? 0;
-              const pct = Math.min(100, (count / Math.max(stat.activeMembers, 1)) * 100);
+              const color = COLORS[idx % COLORS.length];
               return (
-                <div key={stat.branch.id} className="relative overflow-hidden rounded-2xl border border-white/5 bg-gradient-to-br from-dark to-dark-card p-5 text-center group hover:border-primary/20 transition-colors">
-                  <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-primary/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                  <div className="text-4xl font-black text-primary">{count}</div>
-                  <div className="mt-2 text-xs text-gray-400 font-medium">{stat.branch.name.split('—')[1]?.trim() || stat.branch.name}</div>
-                  <div className="mt-3 h-2 rounded-full bg-dark-card overflow-hidden border border-white/5">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-primary to-primary/60 transition-all duration-500"
-                      style={{ width: `${pct}%` }}
-                    />
+                <div key={stat.branch.id} className="relative overflow-hidden rounded-2xl border border-white/5 bg-gradient-to-br from-dark to-dark-card px-4 py-4 sm:px-5 flex items-center gap-3 sm:gap-4 hover:border-primary/25 transition-colors">
+                  <div className="w-11 h-11 rounded-xl flex items-center justify-center font-bold text-sm shrink-0" style={{ backgroundColor: color + '18', color }}>
+                    {stat.branch.code.charAt(0).toUpperCase()}
                   </div>
-                  <div className="mt-2 text-[11px] text-gray-500">{count} / {stat.activeMembers} عضو</div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-white truncate">{stat.branch.name.split('—')[1]?.trim() || stat.branch.name}</p>
+                    <p className="text-[11px] text-gray-500 mt-1">{formatNumber(stat.activeMembers)} عضو نشط</p>
+                  </div>
+                  <div className="text-left shrink-0">
+                    <div className="flex items-baseline gap-1.5">
+                      <span className={`text-3xl font-black tracking-tight ${count > 0 ? 'text-primary' : 'text-gray-600'}`}>{count}</span>
+                      <span className="text-[11px] text-gray-500">حاضر</span>
+                    </div>
+                    <span className={`flex items-center justify-end gap-1.5 mt-1 text-[11px] ${count > 0 ? 'text-emerald-400' : 'text-gray-600'}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${count > 0 ? 'bg-emerald-400 animate-pulse' : 'bg-dark-hover'}`} />
+                      {count > 0 ? 'الآن' : 'لا حضور'}
+                    </span>
+                  </div>
                 </div>
               );
             })}
@@ -433,7 +530,7 @@ function DashboardPage() {
                 <span className="text-xs text-gray-400">إيرادات</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-gray-700 rounded-sm"></div>
+                <div className="w-3 h-3 bg-dark-hover rounded-sm"></div>
                 <span className="text-xs text-gray-400">مصروفات</span>
               </div>
             </div>
@@ -643,9 +740,14 @@ function DashboardPage() {
                   <p className="text-sm font-semibold text-white">{sub.member.name}</p>
                   <p className="text-xs text-gray-500 mt-0.5">{sub.plan.nameAr || sub.plan.name}</p>
                 </div>
-                <span className="text-xs text-amber-400 bg-amber-500/10 px-2.5 py-1.5 rounded-lg font-medium whitespace-nowrap">
-                  {new Date(sub.endDate).toLocaleDateString('ar-EG')}
-                </span>
+                <div className="text-left shrink-0">
+                  <span className="block text-xs text-amber-400 bg-amber-500/10 px-2.5 py-1.5 rounded-lg font-medium whitespace-nowrap">
+                    {formatDate(sub.endDate)}
+                  </span>
+                  <span className="block mt-1 text-[11px] text-gray-500 text-center">
+                    {expiringInLabel(sub.endDate)}
+                  </span>
+                </div>
               </div>
             ))}
           </div>

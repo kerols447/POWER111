@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { addPendingOperation } from '../utils/offlineDb';
+import { localDate } from '../utils/dates';
 import ConfirmDialog from '../components/ConfirmDialog';
 import NoticeBanner from '../components/NoticeBanner';
 
@@ -121,7 +122,7 @@ export default function ExpensesPage() {
     category: 'أخرى',
     description: '',
     amountPiasters: 0,
-    date: new Date().toISOString().split('T')[0]
+    date: localDate()
   });
 
   useEffect(() => {
@@ -175,7 +176,7 @@ export default function ExpensesPage() {
       category: 'أخرى',
       description: '',
       amountPiasters: 0,
-      date: new Date().toISOString().split('T')[0]
+      date: localDate()
     });
     setShowModal(true);
   };
@@ -186,7 +187,7 @@ export default function ExpensesPage() {
       category: expense.category,
       description: expense.description,
       amountPiasters: expense.amountPiasters,
-      date: new Date(expense.date).toISOString().split('T')[0]
+      date: localDate(new Date(expense.date))
     });
     setShowModal(true);
   };
@@ -340,7 +341,7 @@ export default function ExpensesPage() {
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
-    return date.toLocaleDateString('ar-EG', {
+    return date.toLocaleDateString('ar-EG-u-nu-latn', {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit'
@@ -395,7 +396,7 @@ export default function ExpensesPage() {
       </div>
 
       {/* Summary Card */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-gray-800/80 via-gray-800/60 to-gray-900/80 backdrop-blur-sm rounded-2xl border border-gray-700/50 p-6">
+      <div className="relative overflow-hidden bg-gradient-to-br from-dark-card/80 via-dark-card/60 to-dark-card/80 backdrop-blur-sm rounded-2xl border border-dark-border/50 p-6">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.08),transparent_50%)]"></div>
         <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-amber-500/30 to-transparent"></div>
         <div className="relative flex items-center gap-4">
@@ -411,7 +412,7 @@ export default function ExpensesPage() {
       </div>
 
       {/* Filters */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-gray-800/80 via-gray-800/60 to-gray-900/80 backdrop-blur-sm rounded-2xl border border-gray-700/50 p-6">
+      <div className="relative overflow-hidden bg-gradient-to-br from-dark-card/80 via-dark-card/60 to-dark-card/80 backdrop-blur-sm rounded-2xl border border-dark-border/50 p-6">
         <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-amber-500/20 to-transparent"></div>
         <div className="flex items-center gap-2 mb-4">
           <FilterIcon />
@@ -427,7 +428,7 @@ export default function ExpensesPage() {
               <select
                 value={selectedBranch}
                 onChange={(e) => setSelectedBranch(e.target.value)}
-                className="w-full px-4 py-2.5 bg-gray-900/50 border border-gray-700/50 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
+                className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
               >
                 {branches.map((branch) => (
                   <option key={branch.id} value={branch.id}>
@@ -446,7 +447,7 @@ export default function ExpensesPage() {
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="w-full px-4 py-2.5 bg-gray-900/50 border border-gray-700/50 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
+              className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
             >
               <option value="">جميع الفئات</option>
               {CATEGORIES.map((cat) => (
@@ -466,7 +467,7 @@ export default function ExpensesPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="وصف المصروف..."
-                className="w-full pl-10 pr-4 py-2.5 bg-gray-900/50 border border-gray-700/50 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
+                className="w-full pl-10 pr-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
               />
               <div className="absolute left-3 top-1/2 -translate-y-1/2">
                 <SearchIcon />
@@ -477,7 +478,7 @@ export default function ExpensesPage() {
       </div>
 
       {/* Expenses Table */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-gray-800/80 via-gray-800/60 to-gray-900/80 backdrop-blur-sm rounded-2xl border border-gray-700/50">
+      <div className="relative overflow-hidden bg-gradient-to-br from-dark-card/80 via-dark-card/60 to-dark-card/80 backdrop-blur-sm rounded-2xl border border-dark-border/50">
         <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-amber-500/20 to-transparent"></div>
         {loading ? (
           <div className="p-12 text-center">
@@ -491,7 +492,7 @@ export default function ExpensesPage() {
           </div>
         ) : expenses.length === 0 ? (
           <div className="p-12 text-center">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gray-700/30 flex items-center justify-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-dark-hover/30 flex items-center justify-center">
               <ReceiptIcon />
             </div>
             <p className="text-gray-400 text-lg font-medium">لا توجد مصروفات</p>
@@ -502,7 +503,7 @@ export default function ExpensesPage() {
           <div className="hidden sm:block overflow-x-auto">
             <table className="w-full min-w-[640px]">
               <thead>
-                <tr className="border-b border-gray-700/50">
+                <tr className="border-b border-dark-border/50">
                   <th className="px-4 sm:px-6 py-4 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">
                     التاريخ
                   </th>
@@ -523,7 +524,7 @@ export default function ExpensesPage() {
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-700/30">
+              <tbody className="divide-y divide-dark-border/30">
                 {expenses.map((expense) => (
                   <tr key={expense.id} className="hover:bg-amber-500/5 transition-colors duration-200">
                     <td className="px-4 sm:px-6 py-4 text-sm text-gray-300">
@@ -568,7 +569,7 @@ export default function ExpensesPage() {
           </div>
 
           {/* Mobile cards */}
-          <div className="sm:hidden divide-y divide-gray-700/30">
+          <div className="sm:hidden divide-y divide-dark-border/30">
             {expenses.map((expense) => (
               <div key={expense.id} className="p-4">
                 <div className="flex items-start justify-between gap-3">
@@ -585,7 +586,7 @@ export default function ExpensesPage() {
                     {formatPrice(expense.amountPiasters)}
                   </p>
                 </div>
-                <div className="flex items-center justify-between gap-3 mt-3 pt-3 border-t border-gray-700/30">
+                <div className="flex items-center justify-between gap-3 mt-3 pt-3 border-t border-dark-border/30">
                   <span className="text-xs text-gray-500 truncate">{expense.branch.name}</span>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <button
@@ -615,7 +616,7 @@ export default function ExpensesPage() {
       {showModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowModal(false)}>
           <div
-            className="relative bg-gradient-to-br from-gray-800 via-gray-800 to-gray-900 rounded-2xl border border-gray-700/50 max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl"
+            className="relative bg-gradient-to-br from-dark-card via-dark-card to-dark-card rounded-2xl border border-dark-border/50 max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal decorative top line */}
@@ -634,7 +635,7 @@ export default function ExpensesPage() {
                 </div>
                 <button
                   onClick={() => setShowModal(false)}
-                  className="w-10 h-10 shrink-0 rounded-lg bg-gray-700/50 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+                  className="w-10 h-10 shrink-0 rounded-lg bg-dark-hover/50 flex items-center justify-center text-gray-400 hover:text-white hover:bg-dark-hover transition-colors"
                 >
                   <CloseIcon />
                 </button>
@@ -650,7 +651,7 @@ export default function ExpensesPage() {
                     required
                     value={formData.category}
                     onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-gray-900/50 border border-gray-700/50 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
+                    className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
                   >
                     {CATEGORIES.map((cat) => (
                       <option key={cat} value={cat}>{cat}</option>
@@ -669,7 +670,7 @@ export default function ExpensesPage() {
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     placeholder="وصف مختصر للمصروف"
-                    className="w-full px-4 py-2.5 bg-gray-900/50 border border-gray-700/50 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
+                    className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
                   />
                 </div>
 
@@ -685,7 +686,7 @@ export default function ExpensesPage() {
                     step="0.01"
                     value={formData.amountPiasters / 100}
                     onChange={(e) => setFormData({ ...formData, amountPiasters: Math.round(parseFloat(e.target.value) * 100) })}
-                    className="w-full px-4 py-2.5 bg-gray-900/50 border border-gray-700/50 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
+                    className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
                   />
                 </div>
 
@@ -699,7 +700,7 @@ export default function ExpensesPage() {
                     required
                     value={formData.date}
                     onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-gray-900/50 border border-gray-700/50 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
+                    className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
                   />
                 </div>
 
@@ -728,7 +729,7 @@ export default function ExpensesPage() {
                   <button
                     type="button"
                     onClick={() => setShowModal(false)}
-                    className="flex-1 px-5 py-2.5 bg-gray-700/50 hover:bg-gray-700 text-white rounded-xl font-medium transition-all duration-200 border border-gray-600/30"
+                    className="flex-1 px-5 py-2.5 bg-dark-hover/50 hover:bg-dark-hover text-white rounded-xl font-medium transition-all duration-200 border border-dark-border/30"
                   >
                     إلغاء
                   </button>

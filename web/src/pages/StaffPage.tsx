@@ -5,6 +5,7 @@ import {
   downloadCardAsPng,
   downloadCardAsPdf
 } from '../utils/membershipCard';
+import { localDate, startOfMonth } from '../utils/dates';
 
 interface BranchRef {
   id: string;
@@ -95,22 +96,11 @@ function fmtMinutes(minutes: number): string {
 
 function fmtTime(value: string | null): string {
   if (!value) return '—';
-  return new Date(value).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+  return new Date(value).toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' });
 }
 
 function fmtDay(day: string): string {
-  const [y, m, d] = day.split('-');
-  return `${d}/${m}/${y}`;
-}
-
-function firstOfMonth(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-}
-
-function today(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  return new Date(`${day}T00:00:00`).toLocaleDateString('ar-EG-u-nu-latn', { day: 'numeric', month: 'long' });
 }
 
 const ClockIcon = () => (
@@ -164,8 +154,8 @@ export default function StaffPage() {
   const [search, setSearch] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
-  const [startDate, setStartDate] = useState(firstOfMonth());
-  const [endDate, setEndDate] = useState(today());
+  const [startDate, setStartDate] = useState(startOfMonth);
+  const [endDate, setEndDate] = useState(localDate);
   const [report, setReport] = useState<StaffReport | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
 
@@ -370,25 +360,25 @@ export default function StaffPage() {
           <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-amber-500/20 to-transparent" />
           <p className="text-xs text-gray-500 font-medium">عدد الموظفين</p>
           <p className="text-2xl sm:text-3xl font-bold text-white mt-1">{summary?.total ?? staff.length}</p>
-          <p className="text-[10px] text-primary/50 mt-1">{branchFilter ? branches.find(b => b.id === branchFilter)?.name || '' : 'كل الفروع'}</p>
+          <p className="text-[11px] text-primary/50 mt-1">{branchFilter ? branches.find(b => b.id === branchFilter)?.name || '' : 'كل الفروع'}</p>
         </div>
         <div className="relative overflow-hidden rounded-2xl bg-dark-card border border-emerald-500/20 p-4 sm:p-5">
           <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent" />
           <p className="text-xs text-gray-500 font-medium">في الفرع دلوقتي</p>
           <p className="text-2xl sm:text-3xl font-bold text-emerald-400 mt-1">{summary?.present ?? 0}</p>
-          <p className="text-[10px] text-gray-500 mt-1">لسه مختمش انصراف</p>
+          <p className="text-[11px] text-gray-500 mt-1">لسه مختمش انصراف</p>
         </div>
         <div className="relative overflow-hidden rounded-2xl bg-dark-card border border-dark-border p-4 sm:p-5">
           <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-amber-500/20 to-transparent" />
           <p className="text-xs text-gray-500 font-medium">ختموا اليوم</p>
           <p className="text-2xl sm:text-3xl font-bold text-amber-400 mt-1">{summary?.checkedInToday ?? 0}</p>
-          <p className="text-[10px] text-gray-500 mt-1">من {summary?.total ?? staff.length} موظف</p>
+          <p className="text-[11px] text-gray-500 mt-1">من {summary?.total ?? staff.length} موظف</p>
         </div>
         <div className="relative overflow-hidden rounded-2xl bg-dark-card border border-dark-border p-4 sm:p-5">
           <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-amber-500/20 to-transparent" />
           <p className="text-xs text-gray-500 font-medium">ساعات اليوم</p>
           <p className="text-2xl sm:text-3xl font-bold text-white mt-1">{fmtMinutes(summary?.hoursToday ?? 0)}</p>
-          <p className="text-[10px] text-gray-500 mt-1">إجمالي ورديات اليوم</p>
+          <p className="text-[11px] text-gray-500 mt-1">إجمالي ورديات اليوم</p>
         </div>
       </div>
 
@@ -496,15 +486,15 @@ export default function StaffPage() {
 
                 <div className="mt-4 grid grid-cols-3 gap-2">
                   <div className="rounded-xl bg-white/[0.03] border border-white/5 p-2.5">
-                    <p className="text-[10px] text-gray-500">دخول</p>
+                    <p className="text-[11px] text-gray-500">دخول</p>
                     <p className="text-sm font-bold text-white mt-0.5">{fmtTime(person.checkInTime)}</p>
                   </div>
                   <div className="rounded-xl bg-white/[0.03] border border-white/5 p-2.5">
-                    <p className="text-[10px] text-gray-500">انصراف</p>
+                    <p className="text-[11px] text-gray-500">انصراف</p>
                     <p className="text-sm font-bold text-white mt-0.5">{person.openShiftId ? 'شغال' : fmtTime(person.checkOutTime)}</p>
                   </div>
                   <div className="rounded-xl bg-amber-500/[0.06] border border-amber-500/15 p-2.5">
-                    <p className="text-[10px] text-amber-500/70">ساعات اليوم</p>
+                    <p className="text-[11px] text-amber-500/70">ساعات اليوم</p>
                     <p className="text-sm font-bold text-amber-400 mt-0.5">{person.hoursTodayLabel}</p>
                   </div>
                 </div>
@@ -667,7 +657,7 @@ export default function StaffPage() {
           onClick={() => setCardStaff(null)}
         >
           <div
-            className="relative bg-gradient-to-br from-gray-800 via-gray-800 to-gray-900 rounded-2xl border border-gray-700/50 w-full max-w-2xl my-auto shadow-2xl"
+            className="relative bg-gradient-to-br from-dark-card via-dark-card to-dark-card rounded-2xl border border-dark-border/50 w-full max-w-2xl my-auto shadow-2xl"
             onClick={e => e.stopPropagation()}
           >
             <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-amber-500/40 to-transparent"></div>

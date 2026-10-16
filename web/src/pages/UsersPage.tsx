@@ -455,7 +455,7 @@ function UsersPage() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="relative overflow-hidden bg-gradient-to-br from-gray-800/80 via-gray-800/60 to-gray-900/80 backdrop-blur-sm rounded-2xl border border-gray-700/50 p-5">
+        <div className="relative overflow-hidden bg-gradient-to-br from-dark-card/80 via-dark-card/60 to-dark-card/80 backdrop-blur-sm rounded-2xl border border-dark-border/50 p-5">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.06),transparent_50%)]"></div>
           <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-amber-500/20 to-transparent"></div>
           <div className="relative">
@@ -469,7 +469,7 @@ function UsersPage() {
           </div>
         </div>
 
-        <div className="relative overflow-hidden bg-gradient-to-br from-gray-800/80 via-gray-800/60 to-gray-900/80 backdrop-blur-sm rounded-2xl border border-gray-700/50 p-5">
+        <div className="relative overflow-hidden bg-gradient-to-br from-dark-card/80 via-dark-card/60 to-dark-card/80 backdrop-blur-sm rounded-2xl border border-dark-border/50 p-5">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.06),transparent_50%)]"></div>
           <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-emerald-500/20 to-transparent"></div>
           <div className="relative">
@@ -483,7 +483,7 @@ function UsersPage() {
           </div>
         </div>
 
-        <div className="relative overflow-hidden bg-gradient-to-br from-gray-800/80 via-gray-800/60 to-gray-900/80 backdrop-blur-sm rounded-2xl border border-gray-700/50 p-5">
+        <div className="relative overflow-hidden bg-gradient-to-br from-dark-card/80 via-dark-card/60 to-dark-card/80 backdrop-blur-sm rounded-2xl border border-dark-border/50 p-5">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.06),transparent_50%)]"></div>
           <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-yellow-500/20 to-transparent"></div>
           <div className="relative">
@@ -497,7 +497,7 @@ function UsersPage() {
           </div>
         </div>
 
-        <div className="relative overflow-hidden bg-gradient-to-br from-gray-800/80 via-gray-800/60 to-gray-900/80 backdrop-blur-sm rounded-2xl border border-gray-700/50 p-5">
+        <div className="relative overflow-hidden bg-gradient-to-br from-dark-card/80 via-dark-card/60 to-dark-card/80 backdrop-blur-sm rounded-2xl border border-dark-border/50 p-5">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.06),transparent_50%)]"></div>
           <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-amber-500/20 to-transparent"></div>
           <div className="relative">
@@ -513,26 +513,26 @@ function UsersPage() {
       </div>
 
       {/* Users Table */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-gray-800/80 via-gray-800/60 to-gray-900/80 backdrop-blur-sm rounded-2xl border border-gray-700/50">
+      <div className="relative overflow-hidden bg-gradient-to-br from-dark-card/80 via-dark-card/60 to-dark-card/80 backdrop-blur-sm rounded-2xl border border-dark-border/50">
         <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-amber-500/20 to-transparent"></div>
         <div className="hidden sm:block overflow-x-auto">
-          <table className="w-full min-w-[800px]">
+          <table className="w-full min-w-[700px]">
             <thead>
-              <tr className="border-b border-gray-700/50">
-                <th className="px-4 sm:px-6 py-4 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">الاسم</th>
-                <th className="px-4 sm:px-6 py-4 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider hidden md:table-cell">البريد الإلكتروني</th>
-                <th className="px-4 sm:px-6 py-4 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">الدور</th>
-                <th className="px-4 sm:px-6 py-4 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider hidden lg:table-cell">الهاتف</th>
-                <th className="px-4 sm:px-6 py-4 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider hidden sm:table-cell">الفروع</th>
-                <th className="px-4 sm:px-6 py-4 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider hidden sm:table-cell">الصلاحيات</th>
-                <th className="px-4 sm:px-6 py-4 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">الحالة</th>
-                <th className="px-4 sm:px-6 py-4 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">إجراءات</th>
+              <tr className="border-b border-dark-border/50">
+                <th className="px-2.5 sm:px-3.5 py-4 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">الاسم</th>
+                <th className="px-2.5 sm:px-3.5 py-4 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider hidden md:table-cell">البريد الإلكتروني</th>
+                <th className="px-2.5 sm:px-3.5 py-4 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">الدور</th>
+                <th className="px-2.5 sm:px-3.5 py-4 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider hidden xl:table-cell">الهاتف</th>
+                <th className="px-2.5 sm:px-3.5 py-4 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider hidden sm:table-cell">الفروع</th>
+                <th className="px-2.5 sm:px-3.5 py-4 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider hidden sm:table-cell">الصلاحيات</th>
+                <th className="px-2.5 sm:px-3.5 py-4 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">الحالة</th>
+                <th className="px-2.5 sm:px-3.5 py-4 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">إجراءات</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-700/30">
+            <tbody className="divide-y divide-dark-border/30">
               {users.map((user) => (
                 <tr key={user.id} className="hover:bg-amber-500/5 transition-colors duration-200">
-                  <td className="px-4 sm:px-6 py-4">
+                  <td className="px-2.5 sm:px-3.5 py-4">
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-full bg-gradient-to-br from-amber-500/20 to-amber-600/10 flex items-center justify-center border border-amber-500/20 flex-shrink-0">
                         <span className="text-sm font-bold text-amber-300">{user.name.charAt(0)}</span>
@@ -549,14 +549,14 @@ function UsersPage() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 sm:px-6 py-4 text-gray-400 font-mono text-sm hidden md:table-cell">{user.email}</td>
-                  <td className="px-4 sm:px-6 py-4">
+                  <td className="px-2.5 sm:px-3.5 py-4 max-w-[150px] truncate text-gray-400 font-mono text-sm hidden md:table-cell" title={user.email}>{user.email}</td>
+                  <td className="px-2.5 sm:px-3.5 py-4">
                     <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium border ${getRoleBadgeColor(user.role)}`}>
                       {roleLabels[user.role] || user.role}
                     </span>
                   </td>
-                  <td className="px-4 sm:px-6 py-4 text-gray-400 font-mono text-sm hidden lg:table-cell">{user.phone || '—'}</td>
-                  <td className="px-4 sm:px-6 py-4 hidden sm:table-cell">
+                  <td className="px-2.5 sm:px-3.5 py-4 text-gray-400 font-mono text-sm hidden xl:table-cell">{user.phone || '—'}</td>
+                  <td className="px-2.5 sm:px-3.5 py-4 hidden sm:table-cell">
                     <div className="flex flex-wrap gap-1">
                       {user.branchAccess.map(ba => (
                         <span key={ba.branch.id} className="inline-flex px-2 py-0.5 text-xs font-medium bg-amber-500/10 text-amber-300 rounded-md border border-amber-500/15">
@@ -565,7 +565,7 @@ function UsersPage() {
                       ))}
                     </div>
                   </td>
-                  <td className="px-4 sm:px-6 py-4 hidden sm:table-cell">
+                  <td className="px-2.5 sm:px-3.5 py-4 hidden sm:table-cell">
                     {user.role === 'OWNER' ? (
                       <span className="inline-flex items-center gap-1 text-xs text-amber-300 font-medium">
                         <CrownIcon />
@@ -574,14 +574,14 @@ function UsersPage() {
                     ) : (
                       <button
                         onClick={() => openPermissionsEditor(user)}
-                        className="inline-flex items-center gap-1.5 text-xs bg-gray-700/30 hover:bg-gray-700/50 text-gray-300 px-3 py-1.5 rounded-lg border border-gray-600/30 transition-all duration-200"
+                        className="inline-flex items-center gap-1.5 text-xs bg-dark-hover/30 hover:bg-dark-hover/50 text-gray-300 px-3 py-1.5 rounded-lg border border-dark-border/30 transition-all duration-200"
                       >
                         <KeyIcon />
                         تعديل ({user.permissions.length})
                       </button>
                     )}
                   </td>
-                  <td className="px-4 sm:px-6 py-4">
+                  <td className="px-2.5 sm:px-3.5 py-4">
                     <button
                       onClick={() => handleToggleActive(user)}
                       className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${
@@ -594,18 +594,18 @@ function UsersPage() {
                       {user.isActive ? 'نشط' : 'معطل'}
                     </button>
                   </td>
-                  <td className="px-4 sm:px-6 py-4">
-                    <div className="flex items-center gap-2">
+                  <td className="px-2.5 sm:px-3.5 py-4">
+                    <div className="flex items-center gap-1.5">
                       <button
                         onClick={() => handleEdit(user)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-amber-500/10 text-amber-300 rounded-lg border border-amber-500/20 hover:bg-amber-500/20 transition-all duration-200"
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium bg-amber-500/10 text-amber-300 rounded-lg border border-amber-500/20 hover:bg-amber-500/20 transition-all duration-200"
                       >
                         <EditIcon />
                         <span className="hidden sm:inline">تعديل</span>
                       </button>
                       <button
                         onClick={() => setPendingDelete(user)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-rose-500/10 text-rose-300 rounded-lg border border-rose-500/20 hover:bg-rose-500/20 transition-all duration-200"
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium bg-rose-500/10 text-rose-300 rounded-lg border border-rose-500/20 hover:bg-rose-500/20 transition-all duration-200"
                       >
                         <TrashIcon />
                         <span className="hidden sm:inline">حذف</span>
@@ -619,7 +619,7 @@ function UsersPage() {
         </div>
 
         {/* Phone: one card per user, no sideways scrolling */}
-        <div className="sm:hidden divide-y divide-gray-700/30">
+        <div className="sm:hidden divide-y divide-dark-border/30">
           {users.map((user) => (
             <div key={user.id} className="p-4">
               <div className="flex items-start gap-3">
@@ -669,7 +669,7 @@ function UsersPage() {
                 {user.role !== 'OWNER' && (
                   <button
                     onClick={() => openPermissionsEditor(user)}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 min-h-10 text-xs font-medium bg-gray-700/30 text-gray-300 rounded-lg border border-gray-600/30 active:bg-gray-700/50 transition-all duration-200"
+                    className="inline-flex items-center gap-1.5 px-3 py-2 min-h-10 text-xs font-medium bg-dark-hover/30 text-gray-300 rounded-lg border border-dark-border/30 active:bg-dark-hover/50 transition-all duration-200"
                   >
                     <KeyIcon />
                     <span>الصلاحيات ({user.permissions.length})</span>
@@ -699,7 +699,7 @@ function UsersPage() {
       {showModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowModal(false)}>
           <div
-            className="relative bg-gradient-to-br from-gray-800 via-gray-800 to-gray-900 rounded-2xl border border-gray-700/50 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
+            className="relative bg-gradient-to-br from-dark-card via-dark-card to-dark-card rounded-2xl border border-dark-border/50 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-amber-500/40 to-transparent"></div>
@@ -720,7 +720,7 @@ function UsersPage() {
                     setEditingUser(null);
                     setFormData({ email: '', password: '', name: '', role: 'RECEPTIONIST', phone: '', staffCode: '', branchIds: [], permissions: [] });
                   }}
-                  className="w-10 h-10 shrink-0 rounded-lg bg-gray-700/50 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+                  className="w-10 h-10 shrink-0 rounded-lg bg-dark-hover/50 flex items-center justify-center text-gray-400 hover:text-white hover:bg-dark-hover transition-colors"
                 >
                   <CloseIcon />
                 </button>
@@ -735,7 +735,7 @@ function UsersPage() {
                       required
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-gray-900/50 border border-gray-700/50 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
+                      className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
                       placeholder="محمد أحمد"
                     />
                   </div>
@@ -747,7 +747,7 @@ function UsersPage() {
                       required
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-gray-900/50 border border-gray-700/50 rounded-xl text-white font-mono placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
+                      className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white font-mono placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
                       placeholder="user@power111.com"
                       dir="ltr"
                     />
@@ -764,7 +764,7 @@ function UsersPage() {
                       required={!editingUser}
                       value={formData.password}
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-gray-900/50 border border-gray-700/50 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
+                      className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
                       placeholder="••••••••"
                     />
                   </div>
@@ -775,7 +775,7 @@ function UsersPage() {
                       required
                       value={formData.role}
                       onChange={(e) => handleRoleChange(e.target.value)}
-                      className="w-full px-4 py-2.5 bg-gray-900/50 border border-gray-700/50 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
+                      className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
                     >
                       <option value="OWNER">مالك</option>
                       <option value="BRANCH_MANAGER">مدير فرع</option>
@@ -794,7 +794,7 @@ function UsersPage() {
                       type="tel"
                       value={formData.phone}
                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-gray-900/50 border border-gray-700/50 rounded-xl text-white font-mono placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
+                      className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white font-mono placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
                       placeholder="01234567890"
                       dir="ltr"
                     />
@@ -807,7 +807,7 @@ function UsersPage() {
                         type="text"
                         value={formData.staffCode}
                         onChange={(e) => setFormData({ ...formData, staffCode: e.target.value })}
-                        className="w-full px-4 py-2.5 bg-gray-900/50 border border-gray-700/50 rounded-xl text-white font-mono placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
+                        className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white font-mono placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
                         placeholder={editingUser ? '' : 'يتعيّن تلقائياً'}
                         dir="ltr"
                         maxLength={8}
@@ -823,9 +823,9 @@ function UsersPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-400 mb-2">الفروع المسموحة</label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-4 bg-gray-900/30 border border-gray-700/30 rounded-xl">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-4 bg-dark-card/30 border border-dark-border/30 rounded-xl">
                     {branches.map((branch) => (
-                      <label key={branch.id} className="flex items-center gap-3 cursor-pointer group p-2 rounded-lg hover:bg-gray-700/20 transition-colors">
+                      <label key={branch.id} className="flex items-center gap-3 cursor-pointer group p-2 rounded-lg hover:bg-dark-hover/20 transition-colors">
                         <div className="relative">
                           <input
                             type="checkbox"
@@ -833,7 +833,7 @@ function UsersPage() {
                             onChange={() => toggleBranch(branch.id)}
                             className="sr-only peer"
                           />
-                          <div className="w-5 h-5 rounded-md border-2 border-gray-600 peer-checked:border-amber-500 peer-checked:bg-amber-500 transition-all duration-200 flex items-center justify-center">
+                          <div className="w-5 h-5 rounded-md border-2 border-white/25 peer-checked:border-amber-500 peer-checked:bg-amber-500 transition-all duration-200 flex items-center justify-center">
                             {formData.branchIds.includes(branch.id) && (
                               <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
@@ -856,7 +856,7 @@ function UsersPage() {
                       الصلاحيات
                       <span className="text-xs text-gray-500 mr-2">(افتراضي حسب الدور - يمكنك التعديل)</span>
                     </label>
-                    <div className="space-y-3 p-4 bg-gray-900/30 border border-gray-700/30 rounded-xl max-h-64 overflow-y-auto">
+                    <div className="space-y-3 p-4 bg-dark-card/30 border border-dark-border/30 rounded-xl max-h-64 overflow-y-auto">
                       {permissionGroups.map(group => {
                         const groupPerms = group.permissions.filter(p => allPermissionsList.includes(p));
                         if (groupPerms.length === 0) return null;
@@ -865,7 +865,7 @@ function UsersPage() {
                             <p className="text-xs font-semibold text-amber-400/70 mb-2 uppercase tracking-wider">{group.label}</p>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                               {groupPerms.map(perm => (
-                                <label key={perm} className="flex items-center gap-2.5 cursor-pointer group p-1.5 rounded-lg hover:bg-gray-700/20 transition-colors">
+                                <label key={perm} className="flex items-center gap-2.5 cursor-pointer group p-1.5 rounded-lg hover:bg-dark-hover/20 transition-colors">
                                   <div className="relative">
                                     <input
                                       type="checkbox"
@@ -873,7 +873,7 @@ function UsersPage() {
                                       onChange={() => togglePermission(perm)}
                                       className="sr-only peer"
                                     />
-                                    <div className="w-4 h-4 rounded-md border-2 border-gray-600 peer-checked:border-amber-500 peer-checked:bg-amber-500 transition-all duration-200 flex items-center justify-center">
+                                    <div className="w-4 h-4 rounded-md border-2 border-white/25 peer-checked:border-amber-500 peer-checked:bg-amber-500 transition-all duration-200 flex items-center justify-center">
                                       {formData.permissions.includes(perm) && (
                                         <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
@@ -908,7 +908,7 @@ function UsersPage() {
                       setEditingUser(null);
                       setFormData({ email: '', password: '', name: '', role: 'RECEPTIONIST', phone: '', staffCode: '', branchIds: [], permissions: [] });
                     }}
-                    className="flex-1 px-5 py-2.5 bg-gray-700/50 hover:bg-gray-700 text-white rounded-xl font-medium transition-all duration-200 border border-gray-600/30"
+                    className="flex-1 px-5 py-2.5 bg-dark-hover/50 hover:bg-dark-hover text-white rounded-xl font-medium transition-all duration-200 border border-dark-border/30"
                   >
                     إلغاء
                   </button>
@@ -923,7 +923,7 @@ function UsersPage() {
       {showPermissionsModal && permissionsUser && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowPermissionsModal(false)}>
           <div
-            className="relative bg-gradient-to-br from-gray-800 via-gray-800 to-gray-900 rounded-2xl border border-gray-700/50 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
+            className="relative bg-gradient-to-br from-dark-card via-dark-card to-dark-card rounded-2xl border border-dark-border/50 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-amber-500/40 to-transparent"></div>
@@ -948,13 +948,13 @@ function UsersPage() {
                     setShowPermissionsModal(false);
                     setPermissionsUser(null);
                   }}
-                  className="w-10 h-10 shrink-0 rounded-lg bg-gray-700/50 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+                  className="w-10 h-10 shrink-0 rounded-lg bg-dark-hover/50 flex items-center justify-center text-gray-400 hover:text-white hover:bg-dark-hover transition-colors"
                 >
                   <CloseIcon />
                 </button>
               </div>
 
-              <div className="space-y-3 max-h-96 overflow-y-auto mt-4 p-4 bg-gray-900/30 border border-gray-700/30 rounded-xl">
+              <div className="space-y-3 max-h-96 overflow-y-auto mt-4 p-4 bg-dark-card/30 border border-dark-border/30 rounded-xl">
                 {permissionGroups.map(group => {
                   const groupPerms = group.permissions.filter(p => allPermissionsList.includes(p));
                   if (groupPerms.length === 0) return null;
@@ -963,7 +963,7 @@ function UsersPage() {
                       <p className="text-xs font-semibold text-amber-400/70 mb-2 uppercase tracking-wider">{group.label}</p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                         {groupPerms.map(perm => (
-                          <label key={perm} className="flex items-center gap-2.5 cursor-pointer group p-1.5 rounded-lg hover:bg-gray-700/20 transition-colors">
+                          <label key={perm} className="flex items-center gap-2.5 cursor-pointer group p-1.5 rounded-lg hover:bg-dark-hover/20 transition-colors">
                             <div className="relative">
                               <input
                                 type="checkbox"
@@ -971,7 +971,7 @@ function UsersPage() {
                                 onChange={() => toggleCustomPermission(perm)}
                                 className="sr-only peer"
                               />
-                              <div className="w-4 h-4 rounded-md border-2 border-gray-600 peer-checked:border-amber-500 peer-checked:bg-amber-500 transition-all duration-200 flex items-center justify-center">
+                              <div className="w-4 h-4 rounded-md border-2 border-white/25 peer-checked:border-amber-500 peer-checked:bg-amber-500 transition-all duration-200 flex items-center justify-center">
                                 {customPermissions.includes(perm) && (
                                   <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
@@ -990,7 +990,7 @@ function UsersPage() {
                 })}
               </div>
 
-              <div className="flex gap-3 pt-4 mt-4 border-t border-gray-700/30">
+              <div className="flex gap-3 pt-4 mt-4 border-t border-dark-border/30">
                 <button
                   onClick={savePermissions}
                   className="flex-1 px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-xl font-medium transition-all duration-300 shadow-lg shadow-amber-500/20 hover:shadow-xl"
@@ -1002,7 +1002,7 @@ function UsersPage() {
                     setShowPermissionsModal(false);
                     setPermissionsUser(null);
                   }}
-                  className="flex-1 px-5 py-2.5 bg-gray-700/50 hover:bg-gray-700 text-white rounded-xl font-medium transition-all duration-200 border border-gray-600/30"
+                  className="flex-1 px-5 py-2.5 bg-dark-hover/50 hover:bg-dark-hover text-white rounded-xl font-medium transition-all duration-200 border border-dark-border/30"
                 >
                   إلغاء
                 </button>

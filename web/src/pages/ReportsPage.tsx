@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { downloadWorkbook } from '../utils/downloadWorkbook';
+import { arDate, localDate, startOfMonth } from '../utils/dates';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import NoticeBanner from '../components/NoticeBanner';
 
@@ -239,8 +240,8 @@ export default function ReportsPage() {
   const navigate = useNavigate();
   const [branches, setBranches] = useState<Branch[]>([]);
   const [selectedBranch, setSelectedBranch] = useState<string>('');
-  const [fromDate, setFromDate] = useState('');
-  const [toDate, setToDate] = useState('');
+  const [fromDate, setFromDate] = useState(startOfMonth);
+  const [toDate, setToDate] = useState(() => localDate(new Date()));
   const [activeTab, setActiveTab] = useState<ReportTab>('financial');
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -339,7 +340,7 @@ export default function ReportsPage() {
           from: fromDate,
           to: toDate
         },
-        `تقارير-POWER111-${fromDate || 'all'}_${toDate || new Date().toISOString().slice(0, 10)}.xlsx`
+        `تقارير-POWER111-${fromDate || 'all'}_${toDate || localDate()}.xlsx`
       );
       setNotice({ kind: 'ok', text: `تم تنزيل ${filename}` });
     } catch (err) {
@@ -351,7 +352,7 @@ export default function ReportsPage() {
 
   const setQuickRange = (range: 'today' | 'week' | 'month' | 'year') => {
     const now = new Date();
-    const today = now.toISOString().split('T')[0];
+    const today = localDate(now);
 
     switch (range) {
       case 'today':
@@ -361,21 +362,20 @@ export default function ReportsPage() {
       case 'week': {
         const weekAgo = new Date(now);
         weekAgo.setDate(weekAgo.getDate() - 7);
-        setFromDate(weekAgo.toISOString().split('T')[0]);
+        setFromDate(localDate(weekAgo));
         setToDate(today);
         break;
       }
       case 'month': {
-        const monthAgo = new Date(now);
-        monthAgo.setMonth(monthAgo.getMonth() - 1);
-        setFromDate(monthAgo.toISOString().split('T')[0]);
+        const monthStart = new Date(now);
+        monthStart.setDate(1);
+        setFromDate(localDate(monthStart));
         setToDate(today);
         break;
       }
       case 'year': {
-        const yearAgo = new Date(now);
-        yearAgo.setFullYear(yearAgo.getFullYear() - 1);
-        setFromDate(yearAgo.toISOString().split('T')[0]);
+        const yearStart = new Date(now.getFullYear(), 0, 1);
+        setFromDate(localDate(yearStart));
         setToDate(today);
         break;
       }
@@ -477,12 +477,12 @@ export default function ReportsPage() {
         {/* ============================================================ */}
         {/*  Tabs                                                        */}
         {/* ============================================================ */}
-        <div className="flex gap-1.5 sm:gap-2 overflow-x-auto pb-1 scrollbar-hide">
+        <div className="grid grid-cols-4 gap-1.5 sm:flex sm:gap-2">
           {tabs.map(({ key, label, Icon }) => (
             <button
               key={key}
               onClick={() => setActiveTab(key)}
-              className={`group relative flex items-center gap-2 px-3.5 sm:px-5 py-2.5 sm:py-3 min-h-11 rounded-xl font-semibold text-xs sm:text-sm whitespace-nowrap transition-all duration-300 ${
+              className={`group relative flex items-center justify-center gap-1.5 sm:gap-2 px-1.5 sm:px-5 py-2.5 sm:py-3 min-h-11 rounded-xl font-semibold text-[11px] sm:text-sm whitespace-nowrap transition-all duration-300 ${
                 activeTab === key
                   ? 'bg-gradient-to-r from-primary to-amber-600 text-white shadow-lg shadow-primary/25 scale-[1.02]'
                   : 'bg-dark-card border border-dark-border text-gray-400 hover:text-white hover:border-primary/30 hover:bg-dark-hover hover:shadow-md hover:shadow-primary/5'
@@ -523,9 +523,14 @@ export default function ReportsPage() {
           {/* subtle top accent */}
           <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
 
-          <div className="flex items-center gap-2 mb-3 sm:mb-4">
-            <IconFilter className="w-4 h-4 text-primary" />
-            <span className="text-xs sm:text-sm font-semibold text-gray-300">تصفية البيانات</span>
+          <div className="flex items-center justify-between gap-3 mb-3 sm:mb-4">
+            <div className="flex items-center gap-2">
+              <IconFilter className="w-4 h-4 text-primary" />
+              <span className="text-xs sm:text-sm font-semibold text-gray-300">تصفية البيانات</span>
+            </div>
+            <span className="text-[11px] text-gray-500 whitespace-nowrap">
+              {fromDate && toDate ? `${arDate(fromDate)} — ${arDate(toDate)}` : 'كل الفترات'}
+            </span>
           </div>
 
           <div className="flex flex-col lg:flex-row lg:items-end gap-4">
@@ -627,7 +632,11 @@ export default function ReportsPage() {
                         </div>
                       </div>
                       <p className="text-base sm:text-lg lg:text-xl font-bold text-emerald-400">{formatPiasters(financial.revenue)}</p>
-                      <p className="text-[10px] sm:text-xs text-gray-500 mt-2">{financial.salesCount} مبيعات + {financial.paymentsCount} مدفوعات</p>
+                      <p className="text-[11px] text-gray-500 mt-2">
+                        {financial.salesCount + financial.paymentsCount > 0
+                          ? `${financial.salesCount} مبيعات + ${financial.paymentsCount} مدفوعات`
+                          : 'لا عمليات في الفترة'}
+                      </p>
                     </div>
                   </div>
 
@@ -642,7 +651,9 @@ export default function ReportsPage() {
                         </div>
                       </div>
                       <p className="text-base sm:text-lg lg:text-xl font-bold text-rose-400">{formatPiasters(financial.expenses)}</p>
-                      <p className="text-[10px] sm:text-xs text-gray-500 mt-2">{financial.expensesCount} مصروف</p>
+                      <p className="text-[11px] text-gray-500 mt-2">
+                        {financial.expensesCount > 0 ? `${financial.expensesCount} مصروف` : 'لا مصروفات في الفترة'}
+                      </p>
                     </div>
                   </div>
 
@@ -662,8 +673,8 @@ export default function ReportsPage() {
                       <p className={`text-base sm:text-lg lg:text-xl font-bold ${financial.profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                         {formatPiasters(financial.profit)}
                       </p>
-                      <p className="text-[10px] sm:text-xs text-gray-500 mt-2">
-                        {financial.revenue > 0 ? `${Math.round((financial.profit / financial.revenue) * 100)}%` : '0%'} هامش الربح
+                      <p className="text-[11px] text-gray-500 mt-2">
+                        {financial.revenue > 0 ? `${Math.round((financial.profit / financial.revenue) * 100)}% هامش الربح` : 'لا إيرادات في الفترة'}
                       </p>
                     </div>
                   </div>
@@ -679,7 +690,9 @@ export default function ReportsPage() {
                         </div>
                       </div>
                       <p className="text-base sm:text-lg lg:text-xl font-bold text-amber-400">{formatPiasters(financial.outstanding)}</p>
-                      <p className="text-[10px] sm:text-xs text-gray-500 mt-2">مبالغ متبقية</p>
+                      <p className="text-[11px] text-gray-500 mt-2">
+                        {financial.outstanding > 0 ? 'مبالغ متبقية للمتابعة' : 'لا مبالغ متبقية'}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -859,7 +872,7 @@ export default function ReportsPage() {
                             </div>
                             <div className="flex items-center gap-1.5 text-[11px] text-gray-500">
                               <IconClock className="w-3 h-3" />
-                              {new Date(sale.createdAt).toLocaleDateString('ar-EG')} {new Date(sale.createdAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
+                              {arDate(sale.createdAt)} {new Date(sale.createdAt).toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' })}
                             </div>
                           </div>
                         ))}
@@ -910,10 +923,10 @@ export default function ReportsPage() {
                                   <div className="flex items-center gap-1.5">
                                     <IconClock className="w-3.5 h-3.5 text-gray-500" />
                                     <span className="text-sm text-gray-400">
-                                      {new Date(sale.createdAt).toLocaleDateString('ar-EG')}
+                                      {arDate(sale.createdAt)}
                                     </span>
                                     <span className="text-xs text-gray-500">
-                                      {new Date(sale.createdAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
+                                      {new Date(sale.createdAt).toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' })}
                                     </span>
                                   </div>
                                 </td>
@@ -1064,7 +1077,7 @@ export default function ReportsPage() {
                               <span className="text-[11px] bg-dark px-2.5 py-1 rounded-lg text-gray-400 border border-dark-border">{expense.category}</span>
                               <div className="flex items-center gap-1.5 text-[11px] text-gray-500">
                                 <IconClock className="w-3 h-3" />
-                                {new Date(expense.createdAt).toLocaleDateString('ar-EG')}
+                                {arDate(expense.createdAt)}
                               </div>
                             </div>
                           </div>
@@ -1107,7 +1120,7 @@ export default function ReportsPage() {
                                   <div className="flex items-center gap-1.5">
                                     <IconClock className="w-3.5 h-3.5 text-gray-500" />
                                     <span className="text-sm text-gray-400">
-                                      {new Date(expense.createdAt).toLocaleDateString('ar-EG')}
+                                      {arDate(expense.createdAt)}
                                     </span>
                                   </div>
                                 </td>
@@ -1199,33 +1212,33 @@ export default function ReportsPage() {
                             <div className="grid grid-cols-2 gap-2.5">
                               {hasPermission('VIEW_DASHBOARD_REVENUE') && (
                                 <div className="bg-dark/50 rounded-xl p-2.5 border border-dark-border/50">
-                                  <p className="text-[10px] text-gray-500 mb-0.5">الإيرادات</p>
+                                  <p className="text-[11px] text-gray-500 mb-0.5">الإيرادات</p>
                                   <p className="text-xs sm:text-sm font-bold text-emerald-400">{formatPiasters(stat.revenue || 0)}</p>
                                 </div>
                               )}
                               {hasPermission('VIEW_DASHBOARD_EXPENSES') && (
                                 <div className="bg-dark/50 rounded-xl p-2.5 border border-dark-border/50">
-                                  <p className="text-[10px] text-gray-500 mb-0.5">المصروفات</p>
+                                  <p className="text-[11px] text-gray-500 mb-0.5">المصروفات</p>
                                   <p className="text-xs sm:text-sm font-bold text-rose-400">{formatPiasters(stat.expenses || 0)}</p>
                                 </div>
                               )}
                               {hasPermission('VIEW_DASHBOARD_PROFIT') && (
                                 <div className="bg-dark/50 rounded-xl p-2.5 border border-dark-border/50">
-                                  <p className="text-[10px] text-gray-500 mb-0.5">الربح</p>
+                                  <p className="text-[11px] text-gray-500 mb-0.5">الربح</p>
                                   <p className={`text-xs sm:text-sm font-bold ${stat.profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                                     {formatPiasters(stat.profit || 0)}
                                   </p>
                                 </div>
                               )}
                               <div className="bg-dark/50 rounded-xl p-2.5 border border-dark-border/50">
-                                <p className="text-[10px] text-gray-500 mb-0.5">الأعضاء</p>
+                                <p className="text-[11px] text-gray-500 mb-0.5">الأعضاء</p>
                                 <div className="flex items-center gap-1.5">
                                   <IconUsers className="w-3 h-3 text-gray-500" />
                                   <p className="text-xs sm:text-sm font-bold text-white">{stat.activeMembers}</p>
                                 </div>
                               </div>
                               <div className="bg-dark/50 rounded-xl p-2.5 border border-dark-border/50 col-span-2">
-                                <p className="text-[10px] text-gray-500 mb-0.5">الاشتراكات</p>
+                                <p className="text-[11px] text-gray-500 mb-0.5">الاشتراكات</p>
                                 <p className="text-xs sm:text-sm font-bold text-white">{stat.activeSubscriptions}</p>
                               </div>
                             </div>
