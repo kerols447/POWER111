@@ -4,6 +4,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { addPendingOperation, getCachedMember, cacheMembers } from '../utils/offlineDb';
 
+const AUTO_CAMERA_KEY = 'power111AutoCamera';
+const BRANCH_KEY = 'power111AttendanceBranch';
+const rememberedBranch = () => localStorage.getItem(BRANCH_KEY) || '';
+
 interface AttendanceRecord {
   id: string;
   memberId: string;
@@ -206,6 +210,11 @@ export default function AttendancePage() {
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const [scannerError, setScannerError] = useState<string | null>(null);
   const [scanCount, setScanCount] = useState(0);
+  const [autoCamera, setAutoCamera] = useState(() => localStorage.getItem(AUTO_CAMERA_KEY) !== '0');
+  const scanBufferRef = useRef({ text: '', at: 0 });
+  const lastCodeRef = useRef({ code: '', at: 0 });
+  const submitRef = useRef<(code: string) => void>(() => {});
+  const audioRef = useRef<AudioContext | null>(null);
 
   const singleBranchUser = !isOwner && (user?.branches?.length || 0) === 1;
 
@@ -253,9 +262,11 @@ export default function AttendancePage() {
       const data = await res.json();
       const branchList = Array.isArray(data) ? data : (data.branches || []);
       setBranches(branchList);
-      if (branchList.length > 0 && !selectedBranch) {
-        setSelectedBranch(branchList[0].id);
-      }
+      if (branchList.length === 0) return;
+      // Remember the branch this device last used, so reception never re-picks it
+      // after a reload — but fall back to the first branch if that one is gone.
+      const keep = branchList.find((b: Branch) => b.id === (selectedBranch || rememberedBranch()));
+      setSelectedBranch(keep?.id || branchList[0].id);
     } catch (error) {
       console.error('Error fetching branches:', error);
     }
@@ -283,27 +294,25 @@ export default function AttendancePage() {
 
     try {
       const html5Qrcode = new Html5Qrcode('qr-scanner-region', {
+        // Only the symbologies a POWER 111 card can carry. Every extra format is a
+        // full decode pass on each frame, so the shorter list reads noticeably faster.
         formatsToSupport: [
           Html5QrcodeSupportedFormats.QR_CODE,
           Html5QrcodeSupportedFormats.CODE_128,
           Html5QrcodeSupportedFormats.CODE_39,
           Html5QrcodeSupportedFormats.CODE_93,
           Html5QrcodeSupportedFormats.EAN_13,
-          Html5QrcodeSupportedFormats.EAN_8,
-          Html5QrcodeSupportedFormats.UPC_A,
-          Html5QrcodeSupportedFormats.UPC_E,
           Html5QrcodeSupportedFormats.ITF,
-          Html5QrcodeSupportedFormats.CODABAR,
-          Html5QrcodeSupportedFormats.DATA_MATRIX,
-          Html5QrcodeSupportedFormats.PDF_417,
         ],
+        // Chrome/Android ship a hardware barcode decoder; use it before falling back to WASM.
+        useBarCodeDetectorIfSupported: true,
         verbose: false
       });
       scannerRef.current = html5Qrcode;
 
       const isMobile = window.innerWidth < 768;
       const config = {
-        fps: 15,
+        fps: 10,
         qrBox: isMobile
           ? { width: Math.min(250, window.innerWidth - 80), height: Math.min(250, window.innerWidth - 80) }
           : { width: 280, height: 280 },
@@ -319,6 +328,7 @@ export default function AttendancePage() {
         onScanSuccess,
         () => {}
       );
+      rememberAutoCamera(true);
     } catch (error) {
       console.error('Error starting scanner:', error);
       setScannerError('فشل في تشغيل الكاميرا. تأكد من إعطاء الصلاحيات المطلوبة.');
@@ -326,15 +336,26 @@ export default function AttendancePage() {
     }
   };
 
-  const stopScanner = async () => {
-    if (scannerRef.current) {
-      try {
-        await scannerRef.current.stop();
-        scannerRef.current = null;
-      } catch (error) {
-        console.error('Error stopping scanner:', error);
-      }
+  const rememberAutoCamera = (on: boolean) => {
+    localStorage.setItem(AUTO_CAMERA_KEY, on ? '1' : '0');
+    setAutoCamera(on);
+  };
+
+  const closeScanner = async () => {
+    const scanner = scannerRef.current;
+    scannerRef.current = null;
+    if (!scanner) return;
+    try {
+      await scanner.stop();
+      scanner.clear();
+    } catch {
+      // Already stopped, or the tab was swapped before the stream opened.
     }
+  };
+
+  const stopScanner = async () => {
+    rememberAutoCamera(false);
+    await closeScanner();
     setScanning(false);
   };
 
@@ -342,7 +363,51 @@ export default function AttendancePage() {
   // so a short S-code can never be mistaken for a member.
   const isStaffCode = (code: string) => /^S\d{1,6}$/i.test(code.trim());
 
+  // A camera keeps decoding the same card while it sits in the frame, and a handheld
+  // gun can fire the same burst twice. One code is honoured once every few seconds.
+  const acceptCode = (raw: string) => {
+    const code = raw.trim();
+    if (!code) return false;
+    const now = Date.now();
+    const last = lastCodeRef.current;
+    if (last.code === code && now - last.at < 4000) return false;
+    lastCodeRef.current = { code, at: now };
+    return true;
+  };
+
+  const beep = (kind: 'ok' | 'bad') => {
+    try {
+      const Ctor = window.AudioContext || (window as any).webkitAudioContext;
+      if (!Ctor) return;
+      const ctx = audioRef.current || (audioRef.current = new Ctor());
+      if (ctx.state === 'suspended') ctx.resume();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.value = kind === 'ok' ? 880 : 320;
+      gain.gain.setValueAtTime(0.001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.16);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.18);
+    } catch {
+      // No audio is never a reason to lose a check-in.
+    }
+  };
+
+  // A queue moves fast: the result banner clears itself quickly so the next member
+  // sees a fresh one instead of the previous name.
+  const toastTimerRef = useRef<number | undefined>(undefined);
+  const flash = (result: NonNullable<typeof lastScan>) => {
+    setLastScan(result);
+    beep(result.type === 'error' ? 'bad' : 'ok');
+    window.clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = window.setTimeout(() => setLastScan(null), result.type === 'success' ? 2600 : 3800);
+  };
+
   const onScanSuccess = async (decodedText: string) => {
+    if (!acceptCode(decodedText)) return;
+
     let code = decodedText;
     let staffCode: string | null = null;
 
@@ -374,7 +439,7 @@ export default function AttendancePage() {
 
   const handleCheckin = async (memberCode: string) => {
     if (!selectedBranch) {
-      setLastScan({ success: false, message: 'الرجاء اختيار الفرع أولاً', type: 'error' });
+      flash({ success: false, message: 'الرجاء اختيار الفرع أولاً', type: 'error' });
       return;
     }
 
@@ -399,7 +464,7 @@ export default function AttendancePage() {
 
       if (data.success) {
         setScanCount(prev => prev + 1);
-        setLastScan({
+        flash({
           success: true,
           message: data.message || `تم تسجيل حضور ${data.data.memberName}`,
           memberName: data.data.memberName,
@@ -411,13 +476,13 @@ export default function AttendancePage() {
           fetchTodayAttendance();
         }
       } else if (res.status === 409) {
-        setLastScan({
+        flash({
           success: false,
           message: data.message || 'العضو مسجل حضوره بالفعل اليوم',
           type: 'warning'
         });
       } else {
-        setLastScan({
+        flash({
           success: false,
           message: data.message || 'حدث خطأ في تسجيل الحضور',
           type: 'error'
@@ -427,18 +492,16 @@ export default function AttendancePage() {
       console.error('Error checking in:', error);
       await handleOfflineCheckin(memberCode);
     }
-
-    setTimeout(() => setLastScan(null), 5000);
   };
 
   const handleStaffPunch = async (staffCode: string) => {
     if (!selectedBranch) {
-      setLastScan({ success: false, message: 'الرجاء اختيار الفرع أولاً', kind: 'staff', type: 'error' });
+      flash({ success: false, message: 'الرجاء اختيار الفرع أولاً', kind: 'staff', type: 'error' });
       return;
     }
 
     if (!isOnline) {
-      setLastScan({ success: false, message: 'ختم الموظفين محتاج إنترنت — اربط الجهاز بالشبكة الأول', kind: 'staff', code: staffCode, type: 'error' });
+      flash({ success: false, message: 'ختم الموظفين محتاج إنترنت — اربط الجهاز بالشبكة الأول', kind: 'staff', code: staffCode, type: 'error' });
       return;
     }
 
@@ -465,7 +528,7 @@ export default function AttendancePage() {
       if (data.success) {
         const rec = data.data || {};
         setScanCount(prev => prev + 1);
-        setLastScan({
+        flash({
           success: true,
           message: data.message,
           memberName: rec.staffName,
@@ -474,7 +537,7 @@ export default function AttendancePage() {
           type: 'success'
         });
       } else {
-        setLastScan({
+        flash({
           success: false,
           message: data.message || 'حدث خطأ في تسجيل الوردية',
           kind: 'staff',
@@ -484,10 +547,8 @@ export default function AttendancePage() {
       }
     } catch (error) {
       console.error('Error recording staff shift:', error);
-      setLastScan({ success: false, message: 'حدث خطأ في تسجيل الوردية', kind: 'staff', code: staffCode, type: 'error' });
+      flash({ success: false, message: 'حدث خطأ في تسجيل الوردية', kind: 'staff', code: staffCode, type: 'error' });
     }
-
-    setTimeout(() => setLastScan(null), 6000);
   };
 
   const handleOfflineCheckin = async (memberCode: string) => {
@@ -511,14 +572,14 @@ export default function AttendancePage() {
     setScanCount(prev => prev + 1);
 
     if (cached) {
-      setLastScan({
+      flash({
         success: true,
         message: `تم حفظ الحضور محلياً: ${cached.name}`,
         memberName: cached.name,
         type: 'warning'
       });
     } else {
-      setLastScan({
+      flash({
         success: true,
         message: `تم حفظ الحضور محلياً لكود: ${memberCode}`,
         type: 'warning'
@@ -528,22 +589,78 @@ export default function AttendancePage() {
     if (navigator.vibrate) {
       navigator.vibrate([100, 50, 100]);
     }
-
-    setTimeout(() => setLastScan(null), 5000);
   };
 
-  const handleManualCheckin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const code = manualCode.trim();
-    if (!code) return;
-
-    if (isStaffCode(code)) {
-      await handleStaffPunch(code.toUpperCase());
-    } else {
-      await handleCheckin(code);
-    }
+  const submitCode = (raw: string) => {
+    const code = raw.trim();
+    if (!code || !acceptCode(code)) return;
     setManualCode('');
+    scanBufferRef.current = { text: '', at: 0 };
+    if (isStaffCode(code)) {
+      handleStaffPunch(code.toUpperCase());
+    } else {
+      handleCheckin(code);
+    }
   };
+
+  const handleManualCheckin = (e: React.FormEvent) => {
+    e.preventDefault();
+    submitCode(manualCode);
+  };
+
+  useEffect(() => {
+    submitRef.current = submitCode;
+  });
+
+  // A handheld scanner is really a keyboard: it types the code and presses Enter.
+  // Listening on the document means reception scans the moment the member walks up
+  // instead of clicking into the code box first. Works from either tab, but a modal
+  // on screen always wins — the gun must never fire behind a form.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) return;
+      if (document.querySelector('.fixed.inset-0.z-50')) return;
+
+      const buf = scanBufferRef.current;
+      const now = Date.now();
+      if (now - buf.at > 150) buf.text = '';
+      buf.at = now;
+
+      if (e.key === 'Enter') {
+        if (!buf.text.trim()) return;
+        e.preventDefault();
+        submitRef.current(buf.text);
+        return;
+      }
+      if (e.key.length !== 1) return;
+      buf.text += e.key;
+      setManualCode(buf.text);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  // The camera opens with the tab, so the scanner is armed before the first member arrives.
+  // It only runs while the scanner is on screen: the viewport unmounts on the other tab.
+  useEffect(() => {
+    if (activeTab !== 'scanner') {
+      if (scannerRef.current) {
+        closeScanner();
+        setScanning(false);
+      }
+      return;
+    }
+    if (!autoCamera) return;
+    const timer = window.setTimeout(() => {
+      if (!scannerRef.current) startScanner();
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [activeTab, autoCamera]);
+
+  // Leaving the page has to hand the camera back, otherwise the light stays on.
+  useEffect(() => () => { closeScanner(); }, []);
 
   const handleCheckout = async (attendanceId: string) => {
     if (!isOnline) {
@@ -556,14 +673,13 @@ export default function AttendancePage() {
         branchId: selectedBranch,
         userId: user!.id
       });
-      setLastScan({
+      flash({
         success: true,
         message: `تم حفظ الانصراف محلياً${record ? `: ${record.memberName}` : ''}`,
         memberName: record?.memberName,
         type: 'warning'
       });
       if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
-      setTimeout(() => setLastScan(null), 5000);
       return;
     }
 
@@ -589,18 +705,17 @@ export default function AttendancePage() {
         branchId: selectedBranch,
         userId: user!.id
       });
-      setLastScan({
+      flash({
         success: true,
         message: `تم حفظ الانصراف محلياً${record ? `: ${record.memberName}` : ''}`,
         memberName: record?.memberName,
         type: 'warning'
       });
-      setTimeout(() => setLastScan(null), 5000);
     }
   };
 
   const formatTime = (dateString: string) => {
-    return new Date(dateString).toLocaleTimeString('ar-EG', {
+    return new Date(dateString).toLocaleTimeString('ar-EG-u-nu-latn', {
       hour: '2-digit',
       minute: '2-digit'
     });
@@ -652,7 +767,10 @@ export default function AttendancePage() {
           <div className="relative">
             <select
               value={selectedBranch}
-              onChange={(e) => setSelectedBranch(e.target.value)}
+              onChange={(e) => {
+                setSelectedBranch(e.target.value);
+                localStorage.setItem(BRANCH_KEY, e.target.value);
+              }}
               className="w-full bg-dark border border-dark-border text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all appearance-none cursor-pointer"
             >
               {branches.map(branch => (
@@ -796,7 +914,16 @@ export default function AttendancePage() {
                     <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-amber-500/10 to-amber-600/5 flex items-center justify-center mb-4 border border-amber-500/10">
                       <CameraIcon className="w-8 h-8 sm:w-10 sm:h-10 text-amber-500/40" />
                     </div>
-                    <p className="text-sm text-gray-500 text-center">اضغط على "تشغيل الكاميرا" لبدء المسح</p>
+                    <p className="text-sm text-gray-500 text-center">
+                      {scannerError
+                        ? 'الكاميرا مش شغالة — جهاز الباركود لسه بيشتغل من غير ضغط'
+                        : autoCamera
+                          ? 'جاري تشغيل الكاميرا...'
+                          : 'اضغط على "تشغيل الكاميرا" لبدء المسح'}
+                    </p>
+                    {!scannerError && autoCamera && (
+                      <p className="text-[11px] text-gray-600 text-center mt-2">لو الكاميرا اتقفلت، اضغط تشغيل من جديد</p>
+                    )}
                   </div>
                 )}
                 {scanning && (
@@ -821,18 +948,21 @@ export default function AttendancePage() {
 
               {/* Manual entry */}
               <div className="mt-5 pt-5 border-t border-dark-border/60">
-                <div className="flex items-center gap-2 mb-3">
+                <div className="flex items-center gap-x-2 gap-y-1 flex-wrap mb-3">
                   <SearchIcon className="w-3.5 h-3.5 text-gray-500" />
                   <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                    أو أدخل كود العضو / الموظف يدوياً
+                    كود العضو / الموظف
                   </label>
+                  <span className="text-[11px] text-gray-600">جهاز الباركود بيكتب هنا لوحده ويسجّل على طول</span>
                 </div>
                 <form onSubmit={handleManualCheckin} className="flex gap-2">
                   <input
                     type="text"
                     value={manualCode}
                     onChange={(e) => setManualCode(e.target.value)}
-                    placeholder="كود العضو..."
+                    placeholder="امسح الكارت بجهاز الباركود أو اكتب الكود"
+                    autoComplete="off"
+                    enterKeyHint="go"
                     className="flex-1 min-w-0 bg-dark border border-dark-border text-white rounded-xl px-4 py-3 text-sm placeholder:text-gray-600 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all"
                   />
                   <button
@@ -885,7 +1015,7 @@ export default function AttendancePage() {
                       }`}>
                         {lastScan.memberName}
                         {lastScan.kind === 'staff' && (
-                          <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-gray-300">
+                          <span className="flex-shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-gray-300">
                             وردية موظف{lastScan.code ? ` · ${lastScan.code}` : ''}
                           </span>
                         )}
