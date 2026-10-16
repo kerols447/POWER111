@@ -10,7 +10,7 @@ export function NetworkStatus() {
 
   useEffect(() => {
     const updateCount = () => {
-      getPendingOperationsCount().then(setPendingCount);
+      getPendingOperationsCount().then(setPendingCount).catch(() => setPendingCount(0));
     };
 
     updateCount();

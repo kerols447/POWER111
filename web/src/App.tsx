@@ -35,17 +35,17 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function SyncManager() {
-  const { user } = useAuth();
+  const { user, ready } = useAuth();
 
   useEffect(() => {
-    if (!user) return;
+    if (!ready || !user) return;
     const stopSync = startAutoSync(30000);
     const stopPrefetch = startOfflinePrefetch();
     return () => {
       stopSync();
       stopPrefetch();
     };
-  }, [user]);
+  }, [ready, user]);
 
   return null;
 }

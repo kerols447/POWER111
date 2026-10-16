@@ -11,6 +11,7 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
+  ready: boolean;
   permissions: string[];
   hasPermission: (permission: string) => boolean;
   isOwner: boolean;
@@ -20,6 +21,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
+  ready: true,
   permissions: [],
   hasPermission: () => false,
   isOwner: false,
@@ -48,12 +50,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const stored = localStorage.getItem('user');
     return stored ? JSON.parse(stored) : null;
   });
+  // Background jobs (offline warm-up, auto sync) must not fire authenticated calls
+  // before this probe answers, otherwise a stale stored user logs 401s on public pages.
+  const [ready, setReady] = useState(() => !user);
 
   // Refresh permissions from the server so owner edits take effect without re-login
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setReady(true);
+      return;
+    }
     fetch('/api/auth/me', { credentials: 'include' })
-      .then(res => (res.ok ? res.json() : null))
+      .then(res => {
+        if (res.status === 401) {
+          localStorage.removeItem('user');
+          setUser(null);
+          return null;
+        }
+        return res.ok ? res.json() : null;
+      })
       .then(data => {
         if (data?.user?.permissions) {
           setUser((prev: User | null) => {
@@ -64,7 +79,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           });
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setReady(true));
   }, []);
 
   const permissions = user?.permissions || [];
@@ -87,7 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, permissions, hasPermission, isOwner, login, logout }}>
+    <AuthContext.Provider value={{ user, ready, permissions, hasPermission, isOwner, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

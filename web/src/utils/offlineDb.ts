@@ -72,22 +72,27 @@ let dbInstance: IDBPDatabase<Power111DB> | null = null;
 export async function getDB(): Promise<IDBPDatabase<Power111DB>> {
   if (dbInstance) return dbInstance;
 
-  dbInstance = await openDB<Power111DB>('power111-offline', 2, {
-    upgrade(db, oldVersion) {
-      if (oldVersion < 1) {
+  dbInstance = await openDB<Power111DB>('power111-offline', 3, {
+    // Every store is guarded by name instead of by version number: a database left
+    // behind by an older build can be missing one store, and the old version check
+    // then never recreates it, which threw NotFoundError on every page load.
+    upgrade(db) {
+      if (!db.objectStoreNames.contains('pendingOperations')) {
         const opsStore = db.createObjectStore('pendingOperations', { keyPath: 'id' });
         opsStore.createIndex('by-status', 'status');
         opsStore.createIndex('by-branch', 'branchId');
         opsStore.createIndex('by-timestamp', 'timestamp');
-
+      }
+      if (!db.objectStoreNames.contains('cachedMembers')) {
         const membersStore = db.createObjectStore('cachedMembers', { keyPath: 'id' });
         membersStore.createIndex('by-code', 'memberCode');
         membersStore.createIndex('by-branch', 'branchId');
         membersStore.createIndex('by-cachedAt', 'cachedAt');
-
+      }
+      if (!db.objectStoreNames.contains('appSettings')) {
         db.createObjectStore('appSettings', { keyPath: 'key' });
       }
-      if (oldVersion < 2) {
+      if (!db.objectStoreNames.contains('cachedProducts')) {
         const productsStore = db.createObjectStore('cachedProducts', { keyPath: 'id' });
         productsStore.createIndex('by-branch', 'branchId');
         productsStore.createIndex('by-cachedAt', 'cachedAt');
