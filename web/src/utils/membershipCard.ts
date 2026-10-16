@@ -10,7 +10,6 @@ export interface MembershipCardData {
   planName: string;
   validUntil: string;
   isActive: boolean;
-  qrDataUrl: string;
   // Staff shift cards reuse the same artwork with staff wording.
   kind?: 'member' | 'staff';
   subtitle?: string;
@@ -22,14 +21,6 @@ const MUTED = 'rgba(255, 255, 255, 0.55)';
 const FAINT = 'rgba(255, 255, 255, 0.20)';
 const EDGE = 'rgba(255, 255, 255, 0.72)';
 
-function loadImage(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('image load failed'));
-    img.src = src;
-  });
-}
 
 function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   ctx.beginPath();
@@ -45,18 +36,24 @@ function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: num
   ctx.closePath();
 }
 
-function barcodeCanvas(code: string): HTMLCanvasElement {
-  const canvas = document.createElement('canvas');
-  JsBarcode(canvas, code, {
-    format: 'CODE128',
-    width: 5,
-    height: 56,
-    displayValue: false,
-    margin: 0,
-    background: '#FFFFFF',
-    lineColor: '#0A0A0A'
-  });
-  return canvas;
+// One module (the thinnest bar) is measured first so the bars can be laid out at a whole
+// pixel width: a 2-character code prints wide and bold, an 8-character code stays crisp.
+function barcodeCanvas(code: string, targetWidth: number, barHeight: number): HTMLCanvasElement {
+  const draw = (moduleWidth: number, height: number) => {
+    const canvas = document.createElement('canvas');
+    JsBarcode(canvas, code, {
+      format: 'CODE128',
+      width: moduleWidth,
+      height,
+      displayValue: false,
+      margin: 0,
+      background: '#FFFFFF',
+      lineColor: INK
+    });
+    return canvas;
+  };
+  const modules = draw(1, 8).width;
+  return draw(Math.max(2, Math.floor((targetWidth - 2) / modules)), barHeight);
 }
 
 const UI_FONT = '"Segoe UI", Tahoma, Arial, sans-serif';
@@ -180,8 +177,6 @@ export async function drawMembershipCard(
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('canvas unavailable');
 
-  const qr = await loadImage(data.qrDataUrl);
-  const barcode = barcodeCanvas(data.memberCode);
   const W = CARD_WIDTH;
   const H = CARD_HEIGHT;
   const L = 54;
@@ -296,33 +291,23 @@ export async function drawMembershipCard(
   ctx.direction = 'rtl';
   ctx.fillText(statusText, R - statusWidth / 2 + 9, 421);
 
-  ctx.fillStyle = FAINT;
-  ctx.fillRect(L, 456, R - L, 1);
-
-  // ===== QR + barcode band =====
-  const qrSize = 124;
-  const qrY = 474;
+  // ===== Barcode band — the printed card scans from this alone =====
+  // The white panel runs edge to edge on purpose: bars that sit inside a white window on a
+  // black card cannot be read (the dark card body merges into the first bar), only this layout
+  // scans from the reception camera and from a hand-held laser.
+  const bandY = 452;
+  const bandH = 142;
+  const barHeight = 80;
+  const barcode = barcodeCanvas(data.memberCode, R - L - 88, barHeight);
   ctx.fillStyle = WHITE;
-  roundedRect(ctx, L, qrY, qrSize, qrSize, 12);
-  ctx.fill();
-  ctx.drawImage(qr, L + 8, qrY + 8, qrSize - 16, qrSize - 16);
-
-  const bcX = L + qrSize + 34;
-  const bcWidth = R - bcX;
-  const bcHeight = 96;
-  ctx.fillStyle = WHITE;
-  roundedRect(ctx, bcX, qrY, bcWidth, bcHeight, 12);
-  ctx.fill();
-  const scale = Math.min((bcWidth - 52) / barcode.width, 68 / barcode.height);
-  const drawW = barcode.width * scale;
-  const drawH = barcode.height * scale;
-  ctx.drawImage(barcode, bcX + (bcWidth - drawW) / 2, qrY + 14, drawW, drawH);
+  ctx.fillRect(0, bandY, W, bandH);
+  ctx.drawImage(barcode, Math.round(L + (R - L - barcode.width) / 2), bandY + 14);
 
   ctx.direction = 'ltr';
-  ctx.textAlign = 'left';
-  ctx.fillStyle = WHITE;
+  ctx.textAlign = 'center';
+  ctx.fillStyle = INK;
   ctx.font = `700 30px ${MONO_FONT}`;
-  drawTracked(ctx, data.memberCode, bcX + bcWidth / 2, qrY + bcHeight + 26, 7, 'center');
+  drawTracked(ctx, data.memberCode, (L + R) / 2, bandY + bandH - 26, 7, 'center');
 
   // ===== Footer =====
   cornerAccent(ctx, W - 58, H - 26, -1, -1);
@@ -331,14 +316,14 @@ export async function drawMembershipCard(
   ctx.textAlign = 'left';
   ctx.fillStyle = MUTED;
   ctx.font = `400 20px ${UI_FONT}`;
-  ctx.fillText(isStaff ? 'اعرض الكارت على الماسع لختم الدخول والخروج' : 'اعرض الكود على الماسح عند الاستقبال لتسجيل الحضور', L, 622);
+  ctx.fillText(isStaff ? 'امسح الباركود عند الاستقبال لختم الدخول والخروج' : 'امسح الباركود عند الاستقبال لتسجيل الحضور', L, 616);
 
   ctx.direction = 'ltr';
   ctx.fillStyle = MUTED;
   ctx.font = `500 19px ${UI_FONT}`;
-  const scanWidth = drawTracked(ctx, 'SCAN FOR ATTENDANCE', R - 134, 622, 4, 'right');
+  const scanWidth = drawTracked(ctx, 'SCAN TO CHECK IN', R - 134, 616, 4, 'right');
   ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
-  ctx.fillRect(R - 134 - scanWidth - 44, 621, 32, 2);
+  ctx.fillRect(R - 134 - scanWidth - 44, 615, 32, 2);
 }
 
 function triggerDownload(blobUrl: string, filename: string) {

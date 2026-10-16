@@ -239,7 +239,7 @@ export default function StaffPage() {
 
   useEffect(() => {
     const canvas = cardCanvasRef.current;
-    if (!canvas || !cardStaff || !cardImage) return;
+    if (!canvas || !cardStaff) return;
     setCardError('');
     drawMembershipCard(canvas, {
       memberName: cardStaff.name,
@@ -249,10 +249,9 @@ export default function StaffPage() {
       validUntil: '',
       subtitle: `الوظيفة: ${roleLabels[cardStaff.role] || cardStaff.role}   •   ختم دخول وخروج`,
       kind: 'staff',
-      isActive: cardStaff.isActive,
-      qrDataUrl: cardImage
+      isActive: cardStaff.isActive
     }).catch(() => setCardError('تعذر رسم البطاقة، حاول مرة أخرى'));
-  }, [cardStaff, cardImage]);
+  }, [cardStaff]);
 
   const openCard = async (person: StaffRow) => {
     if (!person.staffCode) {
