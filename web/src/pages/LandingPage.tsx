@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
-import type { ReactNode } from 'react';
+import { useState, useEffect } from 'react';
+import type { MouseEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { whatsappLink } from '../utils/whatsapp';
+import { CountUp, DrawIcon, Reveal, RevealWords, ScrollProgress, useInView } from '../components/Motion';
 
 interface BranchPlan {
   id: string;
@@ -51,50 +52,8 @@ const SOCIAL_LINKS = [
 ];
 
 /**
- * Fades content in as it scrolls into view. The 1.5s failsafe matters: an
- * earlier reveal implementation left the whole site invisible on phones when
- * the observer never fired.
+ * Fades content in as it scrolls into view.
  */
-function Reveal({ children, delay = 0, className = '' }: { children: ReactNode; delay?: number; className?: string }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [shown, setShown] = useState(false);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || typeof IntersectionObserver === 'undefined') {
-      setShown(true);
-      return;
-    }
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setShown(true);
-          observer.disconnect();
-        }
-      },
-      { threshold: 0.1, rootMargin: '0px 0px -5% 0px' }
-    );
-    observer.observe(el);
-    const failsafe = window.setTimeout(() => setShown(true), 1500);
-    return () => {
-      observer.disconnect();
-      window.clearTimeout(failsafe);
-    };
-  }, []);
-
-  return (
-    <div
-      ref={ref}
-      style={{ transitionDelay: `${delay}ms` }}
-      className={`transition-all duration-500 ease-out motion-reduce:transition-none ${
-        shown ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-4 scale-[0.98] opacity-0'
-      } ${className}`}
-    >
-      {children}
-    </div>
-  );
-}
-
 function Skeleton({ className = '' }: { className?: string }) {
   return <div className={`animate-pulse rounded-xl bg-white/5 ${className}`} aria-hidden="true" />;
 }
@@ -102,8 +61,19 @@ function Skeleton({ className = '' }: { className?: string }) {
 const card = 'rounded-2xl border border-white/10 bg-[#141414]';
 const hoverCard = `${card} transition-all duration-300 motion-reduce:transition-none sm:hover:border-amber-500/30 sm:hover:-translate-y-1`;
 const chip = 'inline-block px-3 py-1 rounded-full text-xs font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20';
-const goldBtn = 'inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-amber-500 text-black font-bold text-sm transition-all duration-200 active:scale-[0.97] sm:hover:bg-amber-400';
-const ghostBtn = 'inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl border border-white/15 text-white font-bold text-sm transition-all duration-200 active:scale-[0.97] sm:hover:bg-white/5';
+const goldBtn = 'inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-amber-500 text-black font-bold text-sm transition-all duration-200 active:scale-[0.97] sm:hover:bg-amber-400 sm:hover:-translate-y-0.5';
+const ghostBtn = 'inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl border border-white/15 text-white font-bold text-sm transition-all duration-200 active:scale-[0.97] sm:hover:bg-white/5 sm:hover:-translate-y-0.5';
+const navLink = 'relative py-1 transition-colors duration-200 after:absolute after:inset-x-0 after:-bottom-1 after:h-px after:origin-right after:scale-x-0 after:bg-amber-500 after:transition-transform after:duration-300 hover:text-amber-400 hover:after:scale-x-100';
+
+/** Anchor jumps glide instead of snapping — unless the visitor asked for less motion. */
+function jumpToSection(event: MouseEvent<HTMLAnchorElement>, href: string, after?: () => void) {
+  const target = document.querySelector(href);
+  if (!target) return;
+  event.preventDefault();
+  const calm = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  target.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' });
+  after?.();
+}
 
 function formatEGP(piasters: number) {
   return `${(piasters / 100).toLocaleString('en-US')} ج.م`;
@@ -131,11 +101,28 @@ function shortBranchName(name: string) {
 }
 
 function SectionHeading({ eyebrow, title, subtitle }: { eyebrow: string; title: string; subtitle?: string }) {
+  const { ref, inView } = useInView<HTMLDivElement>(0.4);
+
   return (
-    <div className="text-center">
-      <span className={chip}>{eyebrow}</span>
-      <h2 className="mt-4 text-2xl sm:text-4xl font-black text-white">{title}</h2>
-      {subtitle && <p className="mt-3 text-sm sm:text-base text-gray-400 max-w-xl mx-auto">{subtitle}</p>}
+    <div ref={ref} className="text-center">
+      <span
+        className={chip}
+        style={{
+          opacity: inView ? 1 : 0,
+          transform: inView ? 'scale(1)' : 'scale(0.9)',
+          transition: 'opacity 400ms ease-out, transform 400ms cubic-bezier(.16,.84,.44,1)'
+        }}
+      >
+        {eyebrow}
+      </span>
+      <h2 className="mt-4 text-2xl sm:text-4xl font-black text-white leading-tight">
+        <RevealWords text={title} delay={80} step={110} />
+      </h2>
+      {subtitle && (
+        <Reveal delay={260} y={14}>
+          <p className="mt-3 text-sm sm:text-base text-gray-400 max-w-xl mx-auto">{subtitle}</p>
+        </Reveal>
+      )}
     </div>
   );
 }
@@ -214,12 +201,12 @@ export default function LandingPage() {
   ];
 
   // A "0 plans / 0 offers" counter advertises the gap, so only real numbers are shown.
-  const allStats = [
-    { value: loaded ? String(branches.length) : '—', label: 'فروع' },
-    ...(hasPlans ? [{ value: String(totalPlans), label: 'خطط وأسعار' }] : []),
-    ...(offers.length > 0 ? [{ value: String(offers.length), label: 'عروض حالية' }] : []),
-    ...(maxDiscount > 0 ? [{ value: `${maxDiscount}%`, label: 'أقصى خصم' }] : []),
-    ...(hasPlans || offers.length > 0 ? [] : [{ value: String(services.length), label: 'خدمات' }])
+  const allStats: { value: number | null; label: string; suffix?: string }[] = [
+    { value: loaded ? branches.length : null, label: 'فروع' },
+    ...(hasPlans ? [{ value: totalPlans, label: 'خطط وأسعار' }] : []),
+    ...(offers.length > 0 ? [{ value: offers.length, label: 'عروض حالية' }] : []),
+    ...(maxDiscount > 0 ? [{ value: maxDiscount, label: 'أقصى خصم', suffix: '%' }] : []),
+    ...(hasPlans || offers.length > 0 ? [] : [{ value: services.length, label: 'خدمات' }])
   ];
   const stats = allStats.slice(0, 3);
   const statLayout: Record<number, string> = {
@@ -235,14 +222,14 @@ export default function LandingPage() {
         scrolled ? 'bg-black/95 border-b border-white/10 shadow-lg shadow-black/50' : 'bg-black/80 border-b border-transparent'
       }`}>
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <a href="#top" className="flex items-center gap-2.5">
-            <img src="/power-logo.jpg" alt="POWER 111" className="w-9 h-9 rounded-lg" />
+          <a href="#top" className="flex items-center gap-2.5 min-h-10 transition-transform duration-200 active:scale-95 sm:hover:scale-[1.03]">
+            <img src="/power-logo.jpg" alt="POWER 111" className="w-9 h-9 rounded-lg ring-1 ring-amber-500/30" />
             <span className="text-lg font-black tracking-tight">POWER 111</span>
           </a>
 
           <div className="hidden md:flex items-center gap-7 text-sm text-gray-300">
             {navLinks.map(link => (
-              <a key={link.href} href={link.href} className="hover:text-amber-400 transition-colors">{link.label}</a>
+              <a key={link.href} href={link.href} onClick={e => jumpToSection(e, link.href)} className={navLink}>{link.label}</a>
             ))}
           </div>
 
@@ -273,7 +260,7 @@ export default function LandingPage() {
               <a
                 key={link.href}
                 href={link.href}
-                onClick={() => setMenuOpen(false)}
+                onClick={e => jumpToSection(e, link.href, () => setMenuOpen(false))}
                 tabIndex={menuOpen ? undefined : -1}
                 className={`block py-2.5 text-sm text-gray-300 transition-colors duration-200 active:text-amber-400 sm:hover:text-amber-400 ${menuOpen ? 'translate-x-0 opacity-100' : 'translate-x-3 opacity-0'}`}
               >
@@ -285,39 +272,54 @@ export default function LandingPage() {
             </Link>
           </div>
         </div>
+        <ScrollProgress />
       </nav>
 
       {/* ===== Hero ===== */}
-      <header id="top" className="px-4 sm:px-6 py-16 sm:py-24 text-center">
-        <Reveal>
-          <img src="/power-logo.jpg" alt="POWER 111" className="w-28 h-28 sm:w-36 sm:h-36 mx-auto rounded-2xl border border-amber-500/25" />
+      <header id="top" className="px-4 sm:px-6 pt-14 pb-16 sm:pt-20 sm:pb-24 text-center">
+        <Reveal y={0} scale={0.88} duration={760}>
+          <img src="/power-logo.jpg" alt="POWER 111" className="mx-auto w-28 h-28 sm:w-36 sm:h-36 rounded-2xl border border-amber-500/25" />
         </Reveal>
-        <Reveal delay={100}>
-          <h1 className="mt-8 text-3xl sm:text-5xl font-black leading-tight">
-            لياقتك تبدأ <span className="text-amber-400">من هنا</span>
-          </h1>
+
+        <h1 className="mt-8 text-3xl sm:text-5xl font-black leading-tight">
+          <RevealWords text="لياقتك تبدأ" delay={180} step={120} />{' '}
+          <span className="text-amber-400"><RevealWords text="من هنا" delay={420} step={120} /></span>
+        </h1>
+
+        <Reveal delay={620} y={14}>
           <p className="mt-4 text-base sm:text-lg text-gray-400 max-w-xl mx-auto leading-relaxed">
             جيم، صحة، وتغذية — منظومة متكاملة لرعاية جسمك في مكان واحد.
           </p>
         </Reveal>
 
-        <Reveal delay={200}>
+        <Reveal delay={700}>
           <div className="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 max-w-md mx-auto sm:max-w-none">
-            <a href="#plans" className={goldBtn}>{hasPlans ? 'شوف الأسعار' : 'اسأل عن الأسعار'}</a>
+            <a href="#plans" onClick={e => jumpToSection(e, '#plans')} className={goldBtn}>{hasPlans ? 'شوف الأسعار' : 'اسأل عن الأسعار'}</a>
             <a href={supportWa} target="_blank" rel="noreferrer" className={ghostBtn}>كلمنا واتساب</a>
           </div>
         </Reveal>
 
         <div className={`mt-12 sm:mt-16 grid gap-3 sm:gap-4 mx-auto ${statLayout[stats.length] || 'grid-cols-1 max-w-xs'}`}>
           {stats.map((stat, i) => (
-            <Reveal key={stat.label} delay={300 + i * 100}>
-              <div className={`${card} px-2 py-5`}>
-                <div className="text-2xl sm:text-3xl font-black text-amber-400">{stat.value}</div>
+            <Reveal key={stat.label} delay={880 + i * 120} y={18}>
+              <div className={`${card} px-2 py-5 transition-colors duration-300 sm:hover:border-amber-500/25`}>
+                <div className="text-2xl sm:text-3xl font-black text-amber-400">
+                  {stat.value === null ? '—' : <CountUp value={stat.value} suffix={stat.suffix} />}
+                </div>
                 <div className="mt-1 text-xs sm:text-sm text-gray-400">{stat.label}</div>
               </div>
             </Reveal>
           ))}
         </div>
+
+        <Reveal delay={1200} y={10}>
+          <a href="#services" onClick={e => jumpToSection(e, '#services')} className="mt-12 inline-flex flex-col items-center gap-1 text-gray-500 transition-colors duration-200 sm:hover:text-amber-400">
+            <span className="text-[11px] tracking-[0.2em]">اكتشف</span>
+            <svg className="w-5 h-5 animate-bounce motion-reduce:animate-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 9l-7 7-7-7" />
+            </svg>
+          </a>
+        </Reveal>
       </header>
 
       {/* ===== Services ===== */}
@@ -328,12 +330,10 @@ export default function LandingPage() {
           </Reveal>
           <div className="mt-10 grid grid-cols-1 sm:grid-cols-3 gap-4">
             {services.map((service, i) => (
-              <Reveal key={service.title} delay={i * 100} className="h-full">
+              <Reveal key={service.title} delay={i * 120} className="h-full">
                 <div className={`${hoverCard} p-6 h-full`}>
                   <div className="w-12 h-12 rounded-xl flex items-center justify-center text-amber-400 bg-amber-500/10 border border-amber-500/20">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-6 h-6">
-                      <path strokeLinecap="round" strokeLinejoin="round" d={service.icon} />
-                    </svg>
+                    <DrawIcon d={service.icon} className="w-6 h-6" delay={150 + i * 120} />
                   </div>
                   <h3 className="mt-5 text-lg font-bold">{service.title}</h3>
                   <p className="mt-2 text-sm text-gray-400 leading-relaxed">{service.desc}</p>
@@ -448,7 +448,7 @@ export default function LandingPage() {
                       <a
                         href={`tel:${branch.phone}`}
                         dir="ltr"
-                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-300 border border-white/10 transition-all duration-200 active:scale-95 sm:hover:text-amber-400 sm:hover:border-amber-500/25"
+                        className="inline-flex items-center gap-2 min-h-10 px-3 py-2 rounded-lg text-sm text-gray-300 border border-white/10 transition-all duration-200 active:scale-95 sm:hover:text-amber-400 sm:hover:border-amber-500/25"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
@@ -461,7 +461,7 @@ export default function LandingPage() {
                         href={wa}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-emerald-400 border border-emerald-500/20 transition-all duration-200 active:scale-95 sm:hover:bg-emerald-500/10"
+                        className="inline-flex items-center gap-2 min-h-10 px-3 py-2 rounded-lg text-sm text-emerald-400 border border-emerald-500/20 transition-all duration-200 active:scale-95 sm:hover:bg-emerald-500/10"
                       >
                         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                           <path d="M12.04 2a9.9 9.9 0 0 0-8.51 14.94L2 22l5.2-1.49A9.9 9.9 0 1 0 12.04 2z" />
@@ -474,7 +474,7 @@ export default function LandingPage() {
                         href={branch.locationUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-amber-400 border border-amber-500/20 transition-all duration-200 active:scale-95 sm:hover:bg-amber-500/10"
+                        className="inline-flex items-center gap-2 min-h-10 px-3 py-2 rounded-lg text-sm text-amber-400 border border-amber-500/20 transition-all duration-200 active:scale-95 sm:hover:bg-amber-500/10"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
@@ -487,8 +487,8 @@ export default function LandingPage() {
 
                   <a
                     href="#plans"
-                    onClick={() => setSelectedBranchId(branch.id)}
-                    className="mt-2 inline-flex items-center gap-1.5 px-1 py-2 text-sm font-bold text-amber-400 transition-all duration-200 active:scale-95"
+                    onClick={e => jumpToSection(e, '#plans', () => setSelectedBranchId(branch.id))}
+                    className="mt-2 inline-flex items-center gap-1.5 min-h-10 px-1 py-2 text-sm font-bold text-amber-400 transition-all duration-200 active:scale-95"
                   >
                     {branch.plans.length > 0 ? 'شوف خطط الفرع' : 'اسأل عن أسعار الفرع'}
                     <svg className="w-4 h-4 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -624,9 +624,7 @@ export default function LandingPage() {
             {features.map((feature, i) => (
               <Reveal key={feature.title} delay={i * 80} className="h-full">
               <div className={`${hoverCard} p-5 flex items-start gap-3 h-full`}>
-                <svg className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
+                <DrawIcon d="M5 13l4 4L19 7" strokeWidth={2} className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" delay={i * 90 + 120} />
                 <div>
                   <h3 className="text-sm font-bold">{feature.title}</h3>
                   <p className="mt-1 text-sm text-gray-400">{feature.desc}</p>
@@ -680,8 +678,8 @@ export default function LandingPage() {
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-x-6 text-sm text-gray-400">
-            <a href="#branches" className="py-2.5 transition-colors sm:hover:text-amber-400">الفروع</a>
-            <a href="#plans" className="py-2.5 transition-colors sm:hover:text-amber-400">{plansLabel}</a>
+            <a href="#branches" onClick={e => jumpToSection(e, '#branches')} className="py-2.5 transition-colors sm:hover:text-amber-400">الفروع</a>
+            <a href="#plans" onClick={e => jumpToSection(e, '#plans')} className="py-2.5 transition-colors sm:hover:text-amber-400">{plansLabel}</a>
             <Link to="/portal" className="py-2.5 transition-colors sm:hover:text-amber-400">بوابة الأعضاء</Link>
             <Link to="/login" className="py-2.5 transition-colors sm:hover:text-amber-400">دخول الموظفين</Link>
           </div>
