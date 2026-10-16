@@ -247,6 +247,22 @@ router.get('/me', async (req: Request, res: Response, next: NextFunction) => {
       where: { branchId: member.branchId, checkOutTime: null }
     });
 
+    // Trainers on the floor right now = an open shift at this member's branch that
+    // started today, which is the same rule the admin staff list uses for "present".
+    const dutyStart = new Date();
+    dutyStart.setHours(0, 0, 0, 0);
+
+    const onDuty = await prisma.staffAttendance.findMany({
+      where: {
+        branchId: member.branchId,
+        checkOutTime: null,
+        checkInTime: { gte: dutyStart },
+        user: { role: 'TRAINER', isActive: true }
+      },
+      select: { user: { select: { name: true } } },
+      orderBy: { checkInTime: 'asc' }
+    });
+
     res.json({
       success: true,
       data: {
@@ -264,7 +280,8 @@ router.get('/me', async (req: Request, res: Response, next: NextFunction) => {
         payments,
         attendances,
         totalVisits,
-        currentlyInBranch
+        currentlyInBranch,
+        trainersOnDuty: onDuty.map(s => s.user.name)
       }
     });
   } catch (error) {

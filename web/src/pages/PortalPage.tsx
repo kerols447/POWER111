@@ -51,6 +51,7 @@ interface PortalData {
   attendances: PortalAttendance[];
   totalVisits: number;
   currentlyInBranch: number;
+  trainersOnDuty: string[];
 }
 
 interface StaffShift {
@@ -99,7 +100,7 @@ const ghostBtn = 'inline-flex items-center justify-center gap-2 px-5 py-3 min-h-
 
 function fmtClock(iso: string | null) {
   if (!iso) return 'شغال';
-  return new Date(iso).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' });
 }
 
 function fmtShiftMinutes(minutes: number) {
@@ -136,13 +137,13 @@ const METHOD_TEXT: Record<string, string> = {
 };
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('ar-EG', {
+  return new Date(iso).toLocaleDateString('ar-EG-u-nu-latn', {
     year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Africa/Cairo'
   });
 }
 
 function formatEGP(piasters: number) {
-  return `${(piasters / 100).toLocaleString('ar-EG')} ج.م`;
+  return `${(piasters / 100).toLocaleString('ar-EG-u-nu-latn')} ج.م`;
 }
 
 function daysRemaining(endDate: string): number {
@@ -157,6 +158,8 @@ function buildCardData(data: PortalData) {
     memberName: data.member.name,
     memberCode: data.member.memberCode,
     branchName: data.member.branch.name,
+    branchAddress: data.member.branch.address || '',
+    branchPhone: data.member.branch.phone || '',
     planName: sub ? (sub.plan.nameAr || sub.plan.name) : 'عضوية',
     validUntil: sub ? formatDate(sub.endDate) : 'بدون اشتراك',
     isActive: !!sub && daysRemaining(sub.endDate) > 0 && sub.status !== 'CANCELLED'
@@ -467,15 +470,15 @@ export default function PortalPage() {
         </Reveal>
 
         <Reveal delay={560}>
-          <div className="mt-6 flex items-center gap-4 text-sm">
-            <Link to="/" className="text-gray-400 transition-colors sm:hover:text-amber-400">
+          <div className="mt-6 flex items-center gap-2 text-sm">
+            <Link to="/" className="inline-flex items-center min-h-11 px-2 text-gray-400 transition-colors sm:hover:text-amber-400">
               ← العودة للصفحة الرئيسية
             </Link>
             <a
               href={whatsappLink(SUPPORT_PHONE, 'مش قادر أدخل بوابة الأعضاء') || `tel:${SUPPORT_PHONE}`}
               target="_blank"
               rel="noreferrer"
-              className="text-emerald-400 transition-colors sm:hover:text-emerald-300"
+              className="inline-flex items-center min-h-11 px-2 text-emerald-400 transition-colors sm:hover:text-emerald-300"
             >
               مساعده واتساب
             </a>
@@ -636,7 +639,7 @@ export default function PortalPage() {
 
   // ===== Dashboard =====
   if (!data) return null;
-  const { member, currentSubscription, totalVisits, currentlyInBranch } = data;
+  const { member, currentSubscription, totalVisits, currentlyInBranch, trainersOnDuty } = data;
   const remaining = currentSubscription ? daysRemaining(currentSubscription.endDate) : 0;
   const start = currentSubscription ? new Date(currentSubscription.startDate).getTime() : 0;
   const end = currentSubscription ? new Date(currentSubscription.endDate).getTime() : 1;
@@ -685,7 +688,7 @@ export default function PortalPage() {
                       <div className="text-xs text-gray-500 mt-0.5">{att.branch.name}</div>
                     </div>
                     <div className="text-xs text-gray-400" dir="ltr">
-                      {new Date(att.checkInTime).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Cairo' })}
+                      {new Date(att.checkInTime).toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Cairo' })}
                     </div>
                   </li>
                 </Reveal>
@@ -840,6 +843,27 @@ export default function PortalPage() {
               </div>
               <div className="mt-1 text-[11px] sm:text-xs text-gray-400 leading-snug">حالة العضوية</div>
             </div>
+          </section>
+        </Reveal>
+
+        <Reveal delay={80}>
+          <section className={`${panel} p-6`}>
+            <h2 className="text-lg font-bold text-white">المدرب الموجود الآن</h2>
+            {trainersOnDuty.length === 0 ? (
+              <p className="mt-2 text-sm text-gray-500">لا يوجد مدرب في الفرع حالياً — اسأل موظف الاستقبال عند الوصول</p>
+            ) : (
+              <ul className="mt-4 space-y-3">
+                {trainersOnDuty.map((name, i) => (
+                  <li key={`${name}-${i}`} className="flex items-center gap-3">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-amber-500/30 bg-amber-500/10 text-base font-bold text-amber-500">
+                      {name.trim().charAt(0)}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-sm font-bold text-white">{name}</span>
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-400" />
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
         </Reveal>
 

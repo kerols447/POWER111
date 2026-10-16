@@ -7,6 +7,8 @@ export interface MembershipCardData {
   memberName: string;
   memberCode: string;
   branchName: string;
+  branchAddress?: string;
+  branchPhone?: string;
   planName: string;
   validUntil: string;
   isActive: boolean;
@@ -195,101 +197,146 @@ export async function drawMembershipCard(
   ctx.direction = 'ltr';
   ctx.textAlign = 'left';
 
-  // ===== Brand block (top-left) =====
+  // ===== Brand block: wordmark plus the three marks, spread across the whole header =====
   ctx.fillStyle = WHITE;
-  ctx.font = `900 58px ${BLACK_FONT}`;
-  drawTracked(ctx, 'POWER 111', L, 74, 2);
+  ctx.font = `900 56px ${BLACK_FONT}`;
+  const brandWidth = drawTracked(ctx, 'POWER 111', L, 66, 2);
 
-  const circleR = 27;
-  const circleY = 144;
-  iconCircle(ctx, L + circleR, circleY, circleR, 'dumbbell');
-  iconCircle(ctx, L + circleR + 70, circleY, circleR, 'heart');
-  iconCircle(ctx, L + circleR + 140, circleY, circleR, 'leaf');
+  const circleR = 21;
+  const iconX = L + brandWidth + 34;
+  const marks: ('dumbbell' | 'heart' | 'leaf')[] = ['dumbbell', 'heart', 'leaf'];
+  marks.forEach((kind, i) => iconCircle(ctx, iconX + circleR + i * (circleR * 2 + 16), 66, circleR, kind));
 
-  // ===== Card type (top-right) =====
+  // ===== Card type (top-right, clear of the corner slashes) =====
   cornerAccent(ctx, W - 58, 26, -1, 1);
+  const TX = R - 66;
 
   ctx.fillStyle = WHITE;
-  ctx.font = `600 26px ${UI_FONT}`;
-  const typeWidth = drawTracked(ctx, isStaff ? 'STAFF CARD' : 'MEMBERSHIP CARD', R, 96, 5, 'right');
-  const ruleGradient = ctx.createLinearGradient(R - typeWidth, 0, R, 0);
+  ctx.font = `600 23px ${UI_FONT}`;
+  const typeWidth = drawTracked(ctx, isStaff ? 'STAFF CARD' : 'MEMBERSHIP CARD', TX, 62, 4, 'right');
+  const ruleGradient = ctx.createLinearGradient(TX - typeWidth, 0, TX, 0);
   ruleGradient.addColorStop(0, 'rgba(255, 255, 255, 0.05)');
   ruleGradient.addColorStop(0.35, 'rgba(255, 255, 255, 0.85)');
   ruleGradient.addColorStop(1, 'rgba(255, 255, 255, 0.4)');
   ctx.fillStyle = ruleGradient;
-  ctx.fillRect(R - typeWidth, 120, typeWidth, 2);
+  ctx.fillRect(TX - typeWidth, 86, typeWidth, 2);
 
   ctx.direction = 'rtl';
   ctx.textAlign = 'right';
   ctx.fillStyle = MUTED;
   ctx.font = `400 22px ${UI_FONT}`;
-  ctx.fillText(isStaff ? 'بطاقة موظف' : 'بطاقة عضوية', R, 150);
+  ctx.fillText(isStaff ? 'بطاقة موظف' : 'بطاقة عضوية', TX, 116);
 
   ctx.fillStyle = FAINT;
-  ctx.fillRect(L, 196, R - L, 1);
+  ctx.fillRect(L, 144, R - L, 1);
 
   // ===== Member name =====
   ctx.direction = 'ltr';
   ctx.textAlign = 'left';
   ctx.fillStyle = MUTED;
-  ctx.font = `500 20px ${UI_FONT}`;
-  drawTracked(ctx, isStaff ? 'STAFF NAME' : 'MEMBER NAME', L, 224, 5);
+  ctx.font = `500 19px ${UI_FONT}`;
+  drawTracked(ctx, isStaff ? 'STAFF NAME' : 'MEMBER NAME', L, 174, 5);
 
   ctx.direction = 'rtl';
   ctx.textAlign = 'left';
   ctx.fillStyle = WHITE;
-  fitFont(ctx, data.memberName, R - L, '700', 46);
-  ctx.fillText(data.memberName, L, 266);
+  fitFont(ctx, data.memberName, R - L, '700', 52);
+  ctx.fillText(data.memberName, L, 222);
 
   ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
-  ctx.fillRect(L, 298, R - L, 2);
+  ctx.fillRect(L, 254, R - L, 2);
 
-  // ===== ID / branch columns =====
-  ctx.direction = 'ltr';
-  ctx.fillStyle = MUTED;
-  ctx.font = `500 18px ${UI_FONT}`;
-  drawTracked(ctx, isStaff ? 'STAFF ID' : 'MEMBERSHIP ID', L, 336, 4);
-  drawTracked(ctx, 'BRANCH', 556, 336, 4);
+  // ===== Field columns: id, branch and (for members) the expiry date =====
+  const columns = [
+    { label: isStaff ? 'STAFF ID' : 'MEMBERSHIP ID', value: data.memberCode, mono: true, size: 34 },
+    { label: 'BRANCH', value: data.branchName, mono: false, size: 30 }
+  ];
+  if (data.validUntil) columns.push({ label: 'VALID UNTIL', value: data.validUntil, mono: false, size: 28 });
 
-  ctx.fillStyle = WHITE;
-  ctx.font = `700 34px ${MONO_FONT}`;
-  ctx.fillText(data.memberCode, L, 376);
+  const gap = 52;
+  const colWidth = (R - L - gap * (columns.length - 1)) / columns.length;
+  columns.forEach((col, i) => {
+    const x = L + i * (colWidth + gap);
+    if (i > 0) {
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x - gap / 2, 272);
+      ctx.lineTo(x - gap / 2, 356);
+      ctx.stroke();
+    }
+    ctx.direction = 'ltr';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = MUTED;
+    ctx.font = `500 17px ${UI_FONT}`;
+    drawTracked(ctx, col.label, x, 296, 4);
 
-  ctx.direction = 'rtl';
-  ctx.textAlign = 'left';
-  fitFont(ctx, data.branchName, R - 556, '700', 32);
-  ctx.fillText(data.branchName, 556, 376);
+    ctx.fillStyle = WHITE;
+    if (col.mono) {
+      ctx.font = `700 ${col.size}px ${MONO_FONT}`;
+      ctx.fillText(col.value, x, 338);
+    } else {
+      ctx.direction = 'rtl';
+      fitFont(ctx, col.value, colWidth - 8, '700', col.size);
+      ctx.fillText(col.value, x, 338);
+    }
+  });
 
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(520, 316);
-  ctx.lineTo(520, 396);
-  ctx.stroke();
-
-  ctx.direction = 'rtl';
-  ctx.textAlign = 'left';
-  ctx.fillStyle = MUTED;
-  ctx.font = `400 22px ${UI_FONT}`;
-  const planLine = data.subtitle || `الباقة: ${data.planName}   •   صالح حتى ${data.validUntil}`;
-  fitFont(ctx, planLine, R - L - 170, '400', 22);
-  ctx.fillText(planLine, L, 420);
+  // ===== Plan (or staff role) + status, and the branch address with its phone =====
+  const branchAddress = (data.branchAddress || '').trim();
+  const address = branchAddress ? `العنوان: ${branchAddress}` : '';
+  const phone = (data.branchPhone || '').trim();
+  const hasLocation = !!(address || phone);
+  const planY = hasLocation ? 396 : 428;
 
   const statusText = isStaff ? (data.isActive ? 'مُفعّل' : 'متوقف') : (data.isActive ? 'نشط' : 'منتهي');
   const statusColor = data.isActive ? '#10B981' : '#F43F5E';
   ctx.font = `700 21px ${UI_FONT}`;
   const statusWidth = ctx.measureText(statusText).width + 54;
+
+  ctx.direction = 'rtl';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = MUTED;
+  ctx.font = `400 24px ${UI_FONT}`;
+  const planLine = data.subtitle || (data.planName ? `الباقة: ${data.planName}` : '');
+  if (planLine) {
+    fitFont(ctx, planLine, R - statusWidth - 30 - L, '400', 24);
+    ctx.fillText(planLine, L, planY);
+  }
+
   ctx.strokeStyle = statusColor;
   ctx.lineWidth = 2;
-  roundedRect(ctx, R - statusWidth, 400, statusWidth, 40, 20);
+  roundedRect(ctx, R - statusWidth, planY - 20, statusWidth, 40, 20);
   ctx.stroke();
   ctx.fillStyle = statusColor;
   ctx.beginPath();
-  ctx.arc(R - statusWidth + 18, 420, 5, 0, Math.PI * 2);
+  ctx.arc(R - statusWidth + 18, planY, 5, 0, Math.PI * 2);
   ctx.fill();
   ctx.textAlign = 'center';
   ctx.direction = 'rtl';
-  ctx.fillText(statusText, R - statusWidth / 2 + 9, 421);
+  ctx.font = `700 21px ${UI_FONT}`;
+  ctx.fillText(statusText, R - statusWidth / 2 + 9, planY + 1);
+
+  // Address on the left, branch phone on the right — the last free strip above the band
+  if (address || phone) {
+    ctx.font = `400 22px ${MONO_FONT}`;
+    const phoneWidth = phone ? ctx.measureText(phone).width : 0;
+    if (address) {
+      ctx.direction = 'rtl';
+      ctx.textAlign = 'left';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.62)';
+      ctx.font = `400 21px ${UI_FONT}`;
+      fitFont(ctx, address, phone ? R - phoneWidth - 40 - L : R - L, '400', 21);
+      ctx.fillText(address, L, 432);
+    }
+    if (phone) {
+      ctx.direction = 'ltr';
+      ctx.textAlign = 'right';
+      ctx.fillStyle = WHITE;
+      ctx.font = `400 22px ${MONO_FONT}`;
+      ctx.fillText(phone, R, 432);
+    }
+  }
 
   // ===== Barcode band — the printed card scans from this alone =====
   // The white panel runs edge to edge on purpose: bars that sit inside a white window on a
