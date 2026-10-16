@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { arDate, localDate } from '../utils/dates';
 import { addPendingOperation } from '../utils/offlineDb';
 import { whatsappLink, displayPhone } from '../utils/whatsapp';
 import { downloadWorkbook } from '../utils/downloadWorkbook';
@@ -44,17 +45,37 @@ function generateOperationId(): string {
   return `op_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 }
 
+// Opening a member and coming back must not throw away what he was looking at.
+const FILTERS_KEY = 'members_filters';
+
+function readStoredFilters() {
+  const defaults = { search: '', branchFilter: '', statusFilter: '', page: 1 };
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(FILTERS_KEY) || 'null');
+    if (!saved) return defaults;
+    return {
+      search: typeof saved.search === 'string' ? saved.search : '',
+      branchFilter: typeof saved.branchFilter === 'string' ? saved.branchFilter : '',
+      statusFilter: typeof saved.statusFilter === 'string' ? saved.statusFilter : '',
+      page: Number(saved.page) > 1 ? Number(saved.page) : 1
+    };
+  } catch {
+    return defaults;
+  }
+}
+
 function MembersPage() {
   const navigate = useNavigate();
   const { user, isOwner, hasPermission } = useAuth();
   const isOnline = useOnlineStatus();
+  const [stored] = useState(readStoredFilters);
   const [members, setMembers] = useState<Member[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [branchFilter, setBranchFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState(stored.search);
+  const [branchFilter, setBranchFilter] = useState(stored.branchFilter);
+  const [statusFilter, setStatusFilter] = useState(stored.statusFilter);
+  const [page, setPage] = useState(stored.page);
   const [totalPages, setTotalPages] = useState(1);
   const [statusCounts, setStatusCounts] = useState<Record<string, number> | null>(null);
   const [showModal, setShowModal] = useState(false);
@@ -71,6 +92,12 @@ function MembersPage() {
     const timer = setTimeout(() => setNotice(null), 5000);
     return () => clearTimeout(timer);
   }, [notice]);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(FILTERS_KEY, JSON.stringify({ search, branchFilter, statusFilter, page }));
+    } catch { /* storage full or blocked — filters just won't persist */ }
+  }, [search, branchFilter, statusFilter, page]);
 
   // Auto-fill branch for non-OWNER users with single branch
   const userBranchCount = user?.branches?.length || 0;
@@ -100,6 +127,8 @@ function MembersPage() {
         setMembers(data.data);
         setTotalPages(data.pagination.totalPages);
         setStatusCounts(data.statusCounts || null);
+        const lastPage = Math.max(1, data.pagination.totalPages);
+        if (page > lastPage) setPage(lastPage);
       }
     } catch (err) {
       console.error('Error fetching members:', err);
@@ -114,6 +143,9 @@ function MembersPage() {
       const data = await res.json();
       const branchList = Array.isArray(data) ? data : (data.branches || []);
       setBranches(branchList);
+      setBranchFilter((current: string) =>
+        !current || branchList.some((b: Branch) => b.id === current) ? current : ''
+      );
     } catch (err) {
       console.error('Error fetching branches:', err);
     }
@@ -129,7 +161,7 @@ function MembersPage() {
       const filename = await downloadWorkbook(
         '/api/exports/members',
         { branchId: branchFilter, status: statusFilter, search },
-        `أعضاء-POWER111-${new Date().toISOString().slice(0, 10)}.xlsx`
+        `أعضاء-POWER111-${localDate()}.xlsx`
       );
       setNotice({ kind: 'ok', text: `تم تنزيل ${filename}` });
     } catch (err) {
@@ -377,6 +409,20 @@ function MembersPage() {
     ? 'نتيجة البحث'
     : (branchFilter ? (branches.find(b => b.id === branchFilter)?.name || 'الفرع المحدد') : 'كل الفروع');
 
+  const hasFilters = !!(search || branchFilter || statusFilter || page > 1);
+
+  const filterByStatus = (value: string) => {
+    setStatusFilter((current: string) => (current === value ? '' : value));
+    setPage(1);
+  };
+
+  const clearFilters = () => {
+    setSearch('');
+    setBranchFilter('');
+    setStatusFilter('');
+    setPage(1);
+  };
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
@@ -449,9 +495,13 @@ function MembersPage() {
         </div>
       </div>
 
-      {/* Stats Summary Cards */}
+      {/* Stats Summary Cards — each one doubles as a one-tap filter */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <div className="relative overflow-hidden bg-gradient-to-br from-primary/10 via-dark-card to-dark-card border border-primary/20 rounded-2xl p-4 sm:p-5">
+        <button
+          type="button"
+          onClick={() => { setStatusFilter(''); setPage(1); }}
+          className="relative overflow-hidden bg-gradient-to-br from-primary/10 via-dark-card to-dark-card border border-primary/20 hover:border-primary/50 rounded-2xl p-4 sm:p-5 text-right transition-colors"
+        >
           <div className="absolute top-0 right-0 w-20 h-20 bg-primary/5 rounded-full -translate-y-6 translate-x-6" />
           <div className="relative">
             <div className="flex items-center gap-2 mb-3">
@@ -465,12 +515,21 @@ function MembersPage() {
             <p className="text-xl sm:text-2xl font-black text-primary tracking-tight">{cardCounts.total}</p>
             <div className="mt-2 flex items-center gap-1">
               <div className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
-              <span className="text-[10px] text-primary/50 truncate min-w-0">{scopeLabel}</span>
+              <span className="text-[11px] text-primary/50 truncate min-w-0">{scopeLabel}</span>
             </div>
           </div>
-        </div>
+        </button>
 
-        <div className="relative overflow-hidden bg-gradient-to-br from-emerald-500/10 via-dark-card to-dark-card border border-emerald-500/20 rounded-2xl p-4 sm:p-5">
+        <button
+          type="button"
+          aria-pressed={statusFilter === 'ACTIVE'}
+          onClick={() => filterByStatus('ACTIVE')}
+          className={`relative overflow-hidden bg-gradient-to-br from-emerald-500/10 via-dark-card to-dark-card border rounded-2xl p-4 sm:p-5 text-right transition-colors ${
+            statusFilter === 'ACTIVE'
+              ? 'border-emerald-400/70 ring-2 ring-emerald-400/30'
+              : 'border-emerald-500/20 hover:border-emerald-400/50'
+          }`}
+        >
           <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-500/5 rounded-full -translate-y-6 translate-x-6" />
           <div className="relative">
             <div className="flex items-center gap-2 mb-3">
@@ -486,12 +545,21 @@ function MembersPage() {
             </p>
             <div className="mt-2 flex items-center gap-1">
               <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
-              <span className="text-[10px] text-emerald-400/50">اشتراك فعّال</span>
+              <span className="text-[11px] text-emerald-400/50">اشتراك فعّال</span>
             </div>
           </div>
-        </div>
+        </button>
 
-        <div className="relative overflow-hidden bg-gradient-to-br from-rose-500/10 via-dark-card to-dark-card border border-rose-500/20 rounded-2xl p-4 sm:p-5">
+        <button
+          type="button"
+          aria-pressed={statusFilter === 'EXPIRED'}
+          onClick={() => filterByStatus('EXPIRED')}
+          className={`relative overflow-hidden bg-gradient-to-br from-rose-500/10 via-dark-card to-dark-card border rounded-2xl p-4 sm:p-5 text-right transition-colors ${
+            statusFilter === 'EXPIRED'
+              ? 'border-rose-400/70 ring-2 ring-rose-400/30'
+              : 'border-rose-500/20 hover:border-rose-400/50'
+          }`}
+        >
           <div className="absolute top-0 right-0 w-20 h-20 bg-rose-500/5 rounded-full -translate-y-6 translate-x-6" />
           <div className="relative">
             <div className="flex items-center gap-2 mb-3">
@@ -507,12 +575,21 @@ function MembersPage() {
             </p>
             <div className="mt-2 flex items-center gap-1">
               <div className="w-1.5 h-1.5 bg-rose-400 rounded-full animate-pulse" />
-              <span className="text-[10px] text-rose-400/50">بحاجة لتجديد</span>
+              <span className="text-[11px] text-rose-400/50">بحاجة لتجديد</span>
             </div>
           </div>
-        </div>
+        </button>
 
-        <div className="relative overflow-hidden bg-gradient-to-br from-amber-500/10 via-dark-card to-dark-card border border-amber-500/20 rounded-2xl p-4 sm:p-5">
+        <button
+          type="button"
+          aria-pressed={statusFilter === 'SUSPENDED,FROZEN'}
+          onClick={() => filterByStatus('SUSPENDED,FROZEN')}
+          className={`relative overflow-hidden bg-gradient-to-br from-amber-500/10 via-dark-card to-dark-card border rounded-2xl p-4 sm:p-5 text-right transition-colors ${
+            statusFilter === 'SUSPENDED,FROZEN'
+              ? 'border-amber-400/70 ring-2 ring-amber-400/30'
+              : 'border-amber-500/20 hover:border-amber-400/50'
+          }`}
+        >
           <div className="absolute top-0 right-0 w-20 h-20 bg-amber-500/5 rounded-full -translate-y-6 translate-x-6" />
           <div className="relative">
             <div className="flex items-center gap-2 mb-3">
@@ -528,23 +605,37 @@ function MembersPage() {
             </p>
             <div className="mt-2 flex items-center gap-1">
               <div className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse" />
-              <span className="text-[10px] text-amber-400/50">غير نشط مؤقتاً</span>
+              <span className="text-[11px] text-amber-400/50">غير نشط مؤقتاً</span>
             </div>
           </div>
-        </div>
+        </button>
       </div>
 
       {/* Filters */}
       <div className="relative overflow-hidden bg-dark-card border border-dark-border rounded-2xl">
         <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-primary/40 via-primary/10 to-transparent" />
         <div className="p-4 sm:p-5">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-9 h-9 bg-primary/10 rounded-xl flex items-center justify-center">
-              <svg className="w-4.5 h-4.5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" />
-              </svg>
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 bg-primary/10 rounded-xl flex items-center justify-center">
+                <svg className="w-4.5 h-4.5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" />
+                </svg>
+              </div>
+              <h3 className="text-sm font-bold text-white">تصفية النتائج</h3>
             </div>
-            <h3 className="text-sm font-bold text-white">تصفية النتائج</h3>
+            {hasFilters && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="inline-flex items-center gap-1.5 px-3 py-2 bg-dark border border-dark-border hover:border-primary/60 text-gray-300 hover:text-primary rounded-xl text-xs font-semibold transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                إعادة الضبط
+              </button>
+            )}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             {/* Search */}
@@ -601,6 +692,7 @@ function MembersPage() {
                 <option value="EXPIRED">منتهي</option>
                 <option value="SUSPENDED">موقوف</option>
                 <option value="FROZEN">مجمد</option>
+                <option value="SUSPENDED,FROZEN">موقوف أو مجمد</option>
                 <option value="INACTIVE">غير نشط</option>
               </select>
             </div>
@@ -670,7 +762,7 @@ function MembersPage() {
                         الحالة
                       </div>
                     </th>
-                    <th className="px-5 py-4 text-right text-xs font-semibold text-gray-500">
+                    <th className="hidden xl:table-cell px-5 py-4 text-right text-xs font-semibold text-gray-500">
                       <div className="flex items-center gap-2">
                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
@@ -727,15 +819,15 @@ function MembersPage() {
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-2">
                           <div className="w-6 h-6 bg-dark rounded-lg flex items-center justify-center border border-dark-border">
-                            <span className="text-[10px] font-bold text-gray-400">{member.branch.code.charAt(0)}</span>
+                            <span className="text-[11px] font-bold text-gray-400">{member.branch.code.charAt(0)}</span>
                           </div>
                           <span className="text-sm text-gray-300">{member.branch.code}</span>
                         </div>
                       </td>
                       <td className="px-5 py-4">{getStatusBadge(member.status)}</td>
-                      <td className="px-5 py-4">
+                      <td className="hidden xl:table-cell px-5 py-4">
                         <span className="text-sm text-gray-400">
-                          {new Date(member.createdAt).toLocaleDateString('ar-EG')}
+                          {arDate(member.createdAt)}
                         </span>
                       </td>
                       <td className="px-5 py-4">
@@ -746,12 +838,13 @@ function MembersPage() {
                               e.stopPropagation();
                               handleEdit(member);
                             }}
-                            className="inline-flex items-center gap-1.5 px-3 py-2 min-h-10 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-medium rounded-lg border border-primary/20 hover:border-primary/40 transition-all"
+                            className="inline-flex items-center gap-1.5 px-2.5 xl:px-3 py-2 min-h-10 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-medium rounded-lg border border-primary/20 hover:border-primary/40 transition-all"
+                            title="تعديل بيانات العضو"
                           >
                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" />
                             </svg>
-                            تعديل
+                            <span className="hidden xl:inline">تعديل</span>
                           </button>
                         )}
                         {hasPermission('DELETE_MEMBERS') && (
@@ -760,12 +853,13 @@ function MembersPage() {
                               e.stopPropagation();
                               setPendingDelete({ id: member.id, name: member.person.name });
                             }}
-                            className="inline-flex items-center gap-1.5 px-3 py-2 min-h-10 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-medium rounded-lg border border-rose-500/20 hover:border-rose-500/40 transition-all"
+                            className="inline-flex items-center gap-1.5 px-2.5 xl:px-3 py-2 min-h-10 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-medium rounded-lg border border-rose-500/20 hover:border-rose-500/40 transition-all"
+                            title="حذف العضو"
                           >
                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
                             </svg>
-                            حذف
+                            <span className="hidden xl:inline">حذف</span>
                           </button>
                         )}
                         </div>
@@ -821,13 +915,10 @@ function MembersPage() {
                   </div>
                   <div className="flex items-center justify-between mt-3 pt-3 border-t border-dark-border/30">
                     <div className="flex items-center gap-2">
-                      <div className="w-5 h-5 bg-dark rounded flex items-center justify-center border border-dark-border">
-                        <span className="text-[9px] font-bold text-gray-400">{member.branch.code.charAt(0)}</span>
-                      </div>
-                      <span className="text-xs text-gray-400">{member.branch.code}</span>
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-dark border border-dark-border text-[11px] font-medium text-gray-400">{member.branch.code}</span>
                       <span className="text-gray-600 mx-1">|</span>
                       <span className="text-xs text-gray-500">
-                        {new Date(member.createdAt).toLocaleDateString('ar-EG')}
+                        {arDate(member.createdAt)}
                       </span>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
@@ -873,7 +964,7 @@ function MembersPage() {
             <button
               onClick={() => setPage(p => Math.max(1, p - 1))}
               disabled={page === 1}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-dark border border-dark-border text-white text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:border-primary/30 hover:bg-primary/5 transition-all"
+              className="inline-flex items-center gap-2 px-4 min-h-11 rounded-xl bg-dark border border-dark-border text-white text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:border-primary/30 hover:bg-primary/5 transition-all"
             >
               <svg className="w-4 h-4 rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
@@ -888,7 +979,7 @@ function MembersPage() {
             <button
               onClick={() => setPage(p => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-dark border border-dark-border text-white text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:border-primary/30 hover:bg-primary/5 transition-all"
+              className="inline-flex items-center gap-2 px-4 min-h-11 rounded-xl bg-dark border border-dark-border text-white text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:border-primary/30 hover:bg-primary/5 transition-all"
             >
               التالي
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

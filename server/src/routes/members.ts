@@ -4,7 +4,7 @@ import { prisma } from '../index.js';
 import { requireAuth, requireRole, requireBranchAccess } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/permissions.js';
 import { createAuditLog } from './audit.js';
-import { generateMemberCode, normalizePhone, isValidEgyptianPhone } from 'shared';
+import { generateMemberCode, normalizePhone, isValidEgyptianPhone, parseMemberStatusFilter } from 'shared';
 
 const router = Router();
 
@@ -83,9 +83,10 @@ router.get('/', requireAuth, requirePermission('VIEW_MEMBERS'), async (req: Requ
       where.branchId = { in: user.branchIds };
     }
 
-    // Status filter
+    // Status filter (accepts a comma list, e.g. SUSPENDED,FROZEN)
     if (status) {
-      where.status = status;
+      const statusFilter = parseMemberStatusFilter(status);
+      if (statusFilter) where.status = statusFilter;
     }
 
     // Search (name, phone, code)
@@ -139,7 +140,8 @@ router.get('/', requireAuth, requirePermission('VIEW_MEMBERS'), async (req: Requ
             take: 1
           }
         },
-        orderBy: { createdAt: 'desc' },
+        // ACTIVE first: Postgres sorts a native enum by declaration order, and ACTIVE leads it.
+        orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
         skip: (Number(page) - 1) * Number(pageSize),
         take: Number(pageSize)
       }),

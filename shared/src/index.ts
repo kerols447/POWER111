@@ -71,6 +71,18 @@ export type Role = 'OWNER' | 'BRANCH_MANAGER' | 'RECEPTIONIST' | 'ACCOUNTANT' | 
 
 export type MemberStatus = 'ACTIVE' | 'EXPIRED' | 'SUSPENDED' | 'FROZEN' | 'INACTIVE';
 
+export const MEMBER_STATUSES: MemberStatus[] = ['ACTIVE', 'EXPIRED', 'SUSPENDED', 'FROZEN', 'INACTIVE'];
+
+// The "موقوف / مجمد" card filters two states at once, so members filters accept a comma list.
+export function parseMemberStatusFilter(raw: unknown): { equals?: MemberStatus; in?: MemberStatus[] } | null {
+  const list = String(raw ?? '')
+    .split(',')
+    .map(part => part.trim().toUpperCase())
+    .filter((part): part is MemberStatus => (MEMBER_STATUSES as string[]).includes(part));
+  if (!list.length) return null;
+  return list.length === 1 ? { equals: list[0] } : { in: list };
+}
+
 export type SubscriptionStatus = 'ACTIVE' | 'EXPIRED' | 'FROZEN' | 'CANCELLED' | 'PENDING_REVIEW';
 
 export type PaymentMethod = 'CASH' | 'BANK_TRANSFER' | 'CARD' | 'OTHER';

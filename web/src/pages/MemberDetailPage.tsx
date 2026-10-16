@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { arDate } from '../utils/dates';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
@@ -248,7 +249,7 @@ function MemberDetailPage() {
   };
 
   const formatPrice = (piasters: number) => {
-    return (piasters / 100).toLocaleString('ar-EG') + ' ج.م';
+    return (piasters / 100).toLocaleString('ar-EG-u-nu-latn') + ' ج.م';
   };
 
   if (loading) {
@@ -364,9 +365,9 @@ function MemberDetailPage() {
                 <label className="block text-sm text-gray-400 mb-1">الاسم</label>
                 <p className="text-white font-medium">{member.person.name}</p>
               </div>
-              <div>
+              <div className="min-w-0">
                 <label className="block text-sm text-gray-400 mb-1">الهاتف</label>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
                   <p className="text-white font-medium">{displayPhone(member.person.phone)}</p>
                   {whatsappLink(member.person.phone) && (
                     <a
@@ -404,7 +405,7 @@ function MemberDetailPage() {
               <div>
                 <label className="block text-sm text-gray-400 mb-1">تاريخ الانضمام</label>
                 <p className="text-white font-medium">
-                  {new Date(member.createdAt).toLocaleDateString('ar-EG')}
+                  {arDate(member.createdAt)}
                 </p>
               </div>
               <div>
@@ -481,13 +482,13 @@ function MemberDetailPage() {
                 <div>
                   <label className="block text-sm text-gray-400 mb-1">تاريخ البدء</label>
                   <p className="text-white font-medium">
-                    {new Date(activeSubscription.startDate).toLocaleDateString('ar-EG')}
+                    {arDate(activeSubscription.startDate)}
                   </p>
                 </div>
                 <div>
                   <label className="block text-sm text-gray-400 mb-1">تاريخ الانتهاء</label>
                   <p className="text-white font-medium">
-                    {new Date(activeSubscription.endDate).toLocaleDateString('ar-EG')}
+                    {arDate(activeSubscription.endDate)}
                   </p>
                 </div>
                 <div>
@@ -515,7 +516,7 @@ function MemberDetailPage() {
                         {getStatusBadge(sub.status)}
                       </div>
                       <span className="text-sm text-gray-400">
-                        {new Date(sub.startDate).toLocaleDateString('ar-EG')} - {new Date(sub.endDate).toLocaleDateString('ar-EG')}
+                        {arDate(sub.startDate)} - {arDate(sub.endDate)}
                       </span>
                     </div>
                     <div className="flex items-center justify-between text-sm">
@@ -552,10 +553,10 @@ function MemberDetailPage() {
                     </div>
                     <div>
                       <p className="text-white font-medium">
-                        {new Date(att.checkInTime).toLocaleDateString('ar-EG')}
+                        {arDate(att.checkInTime)}
                       </p>
                       <p className="text-sm text-gray-400">
-                        {new Date(att.checkInTime).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
+                        {new Date(att.checkInTime).toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' })}
                       </p>
                     </div>
                   </div>
@@ -569,7 +570,7 @@ function MemberDetailPage() {
                     </span>
                     {att.checkOutTime && (
                       <p className="text-xs text-gray-400 mt-1">
-                        خروج: {new Date(att.checkOutTime).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
+                        خروج: {new Date(att.checkOutTime).toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' })}
                       </p>
                     )}
                   </div>

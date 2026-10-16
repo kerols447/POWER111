@@ -5,6 +5,7 @@ import { prisma } from '../index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/permissions.js';
 import { userHasPermission } from '../utils/permissions.js';
+import { parseMemberStatusFilter } from 'shared';
 
 const router = Router();
 
@@ -174,7 +175,8 @@ router.get('/members', requireAuth, requirePermission('VIEW_MEMBERS'), async (re
     }
 
     const where: Prisma.MemberWhereInput = { ...memberScope(user, branchId) };
-    if (status) where.status = status as Prisma.EnumMemberStatusFilter['equals'];
+    const statusFilter = parseMemberStatusFilter(status);
+    if (statusFilter) where.status = statusFilter;
     if (search) {
       where.OR = [
         { person: { name: { contains: search, mode: 'insensitive' } } },
