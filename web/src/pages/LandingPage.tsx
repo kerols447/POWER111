@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { MouseEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { whatsappLink } from '../utils/whatsapp';
 import { CountUp, DrawIcon, Reveal, RevealWords, ScrollProgress, useInView } from '../components/Motion';
+import { InstallButton } from '../components/InstallPrompt';
 
 interface BranchPlan {
   id: string;
@@ -127,6 +128,59 @@ function SectionHeading({ eyebrow, title, subtitle }: { eyebrow: string; title: 
   );
 }
 
+/**
+ * The club clip plays inside the page — the file is served from our own
+ * server, so nothing here can hand the visitor over to another site.
+ */
+function ClubClip({ src, poster }: { src: string; poster?: string }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [unavailable, setUnavailable] = useState(false);
+
+  if (unavailable) return null;
+
+  const start = () => {
+    setPlaying(true);
+    videoRef.current?.play().catch(() => setUnavailable(true));
+  };
+
+  return (
+    <div className="mx-auto w-full max-w-[280px] sm:max-w-[330px]">
+      <div className={`${card} overflow-hidden`}>
+        <div className="relative bg-black">
+          <video
+            ref={videoRef}
+            src={src}
+            poster={poster}
+            className="w-full aspect-[9/16] object-cover"
+            playsInline
+            preload="metadata"
+            controls={playing}
+            controlsList="nodownload"
+            onError={() => setUnavailable(true)}
+            onEnded={() => setPlaying(false)}
+          />
+          {!playing && (
+            <button
+              type="button"
+              onClick={start}
+              aria-label="تشغيل فيديو النادى"
+              className="absolute inset-0 flex items-center justify-center bg-gradient-to-t from-black/50 via-transparent to-black/20"
+            >
+              <span className="w-16 h-16 rounded-full bg-amber-500 text-black flex items-center justify-center shadow-lg transition-transform duration-200 active:scale-90">
+                <svg viewBox="0 0 24 24" fill="currentColor" className="w-7 h-7 ms-1" aria-hidden="true">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              </span>
+            </button>
+          )}
+        </div>
+      </div>
+      <p className="mt-3 text-center text-xs text-gray-500">من جوه POWER 111</p>
+    </div>
+  );
+}
+
 export default function LandingPage() {
   const [branches, setBranches] = useState<PublicBranch[]>([]);
   const [offers, setOffers] = useState<PublicOffer[]>([]);
@@ -234,6 +288,7 @@ export default function LandingPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            <InstallButton className="hidden sm:inline-flex px-4 py-2 rounded-lg border border-white/15 text-white text-sm font-bold transition-all duration-200 active:scale-95 sm:hover:bg-white/5" />
             <Link to="/portal" className="hidden sm:inline-flex px-4 py-2 rounded-lg bg-amber-500 text-black text-sm font-bold hover:bg-amber-400 transition-colors">
               بوابة الأعضاء
             </Link>
@@ -620,6 +675,9 @@ export default function LandingPage() {
       <section className="px-4 sm:px-6 py-14 sm:py-20 border-t border-white/5">
         <div className="max-w-5xl mx-auto">
           <Reveal><SectionHeading eyebrow="ليه POWER 111؟" title="مش مجرد جيم" /></Reveal>
+          <Reveal delay={180} className="mt-8">
+            <ClubClip src="/videos/power111-reel.mp4" poster="/videos/power111-reel-poster.jpg" />
+          </Reveal>
           <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {features.map((feature, i) => (
               <Reveal key={feature.title} delay={i * 80} className="h-full">

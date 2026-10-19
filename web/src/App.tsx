@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NetworkStatus } from './components/NetworkStatus';
+import { InstallBanner, InstallGuide } from './components/InstallPrompt';
 import { startAutoSync } from './utils/syncEngine';
 import { startOfflinePrefetch } from './utils/offlinePrefetch';
 import { useEffect } from 'react';
@@ -70,6 +71,8 @@ function App() {
       <BrowserRouter>
         <SyncManager />
         <NetworkStatus />
+        <InstallBanner />
+        <InstallGuide />
         <Suspense fallback={<PageFallback />}>
           <Routes>
             <Route path="/" element={<LandingPage />} />
