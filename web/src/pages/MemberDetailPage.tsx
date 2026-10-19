@@ -294,15 +294,26 @@ function MemberDetailPage() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           {getStatusBadge(member.status)}
+          {hasPermission('CREATE_SUBSCRIPTIONS') && (
+            <button
+              onClick={() => navigate(`/admin/subscriptions?member=${member.id}`)}
+              className="inline-flex items-center gap-2 px-4 min-h-11 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-white text-sm font-semibold rounded-lg transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              {activeSubscription ? 'تجديد الاشتراك' : 'إضافة اشتراك'}
+            </button>
+          )}
           {hasPermission('EDIT_MEMBERS') && (
             <button
               onClick={() => {
                 setEditError('');
                 setShowEdit(true);
               }}
-              className="px-4 py-2.5 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/30 text-sm rounded-lg transition-colors"
+              className="px-4 min-h-11 py-2.5 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/30 text-sm rounded-lg transition-colors"
             >
               تعديل البيانات
             </button>
@@ -310,7 +321,7 @@ function MemberDetailPage() {
           {hasPermission('DELETE_MEMBERS') && (
             <button
               onClick={() => setConfirmOpen(true)}
-              className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-sm rounded-lg transition-colors"
+              className="px-4 min-h-11 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-sm rounded-lg transition-colors"
             >
               حذف العضو
             </button>
@@ -501,8 +512,16 @@ function MemberDetailPage() {
 
           {/* All Subscriptions */}
           <div className="bg-dark-card border border-dark-border rounded-xl overflow-hidden">
-            <div className="p-4 border-b border-dark-border">
+            <div className="p-4 border-b border-dark-border flex flex-wrap items-center justify-between gap-3">
               <h3 className="text-lg font-bold text-white">كل الاشتراكات</h3>
+              {hasPermission('CREATE_SUBSCRIPTIONS') && (
+                <button
+                  onClick={() => navigate(`/admin/subscriptions?member=${member.id}`)}
+                  className="inline-flex items-center gap-1.5 px-3.5 min-h-11 py-2 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/30 text-sm font-medium rounded-lg transition-colors"
+                >
+                  {activeSubscription ? 'تجديد الباقة' : 'إضافة باقة'}
+                </button>
+              )}
             </div>
             {member?.subscriptions.length === 0 ? (
               <div className="p-8 text-center text-gray-400">لا توجد اشتراكات</div>

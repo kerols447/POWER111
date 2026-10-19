@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import PlansSection from '../components/PlansSection';
 import { useAuth } from '../contexts/AuthContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
@@ -193,6 +194,8 @@ const IconSwap = ({ className = "w-4 h-4" }: { className?: string }) => (
 function SubscriptionsPage() {
   const { user, isOwner } = useAuth();
   const isOnline = useOnlineStatus();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const presetMemberHandled = useRef(false);
   const [tab, setTab] = useState<Tab>('subscriptions');
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -344,6 +347,31 @@ function SubscriptionsPage() {
       } catch { /* ignore */ }
     }
   };
+
+  // Arriving from a member's page (/admin/subscriptions?member=…) opens the form with
+  // that member and his branch's plans already loaded, so nobody searches him again.
+  useEffect(() => {
+    const memberId = searchParams.get('member');
+    if (!memberId || presetMemberHandled.current) return;
+    presetMemberHandled.current = true;
+
+    const openForMember = async () => {
+      await openNewSubscription();
+      try {
+        const res = await fetch(`/api/members/${memberId}`, { credentials: 'include' });
+        const data = await res.json();
+        if (res.ok && data.data) {
+          await selectMember(data.data);
+        } else {
+          setError('مش قادر يحمّل بيانات العضو — اختاره من البحث');
+        }
+      } catch {
+        setError('مش قادر يحمّل بيانات العضو — اختاره من البحث');
+      }
+      setSearchParams({}, { replace: true });
+    };
+    openForMember();
+  }, [searchParams]);
 
   const handleCreateSubscription = async (e: React.FormEvent) => {
     e.preventDefault();
