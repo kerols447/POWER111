@@ -15,6 +15,8 @@ interface User {
   role: string;
   phone?: string;
   staffCode?: string | null;
+  salaryPiasters?: number | null;
+  salaryBasis?: 'MONTHLY' | 'HOURLY';
   isActive: boolean;
   createdAt: string;
   branchAccess: {
@@ -90,6 +92,25 @@ const roleLabels: Record<string, string> = {
   CONTENT_MANAGER: 'مدير محتوى'
 };
 
+const emptyForm = () => ({
+  email: '',
+  password: '',
+  name: '',
+  role: 'RECEPTIONIST',
+  phone: '',
+  staffCode: '',
+  salaryEgp: '',
+  salaryBasis: 'MONTHLY' as 'MONTHLY' | 'HOURLY',
+  branchIds: [] as string[],
+  permissions: [] as string[]
+});
+
+function salaryLabel(user: User): string | null {
+  if (!user.salaryPiasters) return null;
+  const egp = (user.salaryPiasters / 100).toLocaleString('ar-EG-u-nu-latn');
+  return user.salaryBasis === 'HOURLY' ? `${egp} ج.م / ساعة` : `${egp} ج.م شهرياً`;
+}
+
 // SVG Icons
 const PlusIcon = () => (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -155,16 +176,7 @@ function UsersPage() {
   const [showPermissionsModal, setShowPermissionsModal] = useState(false);
   const [permissionsUser, setPermissionsUser] = useState<User | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    name: '',
-    role: 'RECEPTIONIST',
-    phone: '',
-    staffCode: '',
-    branchIds: [] as string[],
-    permissions: [] as string[]
-  });
+  const [formData, setFormData] = useState(emptyForm());
   const [customPermissions, setCustomPermissions] = useState<string[]>([]);
   const [notice, setNotice] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const [pendingDelete, setPendingDelete] = useState<User | null>(null);
@@ -245,6 +257,15 @@ function UsersPage() {
         payload.staffCode = formData.staffCode.trim();
       }
 
+      // Wage is typed in pounds and stored in piasters; blank means "no salary yet"
+      if (formData.role !== 'OWNER') {
+        const egp = Number(formData.salaryEgp);
+        payload.salaryPiasters = formData.salaryEgp.trim() && Number.isFinite(egp) && egp > 0
+          ? Math.round(egp * 100)
+          : null;
+        payload.salaryBasis = formData.salaryBasis;
+      }
+
       if (formData.password) {
         payload.password = formData.password;
       }
@@ -268,7 +289,7 @@ function UsersPage() {
         }
         setShowModal(false);
         setEditingUser(null);
-        setFormData({ email: '', password: '', name: '', role: 'RECEPTIONIST', phone: '', staffCode: '', branchIds: [], permissions: [] });
+        setFormData(emptyForm());
         setNotice({ kind: 'ok', text: editingUser ? 'تم تحديث المستخدم' : 'تم إضافة المستخدم وكارت الوردية بتاعه' });
         fetchUsers();
       } else {
@@ -284,12 +305,14 @@ function UsersPage() {
   const handleEdit = (user: User) => {
     setEditingUser(user);
     setFormData({
+      ...emptyForm(),
       email: user.email,
-      password: '',
       name: user.name,
       role: user.role,
       phone: user.phone || '',
       staffCode: user.staffCode || '',
+      salaryEgp: user.salaryPiasters ? String(user.salaryPiasters / 100) : '',
+      salaryBasis: user.salaryBasis || 'MONTHLY',
       branchIds: user.branchAccess.map(ba => ba.branch.id),
       permissions: rolePermissions[user.role] || []
     });
@@ -443,7 +466,7 @@ function UsersPage() {
         <button
           onClick={() => {
             setEditingUser(null);
-            setFormData({ email: '', password: '', name: '', role: 'RECEPTIONIST', phone: '', staffCode: '', branchIds: [], permissions: rolePermissions['RECEPTIONIST'] || [] });
+            setFormData({ ...emptyForm(), permissions: rolePermissions['RECEPTIONIST'] || [] });
             setShowModal(true);
           }}
           className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-xl font-medium transition-all duration-300 shadow-lg shadow-amber-500/20 hover:shadow-xl hover:shadow-amber-500/30 transform hover:-translate-y-0.5"
@@ -546,6 +569,9 @@ function UsersPage() {
                             <span dir="ltr">{user.staffCode}</span>
                           </span>
                         )}
+                        {salaryLabel(user) && (
+                          <p className="text-xs text-emerald-400 mt-1">{salaryLabel(user)}</p>
+                        )}
                       </div>
                     </div>
                   </td>
@@ -635,6 +661,9 @@ function UsersPage() {
                       <span dir="ltr">{user.staffCode}</span>
                     </span>
                   )}
+                  {salaryLabel(user) && (
+                    <p className="text-xs text-emerald-400 mt-1.5">{salaryLabel(user)}</p>
+                  )}
                 </div>
                 <span className={`shrink-0 inline-flex px-2.5 py-1 rounded-full text-xs font-medium border ${getRoleBadgeColor(user.role)}`}>
                   {roleLabels[user.role] || user.role}
@@ -718,7 +747,7 @@ function UsersPage() {
                   onClick={() => {
                     setShowModal(false);
                     setEditingUser(null);
-                    setFormData({ email: '', password: '', name: '', role: 'RECEPTIONIST', phone: '', staffCode: '', branchIds: [], permissions: [] });
+                    setFormData(emptyForm());
                   }}
                   className="w-10 h-10 shrink-0 rounded-lg bg-dark-hover/50 flex items-center justify-center text-gray-400 hover:text-white hover:bg-dark-hover transition-colors"
                 >
@@ -821,6 +850,42 @@ function UsersPage() {
                   )}
                 </div>
 
+                {formData.role !== 'OWNER' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-xl bg-dark-card/30 border border-dark-border/30 p-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-400 mb-2">
+                        {formData.salaryBasis === 'HOURLY' ? 'سعر الساعة (ج.م)' : 'المرتب الشهري (ج.م)'}
+                      </label>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        min="0"
+                        step="1"
+                        value={formData.salaryEgp}
+                        onChange={(e) => setFormData({ ...formData, salaryEgp: e.target.value })}
+                        className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white font-mono placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
+                        placeholder="5000"
+                        dir="ltr"
+                      />
+                      <p className="mt-1.5 text-xs text-gray-500">سيبه فاضي لو لسه مش محدد.</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-400 mb-2">طريقة الحساب</label>
+                      <select
+                        value={formData.salaryBasis}
+                        onChange={(e) => setFormData({ ...formData, salaryBasis: e.target.value as 'MONTHLY' | 'HOURLY' })}
+                        className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
+                      >
+                        <option value="MONTHLY">مرتب شهري ثابت</option>
+                        <option value="HOURLY">بالساعة</option>
+                      </select>
+                      <p className="mt-1.5 text-xs text-gray-500">
+                        كل عملية سداد بتتنزل أوتوماتيك في مصروفات «رواتب» بتاعة الفرع.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-sm font-medium text-gray-400 mb-2">الفروع المسموحة</label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-4 bg-dark-card/30 border border-dark-border/30 rounded-xl">
@@ -906,7 +971,7 @@ function UsersPage() {
                     onClick={() => {
                       setShowModal(false);
                       setEditingUser(null);
-                      setFormData({ email: '', password: '', name: '', role: 'RECEPTIONIST', phone: '', staffCode: '', branchIds: [], permissions: [] });
+                      setFormData(emptyForm());
                     }}
                     className="flex-1 px-5 py-2.5 bg-dark-hover/50 hover:bg-dark-hover text-white rounded-xl font-medium transition-all duration-200 border border-dark-border/30"
                   >

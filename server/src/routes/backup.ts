@@ -21,6 +21,7 @@ const TABLES = [
   'subscription',
   'payment',
   'attendance',
+  'salaryPayment',
   'product',
   'stockMovement',
   'sale',

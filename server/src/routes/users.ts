@@ -14,6 +14,8 @@ const createUserSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   role: z.enum(['OWNER', 'BRANCH_MANAGER', 'RECEPTIONIST', 'ACCOUNTANT', 'TRAINER', 'CONTENT_MANAGER']),
   phone: z.string().optional(),
+  salaryPiasters: z.number().int().nonnegative().nullable().optional(),
+  salaryBasis: z.enum(['MONTHLY', 'HOURLY']).optional(),
   branchIds: z.array(z.string()).optional()
 });
 
@@ -24,6 +26,8 @@ const updateUserSchema = z.object({
   role: z.enum(['OWNER', 'BRANCH_MANAGER', 'RECEPTIONIST', 'ACCOUNTANT', 'TRAINER', 'CONTENT_MANAGER']).optional(),
   phone: z.string().optional(),
   staffCode: z.string().trim().min(1).optional(),
+  salaryPiasters: z.number().int().nonnegative().nullable().optional(),
+  salaryBasis: z.enum(['MONTHLY', 'HOURLY']).optional(),
   isActive: z.boolean().optional(),
   branchIds: z.array(z.string()).optional()
 });
@@ -39,6 +43,8 @@ router.get('/', requireAuth, requireRole('OWNER'), async (req: Request, res: Res
         role: true,
         phone: true,
         staffCode: true,
+        salaryPiasters: true,
+        salaryBasis: true,
         isActive: true,
         createdAt: true,
         branchAccess: {
@@ -95,6 +101,8 @@ router.get('/:id', requireAuth, requireRole('OWNER'), async (req: Request, res: 
         role: true,
         phone: true,
         staffCode: true,
+        salaryPiasters: true,
+        salaryBasis: true,
         isActive: true,
         createdAt: true,
         branchAccess: {
@@ -152,7 +160,9 @@ router.post('/', requireAuth, requireRole('OWNER'), async (req: Request, res: Re
         name: data.name,
         role: data.role,
         phone: data.phone,
-        staffCode
+        staffCode,
+        salaryPiasters: data.salaryPiasters ?? null,
+        salaryBasis: data.salaryBasis ?? 'MONTHLY'
       },
       select: {
         id: true,
@@ -161,6 +171,8 @@ router.post('/', requireAuth, requireRole('OWNER'), async (req: Request, res: Re
         role: true,
         phone: true,
         staffCode: true,
+        salaryPiasters: true,
+        salaryBasis: true,
         isActive: true,
         createdAt: true
       }
@@ -189,6 +201,8 @@ router.post('/', requireAuth, requireRole('OWNER'), async (req: Request, res: Re
         role: true,
         phone: true,
         staffCode: true,
+        salaryPiasters: true,
+        salaryBasis: true,
         isActive: true,
         createdAt: true,
         branchAccess: {
@@ -245,6 +259,8 @@ router.put('/:id', requireAuth, requireRole('OWNER'), async (req: Request, res: 
     if (data.name) updateData.name = data.name;
     if (data.role) updateData.role = data.role;
     if (data.phone !== undefined) updateData.phone = data.phone;
+    if (data.salaryPiasters !== undefined) updateData.salaryPiasters = data.salaryPiasters;
+    if (data.salaryBasis) updateData.salaryBasis = data.salaryBasis;
     if (data.isActive !== undefined) updateData.isActive = data.isActive;
     if (data.staffCode !== undefined && data.staffCode.trim()) {
       const code = data.staffCode.trim().toUpperCase();
@@ -312,6 +328,8 @@ router.put('/:id', requireAuth, requireRole('OWNER'), async (req: Request, res: 
         role: true,
         phone: true,
         staffCode: true,
+        salaryPiasters: true,
+        salaryBasis: true,
         isActive: true,
         createdAt: true,
         branchAccess: {
@@ -409,6 +427,8 @@ router.put('/:id/permissions', requireAuth, requireRole('OWNER'), async (req: Re
         role: true,
         phone: true,
         staffCode: true,
+        salaryPiasters: true,
+        salaryBasis: true,
         isActive: true,
         permissions: {
           select: {

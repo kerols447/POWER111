@@ -92,6 +92,8 @@ model User {
   role          Role
   phone         String?
   staffCode     String?   @unique // scannable card code, e.g. "S01"
+  salaryPiasters Int?     // monthly wage, or the hourly rate when salaryBasis is HOURLY
+  salaryBasis    SalaryBasis @default(MONTHLY)
   isActive      Boolean   @default(true)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -104,6 +106,7 @@ model User {
   
   auditLogs     AuditLog[]
   staffShifts   StaffAttendance[]
+  salaryPayments SalaryPayment[]
 
   @@map("users")
 }
@@ -128,6 +131,7 @@ model Branch {
   subscriptions Subscription[]
   attendances   Attendance[]
   staffShifts   StaffAttendance[]
+  salaryPayments SalaryPayment[]
   payments      Payment[]
   products      Product[]
   sales         Sale[]
@@ -346,6 +350,13 @@ enum CheckInMethod {
   OFFLINE_SYNC
 }
 
+// A trainer can be on a fixed monthly wage or paid for every hour he works —
+// the payroll screen suggests the amount differently for each.
+enum SalaryBasis {
+  MONTHLY
+  HOURLY
+}
+
 // Staff shifts are kept apart from member visits so member lists, exports and
 // financial reports never count a trainer as a gym member.
 model StaffAttendance {
@@ -363,6 +374,30 @@ model StaffAttendance {
   @@index([userId, checkInTime])
   @@index([branchId, checkInTime])
   @@map("staff_attendances")
+}
+
+// Every wage paid out is booked as an expense in the same transaction, so the
+// salary ever shows up in expenses, reports and the dashboard profit.
+model SalaryPayment {
+  id              String        @id @default(cuid())
+  userId          String
+  branchId        String
+  amountPiasters  Int
+  periodStart     DateTime
+  periodEnd       DateTime
+  workedMinutes   Int           @default(0)
+  paymentMethod   PaymentMethod @default(CASH)
+  notes           String?
+  expenseId       String?       // the expense row this payment was booked as
+  createdBy       String?       // user ID who paid it out
+  createdAt       DateTime      @default(now())
+
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branch          Branch        @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@index([userId, periodStart])
+  @@index([branchId, createdAt])
+  @@map("salary_payments")
 }
 
 // ========== Products & Inventory ==========
