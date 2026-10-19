@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { useAuth } from '../contexts/AuthContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import {
@@ -98,6 +99,25 @@ const IconPackage = ({ className = "w-5 h-5" }: { className?: string }) => (
   </svg>
 );
 
+const IconBarcode = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 5v14" />
+    <path d="M6 5v14" />
+    <path d="M9 5v14" />
+    <path d="M13 5v14" />
+    <path d="M16 5v14" />
+    <path d="M19 5v14" />
+    <path d="M21 5v14" />
+  </svg>
+);
+
+const IconCamera = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+    <circle cx="12" cy="13" r="4" />
+  </svg>
+);
+
 const IconNote = ({ className = "w-5 h-5" }: { className?: string }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
@@ -137,6 +157,7 @@ interface Product {
   name: string;
   nameAr?: string;
   barcode?: string;
+  sku?: string;
   pricePiasters: number;
   quantity: number;
   lowStockThreshold: number;
@@ -178,6 +199,17 @@ interface Branch {
   code: string;
 }
 
+interface ScanToast {
+  kind: 'ok' | 'bad';
+  title: string;
+  message?: string;
+  code?: string;
+}
+
+// The POS remembers that the camera belongs open, the same way the attendance
+// scanner does — the till should never need a click before it can sell.
+const POS_AUTO_CAMERA_KEY = 'power111_pos_auto_camera';
+
 function generateOperationId(): string {
   return `op_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 }
@@ -196,6 +228,20 @@ export default function SalesPage() {
   const [notes, setNotes] = useState('');
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // Barcode scanning — the camera and the handheld gun both feed the cart.
+  const [scanning, setScanning] = useState(false);
+  const [scannerError, setScannerError] = useState<string | null>(null);
+  const [autoCamera, setAutoCamera] = useState(() => localStorage.getItem(POS_AUTO_CAMERA_KEY) !== '0');
+  const [toast, setToast] = useState<ScanToast | null>(null);
+  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const audioRef = useRef<AudioContext | null>(null);
+  const lastCodeRef = useRef<{ code: string; at: number }>({ code: '', at: 0 });
+  const scanBufferRef = useRef<{ text: string; at: number }>({ text: '', at: 0 });
+  const toastTimerRef = useRef<number | undefined>(undefined);
+  const cartRef = useRef<CartItem[]>([]);
+  const productsRef = useRef<Product[]>([]);
+  const scanRef = useRef<(code: string) => void>(() => {});
 
   const singleBranchUser = !isOwner && (user?.branches?.length || 0) === 1;
 
@@ -217,6 +263,10 @@ export default function SalesPage() {
     }
   }, [selectedBranch, isOnline]);
 
+  useEffect(() => {
+    productsRef.current = products;
+  }, [products]);
+
   const prefetchProductsForBranch = async (branchId: string) => {
     try {
       const res = await fetch(`/api/products?branchId=${branchId}&active=true`, {
@@ -229,6 +279,7 @@ export default function SalesPage() {
           name: p.name,
           nameAr: p.nameAr,
           barcode: p.barcode,
+          sku: p.sku,
           pricePiasters: p.pricePiasters,
           quantity: p.quantity,
           lowStockThreshold: p.lowStockThreshold,
@@ -272,6 +323,7 @@ export default function SalesPage() {
           name: p.name,
           nameAr: p.nameAr,
           barcode: p.barcode,
+          sku: p.sku,
           pricePiasters: p.pricePiasters,
           quantity: p.quantity,
           lowStockThreshold: p.lowStockThreshold,
@@ -304,25 +356,35 @@ export default function SalesPage() {
     }
   };
 
+  // Every cart write goes through here so the refs the scanner reads stay true —
+  // a scan can land between renders and must never be dropped or doubled.
+  const applyCart = (next: CartItem[]) => {
+    cartRef.current = next;
+    setCart(next);
+  };
+
+  const pushToCart = (product: Product): 'ok' | 'stock' => {
+    const existing = cartRef.current.find(item => item.product.id === product.id);
+    if (existing && existing.quantity >= product.quantity) return 'stock';
+    applyCart(existing
+      ? cartRef.current.map(item =>
+          item.product.id === product.id
+            ? { ...item, quantity: item.quantity + 1, total: (item.quantity + 1) * item.unitPrice }
+            : item
+        )
+      : [...cartRef.current, {
+          product,
+          quantity: 1,
+          unitPrice: product.pricePiasters,
+          total: product.pricePiasters
+        }]
+    );
+    return 'ok';
+  };
+
   const addToCart = (product: Product) => {
-    const existing = cart.find(item => item.product.id === product.id);
-    if (existing) {
-      if (existing.quantity >= product.quantity) {
-        alert('الكمية غير كافية في المخزون');
-        return;
-      }
-      setCart(cart.map(item =>
-        item.product.id === product.id
-          ? { ...item, quantity: item.quantity + 1, total: (item.quantity + 1) * item.unitPrice }
-          : item
-      ));
-    } else {
-      setCart([...cart, {
-        product,
-        quantity: 1,
-        unitPrice: product.pricePiasters,
-        total: product.pricePiasters
-      }]);
+    if (pushToCart(product) === 'stock') {
+      flash({ kind: 'bad', title: 'الكمية غير كافية في المخزون', message: productName(product) });
     }
   };
 
@@ -332,13 +394,13 @@ export default function SalesPage() {
       return;
     }
 
-    const product = products.find(p => p.id === productId);
+    const product = productsRef.current.find(p => p.id === productId);
     if (product && quantity > product.quantity) {
-      alert('الكمية غير كافية في المخزون');
+      flash({ kind: 'bad', title: 'الكمية غير كافية في المخزون', message: `المتاح ${product.quantity} فقط` });
       return;
     }
 
-    setCart(cart.map(item =>
+    applyCart(cartRef.current.map(item =>
       item.product.id === productId
         ? { ...item, quantity, total: quantity * item.unitPrice }
         : item
@@ -346,14 +408,200 @@ export default function SalesPage() {
   };
 
   const removeFromCart = (productId: string) => {
-    setCart(cart.filter(item => item.product.id !== productId));
+    applyCart(cartRef.current.filter(item => item.product.id !== productId));
   };
 
   const clearCart = () => {
-    setCart([]);
+    applyCart([]);
     setDiscount(0);
     setNotes('');
   };
+
+  /* ─── Barcode scanning ─── */
+  const productName = (p: Product) => p.nameAr || p.name;
+
+  // A handheld scanner is a keyboard: it types the code then presses Enter. Listening on
+  // the document means the cashier scans the second the product is in hand, without
+  // clicking into anything. A modal on screen always wins — the gun must never fire behind a form.
+  const acceptCode = (raw: string) => {
+    const code = raw.trim();
+    if (!code) return false;
+    const now = Date.now();
+    const last = lastCodeRef.current;
+    if (last.code === code && now - last.at < 4000) return false;
+    lastCodeRef.current = { code, at: now };
+    return true;
+  };
+
+  const beep = (kind: 'ok' | 'bad') => {
+    try {
+      const Ctor = window.AudioContext || (window as any).webkitAudioContext;
+      if (!Ctor) return;
+      const ctx = audioRef.current || (audioRef.current = new Ctor());
+      if (ctx.state === 'suspended') ctx.resume();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.value = kind === 'ok' ? 880 : 320;
+      gain.gain.setValueAtTime(0.001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.16);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.18);
+    } catch {
+      // No audio is never a reason to lose a sale.
+    }
+  };
+
+  const flash = (result: ScanToast) => {
+    setToast(result);
+    beep(result.kind);
+    if (navigator.vibrate) navigator.vibrate(result.kind === 'ok' ? 120 : [100, 50, 100]);
+    window.clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = window.setTimeout(() => setToast(null), result.kind === 'ok' ? 2400 : 3600);
+  };
+
+  // Matched on the printed barcode first, then on the SKU — the two codes a product can carry.
+  const findProductByCode = (raw: string) => {
+    const code = raw.trim().toLowerCase();
+    if (!code) return undefined;
+    const list = productsRef.current;
+    return list.find(p => p.barcode?.trim().toLowerCase() === code)
+        || list.find(p => p.sku?.trim().toLowerCase() === code);
+  };
+
+  const handleScannedCode = (raw: string) => {
+    if (!acceptCode(raw)) return;
+    const product = findProductByCode(raw);
+    if (!product) {
+      flash({ kind: 'bad', title: 'الكود ده مش من منتجاتنا', message: raw.trim(), code: raw.trim() });
+      return;
+    }
+    if (product.quantity <= 0) {
+      flash({ kind: 'bad', title: 'نفد من المخزون', message: productName(product) });
+      return;
+    }
+    if (pushToCart(product) === 'stock') {
+      flash({ kind: 'bad', title: 'الكمية غير كافية في المخزون', message: `المتاح ${product.quantity} فقط` });
+      return;
+    }
+    flash({ kind: 'ok', title: productName(product), message: `${formatPrice(product.pricePiasters)} • أُضيف إلى السلة` });
+  };
+
+  useEffect(() => {
+    scanRef.current = handleScannedCode;
+  });
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) return;
+      if (document.querySelector('.fixed.inset-0.z-50')) return;
+
+      const buf = scanBufferRef.current;
+      const now = Date.now();
+      if (now - buf.at > 150) buf.text = '';
+      buf.at = now;
+
+      if (e.key === 'Enter') {
+        if (!buf.text.trim()) return;
+        e.preventDefault();
+        scanRef.current(buf.text);
+        buf.text = '';
+        return;
+      }
+      if (e.key.length !== 1) return;
+      buf.text += e.key;
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  const startScanner = async () => {
+    setScannerError(null);
+    setScanning(true);
+    try {
+      const html5Qrcode = new Html5Qrcode('pos-scanner-region', {
+        // Shop barcodes are EAN/UPC plus whatever the label printer emits. Every extra
+        // format is another decode pass per frame, so the short list reads faster.
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.UPC_E,
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.QR_CODE,
+        ],
+        // Chrome/Android ship a hardware barcode decoder; use it before falling back to WASM.
+        useBarCodeDetectorIfSupported: true,
+        verbose: false
+      });
+      scannerRef.current = html5Qrcode;
+
+      const isMobile = window.innerWidth < 768;
+      await html5Qrcode.start(
+        { facingMode: 'environment' },
+        {
+          fps: 10,
+          qrbox: isMobile
+            ? { width: Math.min(240, window.innerWidth - 90), height: Math.min(160, window.innerWidth - 90) }
+            : { width: 280, height: 180 },
+          aspectRatio: 1.0
+        },
+        (decodedText) => scanRef.current(decodedText),
+        () => {}
+      );
+      rememberAutoCamera(true);
+    } catch (error) {
+      console.error('Error starting POS scanner:', error);
+      setScannerError('الكاميرا مش شغالة — جهاز الباركود لسه بيشتغل من غير ضغط');
+      setScanning(false);
+    }
+  };
+
+  const rememberAutoCamera = (on: boolean) => {
+    localStorage.setItem(POS_AUTO_CAMERA_KEY, on ? '1' : '0');
+    setAutoCamera(on);
+  };
+
+  const closeScanner = async () => {
+    const scanner = scannerRef.current;
+    scannerRef.current = null;
+    if (!scanner) return;
+    try {
+      await scanner.stop();
+      scanner.clear();
+    } catch {
+      // Already stopped, or the tab was swapped before the stream opened.
+    }
+  };
+
+  const stopScanner = async () => {
+    rememberAutoCamera(false);
+    await closeScanner();
+    setScanning(false);
+  };
+
+  // The camera is armed with the tab so the till can sell the moment it opens, and it
+  // hands the camera back as soon as the cashier leaves — the light must not stay on.
+  useEffect(() => {
+    if (activeTab !== 'pos') {
+      if (scannerRef.current) {
+        closeScanner();
+        setScanning(false);
+      }
+      return;
+    }
+    if (!autoCamera) return;
+    const timer = window.setTimeout(() => {
+      if (!scannerRef.current) startScanner();
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [activeTab, autoCamera]);
+
+  useEffect(() => () => { closeScanner(); }, []);
 
   const calculateSubtotal = () => {
     return cart.reduce((sum, item) => sum + item.total, 0);
@@ -365,7 +613,7 @@ export default function SalesPage() {
 
   const handleCheckout = async () => {
     if (cart.length === 0) {
-      alert('السلة فارغة');
+      flash({ kind: 'bad', title: 'السلة فارغة', message: 'امسح باركود المنتج أو اضغط عليه لإضافته' });
       return;
     }
 
@@ -394,14 +642,14 @@ export default function SalesPage() {
 
       const data = await res.json();
       if (data.success) {
-        alert(`تمت عملية البيع بنجاح\nرقم الفاتورة: ${data.data.invoiceNumber}`);
+        flash({ kind: 'ok', title: 'تمت عملية البيع بنجاح', message: `رقم الفاتورة: ${data.data.invoiceNumber}` });
         clearCart();
         fetchProducts();
         if (activeTab === 'sales') {
           fetchSales();
         }
       } else {
-        alert(data.error || 'حدث خطأ');
+        flash({ kind: 'bad', title: data.error || 'حدث خطأ' });
       }
     } catch (error) {
       console.error('Error creating sale:', error);
@@ -430,7 +678,7 @@ export default function SalesPage() {
       userId: user!.id
     });
 
-    alert('تم حفظ عملية البيع محلياً (سيتم التزامن عند عودة الاتصال)');
+    flash({ kind: 'ok', title: 'تم حفظ عملية البيع محلياً', message: 'هتتزامن لوحدها أول ما الإنترنت يرجع' });
     clearCart();
   };
 
@@ -574,8 +822,61 @@ export default function SalesPage() {
       {activeTab === 'pos' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
 
-          {/* ──── Products Panel ──── */}
-          <div className="lg:col-span-7 xl:col-span-8">
+          {/* ──── Scanner + Products ──── */}
+          <div className="lg:col-span-7 xl:col-span-8 space-y-4">
+
+            {/* ──── Barcode reader ──── */}
+            <div className="relative overflow-hidden rounded-2xl border border-white/[0.06] bg-dark-card/70 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10">
+                    <IconBarcode className="w-4.5 h-4.5 text-emerald-400" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-bold text-white">قارئ الباركود</h2>
+                    <p className="text-[11px] text-gray-500 mt-0.5">امسح المنتج وهو بيضاف للسلة على طول</p>
+                  </div>
+                </div>
+                {scanning ? (
+                  <button
+                    onClick={stopScanner}
+                    className="shrink-0 rounded-lg border border-rose-500/25 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-300 transition-colors hover:bg-rose-500/20"
+                  >
+                    إيقاف الكاميرا
+                  </button>
+                ) : (
+                  <button
+                    onClick={startScanner}
+                    className="flex shrink-0 items-center gap-1.5 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-500/20"
+                  >
+                    <IconCamera className="w-4 h-4" />
+                    <span>تشغيل الكاميرا</span>
+                  </button>
+                )}
+              </div>
+
+              {scanning ? (
+                <div className="relative mt-4 rounded-xl overflow-hidden bg-black/80 ring-1 ring-white/5">
+                  <div id="pos-scanner-region" className="w-full max-w-sm mx-auto" />
+                  <div className="absolute top-3 left-3 flex items-center gap-2 px-3 py-1.5 bg-black/80 backdrop-blur-sm rounded-lg border border-emerald-500/20">
+                    <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+                    <span className="text-xs text-emerald-400 font-medium">يمسح...</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-3 flex items-center gap-2 rounded-lg border border-white/[0.05] bg-dark-card/60 px-3 py-2.5">
+                  <div className="w-2 h-2 shrink-0 rounded-full bg-emerald-400" />
+                  <p className="text-[11px] text-gray-400 leading-relaxed">
+                    جهاز الباركود شغال من غير ضغط — وجّه للمنتج واضغط، الكود يتكتب والمنتج يدخل السلة
+                  </p>
+                </div>
+              )}
+
+              {scannerError && !scanning && (
+                <p className="mt-2 text-[11px] text-rose-400">{scannerError}</p>
+              )}
+            </div>
+
             <div className="relative overflow-hidden rounded-2xl border border-white/[0.06] bg-gradient-to-bl from-dark-card/70 to-dark-card/70">
               {/* Panel header */}
               <div className="border-b border-white/[0.06] bg-gradient-to-l from-dark-card/50 to-transparent p-4 sm:p-5">
@@ -597,7 +898,17 @@ export default function SalesPage() {
                       type="text"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      placeholder="بحث عن منتج..."
+                      onKeyDown={(e) => {
+                        // A gun aimed at the search box still sells: Enter on a real code
+                        // puts the product in the cart instead of only filtering the grid.
+                        if (e.key !== 'Enter') return;
+                        e.preventDefault();
+                        if (!findProductByCode(searchTerm)) return;
+                        const code = searchTerm;
+                        setSearchTerm('');
+                        handleScannedCode(code);
+                      }}
+                      placeholder="بحث أو مسح باركود منتج..."
                       className="w-full sm:w-64 rounded-lg border border-white/[0.08] bg-dark-card/60 py-2.5 pr-10 pl-4 text-sm text-white placeholder-gray-500 shadow-sm transition-all duration-200 focus:border-amber-500/50 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
                     />
                   </div>
@@ -1012,6 +1323,31 @@ export default function SalesPage() {
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* ══════ Scan / result toast ══════ */}
+      {toast && (
+        <div className={`fixed bottom-4 left-1/2 -translate-x-1/2 z-40 w-[min(92vw,380px)] rounded-xl border px-4 py-3 shadow-2xl backdrop-blur-sm ${
+          toast.kind === 'ok'
+            ? 'border-emerald-500/30 bg-emerald-500/15'
+            : 'border-rose-500/30 bg-rose-500/15'
+        }`}>
+          <div className="flex items-start gap-2.5">
+            <div className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
+              toast.kind === 'ok' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
+            }`}>
+              {toast.kind === 'ok' ? <IconCheck className="w-4 h-4" /> : <IconX className="w-4 h-4" />}
+            </div>
+            <div className="min-w-0">
+              <p className={`text-sm font-bold truncate ${toast.kind === 'ok' ? 'text-emerald-200' : 'text-rose-200'}`}>
+                {toast.title}
+              </p>
+              {toast.message && (
+                <p className="text-[11px] text-gray-300/80 mt-0.5 break-words">{toast.message}</p>
+              )}
+            </div>
+          </div>
         </div>
       )}
 

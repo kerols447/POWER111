@@ -27,6 +27,7 @@ export interface CachedProduct {
   name: string;
   nameAr?: string;
   barcode?: string;
+  sku?: string;
   pricePiasters: number;
   quantity: number;
   lowStockThreshold: number;

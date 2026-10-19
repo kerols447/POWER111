@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
@@ -72,6 +72,63 @@ interface ExpensesReport {
   total: number;
 }
 
+interface ActivityItem {
+  id: string;
+  kind: 'SALE' | 'PAYMENT' | 'EXPENSE' | 'SALARY' | 'MEMBER' | 'CHECKIN';
+  at: string;
+  title: string;
+  subtitle: string;
+  amountPiasters: number | null;
+  method?: string;
+  flagged?: boolean;
+  branchName: string;
+}
+
+interface ActivityReport {
+  items: ActivityItem[];
+  truncated: boolean;
+  limit: number;
+  summary: {
+    incomePiasters: number;
+    outflowPiasters: number;
+    netPiasters: number;
+    counts: Record<string, number>;
+    listed: Record<string, number>;
+  };
+}
+
+// Every kind of operation the club does, and whether it moves money in or out.
+const ACTIVITY_KINDS = [
+  { key: 'SALE', label: 'مبيعات', flow: 'in' },
+  { key: 'PAYMENT', label: 'اشتراكات', flow: 'in' },
+  { key: 'EXPENSE', label: 'مصروفات', flow: 'out' },
+  { key: 'SALARY', label: 'رواتب', flow: 'out' },
+  { key: 'MEMBER', label: 'أعضاء', flow: 'none' },
+  { key: 'CHECKIN', label: 'حضور', flow: 'none' },
+] as const;
+
+const ACTIVITY_METHODS: Record<string, string> = {
+  CASH: 'نقدي',
+  BANK_TRANSFER: 'تحويل بنكي',
+  CARD: 'بطاقة',
+  OTHER: 'أخرى'
+};
+
+function activityFlow(kind: string): 'in' | 'out' | 'none' {
+  return ACTIVITY_KINDS.find(k => k.key === kind)?.flow ?? 'none';
+}
+
+function ActivityKindIcon({ kind, className }: { kind: ActivityItem['kind']; className?: string }) {
+  switch (kind) {
+    case 'SALE': return <IconSales className={className} />;
+    case 'PAYMENT': return <IconReceipt className={className} />;
+    case 'EXPENSE': return <IconExpenses className={className} />;
+    case 'SALARY': return <IconFinancial className={className} />;
+    case 'MEMBER': return <IconUsers className={className} />;
+    default: return <IconClock className={className} />;
+  }
+}
+
 function formatPiasters(piasters: number): string {
   const pounds = piasters / 100;
   return pounds.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' ج.م';
@@ -79,7 +136,7 @@ function formatPiasters(piasters: number): string {
 
 const COLORS = ['#F59E0B', '#D97706', '#FCD34D', '#B45309', '#92400E', '#78350F'];
 
-type ReportTab = 'financial' | 'sales' | 'expenses' | 'branches';
+type ReportTab = 'financial' | 'sales' | 'expenses' | 'activity' | 'branches';
 
 /* ------------------------------------------------------------------ */
 /*  SVG Icon Components                                                */
@@ -234,6 +291,17 @@ function BackgroundDecor() {
 /*  Main Component                                                     */
 /* ------------------------------------------------------------------ */
 
+function IconLog({ className = 'w-5 h-5' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 6h12M8 12h12M8 18h12" />
+      <circle cx="3.5" cy="6" r="1.2" />
+      <circle cx="3.5" cy="12" r="1.2" />
+      <circle cx="3.5" cy="18" r="1.2" />
+    </svg>
+  );
+}
+
 export default function ReportsPage() {
   const { user, isOwner, hasPermission } = useAuth();
   const isOnline = useOnlineStatus();
@@ -251,6 +319,9 @@ export default function ReportsPage() {
   const [branchStats, setBranchStats] = useState<BranchStat[]>([]);
   const [salesData, setSalesData] = useState<SaleRecord[]>([]);
   const [expensesData, setExpensesData] = useState<ExpensesReport | null>(null);
+  const [activity, setActivity] = useState<ActivityReport | null>(null);
+  // 'ALL' keeps the full journal; a kind narrows it to just that sort of operation
+  const [activityKind, setActivityKind] = useState<string>('ALL');
 
   const singleBranchUser = !isOwner && (user?.branches?.length || 0) === 1;
 
@@ -307,6 +378,17 @@ export default function ReportsPage() {
         if (res.ok) {
           const data = await res.json();
           setExpensesData(data);
+        }
+      } else if (activeTab === 'activity') {
+        const res = await fetch(`/api/reports/activity?${params}`, { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          setActivity({
+            items: Array.isArray(data.items) ? data.items : [],
+            truncated: !!data.truncated,
+            limit: data.limit || 800,
+            summary: data.summary
+          });
         }
       } else if (activeTab === 'branches') {
         const branchParams = new URLSearchParams();
@@ -386,6 +468,7 @@ export default function ReportsPage() {
     { key: 'financial', label: 'مالي', Icon: IconFinancial },
     { key: 'sales', label: 'المبيعات', Icon: IconSales },
     { key: 'expenses', label: 'المصروفات', Icon: IconExpenses },
+    { key: 'activity', label: 'سجل عمليات', Icon: IconLog },
     { key: 'branches', label: 'الفروع', Icon: IconBranch },
   ];
 
@@ -408,6 +491,35 @@ export default function ReportsPage() {
     : [];
 
   const totalSalesAmount = salesData.reduce((sum, s) => sum + s.finalTotalPiasters, 0);
+
+  // The journal is one flat list from the API; the owner reads it day by day, so it is
+  // grouped on his own calendar (Cairo) rather than the raw UTC timestamps.
+  const activityDays = useMemo(() => {
+    const rows = (activity?.items ?? []).filter(i => activityKind === 'ALL' || i.kind === activityKind);
+    const groups = new Map<string, ActivityItem[]>();
+    rows.forEach(item => {
+      const key = localDate(new Date(item.at));
+      const list = groups.get(key);
+      if (list) list.push(item);
+      else groups.set(key, [item]);
+    });
+    const days = [...groups.entries()].map(([date, items]) => {
+      const income = items.reduce((s, i) => s + (activityFlow(i.kind) === 'in' ? i.amountPiasters || 0 : 0), 0);
+      const outflow = items.reduce((s, i) => s + (activityFlow(i.kind) === 'out' ? i.amountPiasters || 0 : 0), 0);
+      // A member import or a busy door can drop hundreds of one kind on the same day. The day
+      // header keeps the real count, the list keeps the first rows of each kind and folds the rest.
+      const perKind: Record<string, number> = {};
+      const rows = items.filter(item => {
+        perKind[item.kind] = (perKind[item.kind] || 0) + 1;
+        return perKind[item.kind] <= 12;
+      });
+      const folded = Object.entries(perKind)
+        .filter(([, count]) => count > 12)
+        .map(([kind, count]) => ({ kind, hidden: count - 12 }));
+      return { date, items: rows, total: items.length, folded, income, outflow, net: income - outflow };
+    });
+    return { days, shown: rows.length };
+  }, [activity, activityKind]);
 
   /* ---------------------------------------------------------------- */
   /*  Render                                                           */
@@ -1130,6 +1242,178 @@ export default function ReportsPage() {
                         </table>
                       </div>
                     </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* ======================================================== */}
+            {/*  Activity Log Tab                                        */}
+            {/* ======================================================== */}
+            {activeTab === 'activity' && (
+              <div className="space-y-4 sm:space-y-6">
+                {/* Range totals — counted over every row, not just what is on screen */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="relative overflow-hidden rounded-2xl bg-dark-card border border-dark-border p-4 hover:border-emerald-500/20 transition-colors">
+                    <p className="text-[11px] text-gray-500 font-medium mb-1.5">الوارد في الفترة</p>
+                    <p className="text-lg sm:text-2xl font-bold text-emerald-400">{formatPiasters(activity?.summary.incomePiasters ?? 0)}</p>
+                    <p className="text-[11px] text-gray-500 mt-1.5">
+                      {activity?.summary.counts.SALE ?? 0} بيع • {activity?.summary.counts.PAYMENT ?? 0} اشتراك
+                    </p>
+                  </div>
+                  <div className="relative overflow-hidden rounded-2xl bg-dark-card border border-dark-border p-4 hover:border-rose-500/20 transition-colors">
+                    <p className="text-[11px] text-gray-500 font-medium mb-1.5">الخارج في الفترة</p>
+                    <p className="text-lg sm:text-2xl font-bold text-rose-400">{formatPiasters(activity?.summary.outflowPiasters ?? 0)}</p>
+                    <p className="text-[11px] text-gray-500 mt-1.5">
+                      {activity?.summary.counts.EXPENSE ?? 0} مصروف • {activity?.summary.counts.SALARY ?? 0} مرتّب
+                    </p>
+                  </div>
+                  <div className="relative overflow-hidden rounded-2xl bg-dark-card border border-dark-border p-4 hover:border-primary/20 transition-colors">
+                    <p className="text-[11px] text-gray-500 font-medium mb-1.5">الصافي</p>
+                    <p className={`text-lg sm:text-2xl font-bold ${(activity?.summary.netPiasters ?? 0) >= 0 ? 'text-primary' : 'text-rose-400'}`}>
+                      {formatPiasters(activity?.summary.netPiasters ?? 0)}
+                    </p>
+                  </div>
+                  <div className="relative overflow-hidden rounded-2xl bg-dark-card border border-dark-border p-4 hover:border-amber-500/20 transition-colors">
+                    <p className="text-[11px] text-gray-500 font-medium mb-1.5">كل العمليات</p>
+                    <p className="text-lg sm:text-2xl font-bold text-white">
+                      {Object.values(activity?.summary.counts ?? {}).reduce((s: number, n: number) => s + n, 0)}
+                    </p>
+                    <p className="text-[11px] text-gray-500 mt-1.5">
+                      {activity?.summary.counts.MEMBER ?? 0} عضو جديد • {activity?.summary.counts.CHECKIN ?? 0} دخول
+                    </p>
+                  </div>
+                </div>
+
+                {/* Kind filter */}
+                <div className="flex gap-1.5 sm:gap-2 flex-wrap">
+                  <button
+                    onClick={() => setActivityKind('ALL')}
+                    className={`px-3 py-2 min-h-10 rounded-lg text-xs sm:text-sm font-medium border transition-colors ${
+                      activityKind === 'ALL'
+                        ? 'bg-primary/15 border-primary/40 text-white'
+                        : 'bg-dark border-dark-border text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    الكل
+                  </button>
+                  {ACTIVITY_KINDS.map(kind => (
+                    <button
+                      key={kind.key}
+                      onClick={() => setActivityKind(activityKind === kind.key ? 'ALL' : kind.key)}
+                      className={`inline-flex items-center gap-1.5 px-3 py-2 min-h-10 rounded-lg text-xs sm:text-sm font-medium border transition-colors ${
+                        activityKind === kind.key
+                          ? 'bg-primary/15 border-primary/40 text-white'
+                          : 'bg-dark border-dark-border text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      <span>{kind.label}</span>
+                      <span className="text-[11px] opacity-70">{activity?.summary.counts[kind.key] ?? 0}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* The journal */}
+                <div className="relative overflow-hidden rounded-2xl bg-dark-card border border-dark-border">
+                  <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
+                  <div className="p-4 sm:p-5 border-b border-dark-border flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <IconLog className="w-4 h-4 text-primary" />
+                    </div>
+                    <h3 className="text-sm sm:text-base font-bold text-white">سجل العمليات</h3>
+                    <span className="mr-auto px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-primary/10 text-primary border border-primary/20">
+                      {activityDays.shown}
+                    </span>
+                  </div>
+
+                  {activityDays.days.length === 0 ? (
+                    <div className="p-10 sm:p-16 text-center">
+                      <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-dark border border-dark-border mb-4">
+                        <IconEmpty className="w-8 h-8 text-gray-600" />
+                      </div>
+                      <p className="text-gray-400 text-sm font-medium">مفيش عمليات في الفترة دي</p>
+                      <p className="text-gray-600 text-xs mt-1">غيّر التاريخ أو اختار فرع تاني</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-dark-border">
+                      {activityDays.days.map(day => (
+                        <div key={day.date}>
+                          {/* Day header with that day's money */}
+                          <div className="flex flex-wrap items-center gap-2 bg-dark/60 px-4 py-2.5">
+                            <span className="text-xs sm:text-sm font-bold text-white">{arDate(day.date)}</span>
+                            {day.income > 0 && (
+                              <span className="text-[11px] px-2 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                +{formatPiasters(day.income)}
+                              </span>
+                            )}
+                            {day.outflow > 0 && (
+                              <span className="text-[11px] px-2 py-0.5 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                                -{formatPiasters(day.outflow)}
+                              </span>
+                            )}
+                            <span className="mr-auto text-[11px] text-gray-500">
+                              {day.total} عملية
+                              {day.income || day.outflow ? ` • الصافي ${formatPiasters(day.net)}` : ''}
+                            </span>
+                          </div>
+
+                          {day.items.map(item => (
+                            <div key={item.id} className="flex items-center gap-3 px-4 py-3 hover:bg-dark-hover/50 transition-colors">
+                              <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 border ${
+                                activityFlow(item.kind) === 'in'
+                                  ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                                  : activityFlow(item.kind) === 'out'
+                                    ? 'bg-rose-500/10 border-rose-500/20 text-rose-400'
+                                    : 'bg-dark border-dark-border text-gray-400'
+                              }`}>
+                                <ActivityKindIcon kind={item.kind} className="w-4 h-4" />
+                              </div>
+
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-semibold text-white truncate">
+                                  {item.title}
+                                  {item.flagged && (
+                                    <span className="mr-1.5 text-[11px] font-normal text-rose-400">— بدون اشتراك</span>
+                                  )}
+                                </p>
+                                <p className="text-[11px] sm:text-xs text-gray-500 truncate">{item.subtitle}</p>
+                                <p className="text-[11px] text-gray-600 truncate">
+                                  {new Date(item.at).toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' })}
+                                  {' • '}{item.branchName}
+                                  {item.method ? ` • ${ACTIVITY_METHODS[item.method] || item.method}` : ''}
+                                </p>
+                              </div>
+
+                              {item.amountPiasters !== null ? (
+                                <span className={`text-sm sm:text-base font-bold flex-shrink-0 ${
+                                  activityFlow(item.kind) === 'in' ? 'text-emerald-400' : 'text-rose-400'
+                                }`} dir="rtl">
+                                  {activityFlow(item.kind) === 'in' ? '+' : '-'}{formatPiasters(item.amountPiasters)}
+                                </span>
+                              ) : (
+                                <span className="text-[11px] text-gray-600 flex-shrink-0">
+                                  {ACTIVITY_KINDS.find(k => k.key === item.kind)?.label}
+                                </span>
+                              )}
+                            </div>
+                          ))}
+
+                          {day.folded.map(fold => (
+                            <div key={fold.kind} className="px-4 pb-3 pt-1 text-[11px] text-gray-500 border-t border-white/[0.04]">
+                              {fold.hidden} {ACTIVITY_KINDS.find(k => k.key === fold.kind)?.label} تانية في اليوم ده — دوس على «{ACTIVITY_KINDS.find(k => k.key === fold.kind)?.label}» فوق عشان تعدّهم كلهم
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+
+                      {activity?.truncated && (
+                        <div className="p-4 text-center bg-dark/40">
+                          <p className="text-xs text-gray-500">
+                            دي آخر {activity.limit} عملية في الفترة — عشان تشوف الباقي اختار نوع أو ضيّق التاريخ.
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
