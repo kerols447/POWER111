@@ -12,6 +12,17 @@ body {
   color: #ffffff;
   margin: 0;
   direction: rtl;
+  color-scheme: dark;
+}
+
+/* Chrome paints autofilled fields white and their popup light unless told the UI is dark. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #ffffff;
+  -webkit-box-shadow: 0 0 0 1000px #0a0a0a inset;
+  caret-color: #ffffff;
+  transition: background-color 99999s ease-in-out 0s;
 }
 
 @media (prefers-reduced-motion: reduce) {

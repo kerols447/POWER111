@@ -53,7 +53,7 @@ npm run db:seed
 
 This creates:
 - 4 branches
-- Owner account: `admin@power111.com` / `admin123`
+- Owner account for the admin panel (the development password lives in `scripts/seed.ts` — seed is for local databases only, never against production data)
 - Sample membership plans
 
 ### 6. Start development servers

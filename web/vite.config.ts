@@ -7,7 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['power-logo.jpg', 'icons/*.png'],
+      includeAssets: ['power-logo.jpg', 'icons/*.png', 'images/login-bg.jpg'],
       manifest: false,
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
