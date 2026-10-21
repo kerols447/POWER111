@@ -1,5 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import NoticeBanner from '../components/NoticeBanner';
+import {
+  PageHeader, SectionTitle, StatTile, Badge, Btn, Segmented, Picker, Field,
+  LABEL, FIELD, EmptyState, Loading, Modal, CARD, TONE
+} from '../components/ui';
 import { useAuth } from '../contexts/AuthContext';
 import {
   drawMembershipCard,
@@ -148,45 +152,16 @@ function fmtDay(day: string): string {
   return new Date(`${day}T00:00:00`).toLocaleDateString('ar-EG-u-nu-latn', { day: 'numeric', month: 'long' });
 }
 
-const ClockIcon = () => (
-  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-  </svg>
-);
-
-const BadgeIcon = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0a2 2 0 114 0m-4 0a2 2 0 104 0m-2 8a2 2 0 100-4 2 2 0 000 4z" />
-  </svg>
-);
-
+// No kit equivalent for enter/leave arrows — kept but normalised to the kit's stroke and caps.
 const LoginIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h5a3 3 0 013 3v1" />
+  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h5a3 3 0 013 3v1" />
   </svg>
 );
 
 const LogoutIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-  </svg>
-);
-
-const SearchIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-  </svg>
-);
-
-const RefreshIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-  </svg>
-);
-
-const WalletIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2h14a2 2 0 002-2v-6a2 2 0 00-2-2h-4a2 2 0 000 4h4" />
+  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
   </svg>
 );
 
@@ -502,191 +477,177 @@ export default function StaffPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64" dir="rtl">
-        <div className="flex items-center gap-3 text-gray-400">
-          <svg className="animate-spin w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-          <span>جاري التحميل...</span>
-        </div>
+      <div dir="rtl">
+        <Loading />
       </div>
     );
   }
 
   return (
-    <div className="space-y-5" dir="rtl">
+    <div className="space-y-5 sm:space-y-7" dir="rtl">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center text-white shadow-lg shadow-amber-500/20 flex-shrink-0">
-            <ClockIcon />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-xl sm:text-3xl font-bold text-white truncate">الموظفين والمدربين</h1>
-            <p className="text-xs sm:text-sm text-gray-400 mt-0.5">كارت لكل موظف — ختم دخول وخروج وحساب ساعات الشغل</p>
-          </div>
-        </div>
-        <button
-          onClick={() => { fetchStaff(); if (tab === 'report') fetchReport(); }}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-white/5 border border-white/10 text-gray-300 rounded-xl text-sm font-medium hover:bg-white/10 transition-colors self-start sm:self-auto"
-        >
-          <RefreshIcon />
-          <span>تحديث</span>
-        </button>
-      </div>
+      <PageHeader
+        icon="staff"
+        title="الموظفين والمدربين"
+        caption="كارت لكل موظف — ختم دخول وخروج وحساب ساعات الشغل"
+        actions={
+          <Btn
+            variant="ghost"
+            icon="refresh"
+            onClick={() => { fetchStaff(); if (tab === 'report') fetchReport(); }}
+          >
+            <span>تحديث</span>
+          </Btn>
+        }
+      />
 
       {notice && <NoticeBanner kind={notice.kind} text={notice.text} onDismiss={() => setNotice(null)} />}
       {error && <NoticeBanner kind="err" text={error} onDismiss={() => setError('')} />}
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <div className="relative overflow-hidden rounded-2xl bg-dark-card border border-dark-border p-4 sm:p-5">
-          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-amber-500/20 to-transparent" />
-          <p className="text-xs text-gray-500 font-medium">عدد الموظفين</p>
-          <p className="text-2xl sm:text-3xl font-bold text-white mt-1">{summary?.total ?? staff.length}</p>
-          <p className="text-[11px] text-primary/50 mt-1">{branchFilter ? branches.find(b => b.id === branchFilter)?.name || '' : 'كل الفروع'}</p>
-        </div>
-        <div className="relative overflow-hidden rounded-2xl bg-dark-card border border-emerald-500/20 p-4 sm:p-5">
-          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent" />
-          <p className="text-xs text-gray-500 font-medium">في الفرع دلوقتي</p>
-          <p className="text-2xl sm:text-3xl font-bold text-emerald-400 mt-1">{summary?.present ?? 0}</p>
-          <p className="text-[11px] text-gray-500 mt-1">لسه مختمش انصراف</p>
-        </div>
-        <div className="relative overflow-hidden rounded-2xl bg-dark-card border border-dark-border p-4 sm:p-5">
-          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-amber-500/20 to-transparent" />
-          <p className="text-xs text-gray-500 font-medium">ختموا اليوم</p>
-          <p className="text-2xl sm:text-3xl font-bold text-amber-400 mt-1">{summary?.checkedInToday ?? 0}</p>
-          <p className="text-[11px] text-gray-500 mt-1">من {summary?.total ?? staff.length} موظف</p>
-        </div>
-        <div className="relative overflow-hidden rounded-2xl bg-dark-card border border-dark-border p-4 sm:p-5">
-          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-amber-500/20 to-transparent" />
-          <p className="text-xs text-gray-500 font-medium">ساعات اليوم</p>
-          <p className="text-2xl sm:text-3xl font-bold text-white mt-1">{fmtMinutes(summary?.hoursToday ?? 0)}</p>
-          <p className="text-[11px] text-gray-500 mt-1">إجمالي ورديات اليوم</p>
-        </div>
+        <StatTile
+          icon="staff"
+          tone={TONE.members}
+          label="عدد الموظفين"
+          value={summary?.total ?? staff.length}
+          caption={branchFilter ? branches.find(b => b.id === branchFilter)?.name || '' : 'كل الفروع'}
+        />
+        <StatTile
+          icon="users"
+          tone={TONE.revenue}
+          label="في الفرع دلوقتي"
+          value={summary?.present ?? 0}
+          caption="لسه مختمش انصراف"
+        />
+        <StatTile
+          icon="check"
+          tone={TONE.expiring}
+          label="ختموا اليوم"
+          value={summary?.checkedInToday ?? 0}
+          caption={`من ${summary?.total ?? staff.length} موظف`}
+        />
+        <StatTile
+          icon="clock"
+          tone={TONE.attendance}
+          label="ساعات اليوم"
+          value={fmtMinutes(summary?.hoursToday ?? 0)}
+          caption="إجمالي ورديات اليوم"
+        />
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2">
-        <button
-          onClick={() => setTab('today')}
-          className={`flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-            tab === 'today' ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-500/20' : 'bg-white/5 text-gray-400 hover:bg-white/10'
-          }`}
-        >
-          الورديات اليوم
-        </button>
-        <button
-          onClick={() => setTab('report')}
-          className={`flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-            tab === 'report' ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-500/20' : 'bg-white/5 text-gray-400 hover:bg-white/10'
-          }`}
-        >
-          تقرير الساعات
-        </button>
-      </div>
+      <Segmented
+        value={tab}
+        onChange={setTab}
+        ariaLabel="تبديل العرض"
+        options={[
+          { key: 'today', label: 'الورديات اليوم' },
+          { key: 'report', label: 'تقرير الساعات' }
+        ]}
+      />
 
       {/* Filters */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <select
+        <Picker
           value={branchFilter}
-          onChange={e => setBranchFilter(e.target.value)}
-          className="bg-dark border border-dark-border text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-500/50"
-        >
-          <option value="">كل الفروع</option>
-          {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-        </select>
-        <select
+          onChange={setBranchFilter}
+          ariaLabel="تصفية بالفرع"
+          className="w-full"
+          options={[
+            { value: '', label: 'كل الفروع' },
+            ...branches.map(b => ({ value: b.id, label: b.name }))
+          ]}
+        />
+        <Picker
           value={roleFilter}
-          onChange={e => setRoleFilter(e.target.value)}
-          className="bg-dark border border-dark-border text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-500/50"
-        >
-          <option value="">كل التخصصات</option>
-          {staffRoles.map(r => <option key={r} value={r}>{roleLabels[r]}</option>)}
-        </select>
+          onChange={setRoleFilter}
+          ariaLabel="تصفية بالتخصص"
+          className="w-full"
+          options={[
+            { value: '', label: 'كل التخصصات' },
+            ...staffRoles.map(r => ({ value: r, label: roleLabels[r] }))
+          ]}
+        />
         <div className="flex gap-2">
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); setSearchTerm(search.trim()); } }}
             placeholder="اسم الموظف أو الكود..."
-            className="flex-1 min-w-0 bg-dark border border-dark-border text-white rounded-xl px-4 py-3 text-sm placeholder:text-gray-600 focus:outline-none focus:border-amber-500/50"
+            className={`${FIELD} flex-1 min-w-0`}
           />
-          <button
+          <Btn
+            variant="primary"
+            icon="search"
+            aria-label="بحث"
             onClick={() => setSearchTerm(search.trim())}
-            className="flex-shrink-0 w-12 h-12 flex items-center justify-center bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-xl active:scale-95 transition-transform"
-          >
-            <SearchIcon />
-          </button>
+            className="w-12 shrink-0 px-0"
+          />
         </div>
       </div>
 
       {tab === 'today' ? (
         staff.length === 0 ? (
-          <div className="rounded-2xl bg-dark-card border border-dark-border p-10 text-center">
-            <p className="text-gray-400 text-sm">لا يوجد موظفين في هذا الفرع</p>
-            <p className="text-gray-600 text-xs mt-2">أضف المدرب أو الموظف من صفحة «المستخدمين»، يطلع له كارت أوتوماتيك.</p>
+          <div className={CARD}>
+            <EmptyState
+              title="لا يوجد موظفين في هذا الفرع"
+              hint="أضف المدرب أو الموظف من صفحة «المستخدمين»، يطلع له كارت أوتوماتيك."
+            />
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
             {staff.map(person => (
-              <div key={person.id} className="relative overflow-hidden rounded-2xl bg-dark-card border border-dark-border p-4 sm:p-5">
-                <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-amber-500/20 to-transparent" />
-
+              <div key={person.id} className={`${CARD} p-4 sm:p-5`}>
                 <div className="flex items-start gap-3">
-                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-500/15 to-amber-600/5 border border-amber-500/20 flex items-center justify-center text-amber-400 font-bold flex-shrink-0">
+                  <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-bold shrink-0">
                     {person.name.slice(0, 1)}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-white font-bold truncate">{person.name}</p>
-                    <div className="flex items-center gap-2 mt-1 flex-wrap">
-                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-gray-300">
-                        {roleLabels[person.role] || person.role}
-                      </span>
+                    <p className="text-sm font-semibold text-white truncate">{person.name}</p>
+                    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                      <Badge tone="gray">{roleLabels[person.role] || person.role}</Badge>
                       {person.staffCode && (
-                        <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-400">
-                          {person.staffCode}
-                        </span>
+                        <Badge tone="gold" className="font-mono">{person.staffCode}</Badge>
                       )}
                       {!person.isActive && (
-                        <span className="text-[11px] px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400">متوقف</span>
+                        <Badge tone="red">متوقف</Badge>
                       )}
                     </div>
                   </div>
-                  <div className="flex-shrink-0 text-left">
+                  <div className="shrink-0 text-left">
                     {person.present ? (
-                      <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-400">
-                        <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+                      <Badge tone="green">
+                        <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
                         في الفرع
-                      </span>
+                      </Badge>
                     ) : (
-                      <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-gray-500">
-                        <span className="w-2 h-2 bg-gray-600 rounded-full" />
+                      <Badge tone="gray">
+                        <span className="w-1.5 h-1.5 bg-gray-600 rounded-full" />
                         خارج الوردية
-                      </span>
+                      </Badge>
                     )}
                   </div>
                 </div>
 
                 <div className="mt-4 grid grid-cols-3 gap-2">
-                  <div className="rounded-xl bg-white/[0.03] border border-white/5 p-2.5">
+                  <div className="rounded-xl bg-dark border border-dark-border p-2.5">
                     <p className="text-[11px] text-gray-500">دخول</p>
-                    <p className="text-sm font-bold text-white mt-0.5">{fmtTime(person.checkInTime)}</p>
+                    <p className="text-sm font-semibold text-white mt-0.5">{fmtTime(person.checkInTime)}</p>
                   </div>
-                  <div className="rounded-xl bg-white/[0.03] border border-white/5 p-2.5">
+                  <div className="rounded-xl bg-dark border border-dark-border p-2.5">
                     <p className="text-[11px] text-gray-500">انصراف</p>
-                    <p className="text-sm font-bold text-white mt-0.5">{person.openShiftId ? 'شغال' : fmtTime(person.checkOutTime)}</p>
+                    <p className="text-sm font-semibold text-white mt-0.5">{person.openShiftId ? 'شغال' : fmtTime(person.checkOutTime)}</p>
                   </div>
-                  <div className="rounded-xl bg-amber-500/[0.06] border border-amber-500/15 p-2.5">
-                    <p className="text-[11px] text-amber-500/70">ساعات اليوم</p>
-                    <p className="text-sm font-bold text-amber-400 mt-0.5">{person.hoursTodayLabel}</p>
+                  <div className="rounded-xl bg-primary/[0.06] border border-primary/20 p-2.5">
+                    <p className="text-[11px] text-primary/70">ساعات اليوم</p>
+                    <p className="text-sm font-semibold text-primary mt-0.5">{person.hoursTodayLabel}</p>
                   </div>
                 </div>
 
                 <div className="mt-3 flex items-center justify-between gap-2 text-[11px] text-gray-500">
                   <span className="truncate min-w-0">{person.branchNames.join('، ') || 'بدون فرع'}</span>
-                  <span className="flex-shrink-0">الشهر: <span className="text-gray-300 font-semibold">{person.hoursMonthLabel}</span></span>
+                  <span className="shrink-0">الشهر: <span className="text-white font-semibold">{person.hoursMonthLabel}</span></span>
                 </div>
 
                 {canSeePayroll && (
@@ -696,14 +657,14 @@ export default function StaffPage() {
                         ? <>المرتب: <span className="text-emerald-400 font-semibold">{money(person.salaryPiasters)}</span> <span className="text-gray-600">{person.salaryBasis === 'HOURLY' ? 'للساعة' : 'شهرياً'}</span></>
                         : <span className="text-gray-600">مرتبوش متحدّش</span>}
                     </span>
-                    <span className="flex-shrink-0">
-                      متسدد الشهر: <span className={person.paidThisMonthPiasters > 0 ? 'text-emerald-400 font-semibold' : 'text-gray-300 font-semibold'}>{money(person.paidThisMonthPiasters)}</span>
+                    <span className="shrink-0">
+                      متسدد الشهر: <span className={person.paidThisMonthPiasters > 0 ? 'text-emerald-400 font-semibold' : 'text-white font-semibold'}>{money(person.paidThisMonthPiasters)}</span>
                     </span>
                   </div>
                 )}
 
                 {person.present && person.hoursToday > 720 && (
-                  <p className="mt-2 text-[11px] text-amber-400">
+                  <p className="mt-2 text-[11px] text-primary">
                     الوردية مفتوحة من {person.hoursTodayLabel} — تأكد إن {person.name} مختم انصراف، الساعات دي بتدخل في المرتب.
                   </p>
                 )}
@@ -719,34 +680,33 @@ export default function StaffPage() {
                 )}
 
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <button
+                  <Btn
                     onClick={() => punch(person)}
                     disabled={!person.staffCode || busyId === person.id || !person.isActive}
-                    className={`flex-1 min-w-[130px] inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.98] ${
-                      person.present
-                        ? 'bg-gradient-to-r from-rose-500 to-rose-600 text-white shadow-lg shadow-rose-500/15'
-                        : 'bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-500/15'
-                    }`}
+                    variant={person.present ? 'danger' : 'primary'}
+                    className="flex-1 min-w-[130px]"
                   >
                     {person.present ? <LogoutIcon /> : <LoginIcon />}
                     <span>{busyId === person.id ? 'جاري...' : person.present ? 'ختم انصراف' : 'ختم دخول'}</span>
-                  </button>
+                  </Btn>
                   {canPayPayroll && (
-                    <button
+                    <Btn
                       onClick={() => openPay(person)}
-                      className="flex-1 min-w-[104px] inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 hover:bg-emerald-500/20 transition-colors active:scale-[0.98]"
+                      variant="ghost"
+                      icon="wallet"
+                      className="flex-1 min-w-[104px]"
                     >
-                      <WalletIcon />
                       <span>سداد</span>
-                    </button>
+                    </Btn>
                   )}
-                  <button
+                  <Btn
                     onClick={() => openCard(person)}
-                    className="flex-1 min-w-[104px] inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 transition-colors active:scale-[0.98]"
+                    variant="ghost"
+                    icon="barcode"
+                    className="flex-1 min-w-[104px]"
                   >
-                    <BadgeIcon />
                     <span>الكارت</span>
-                  </button>
+                  </Btn>
                 </div>
               </div>
             ))}
@@ -755,98 +715,107 @@ export default function StaffPage() {
       ) : (
         <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs text-gray-500 mb-1.5">من تاريخ</label>
+            <Field label="من تاريخ">
               <input
                 type="date"
                 value={startDate}
                 onChange={e => setStartDate(e.target.value)}
-                className="w-full bg-dark border border-dark-border text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-500/50"
+                className={FIELD}
               />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1.5">إلى تاريخ</label>
+            </Field>
+            <Field label="إلى تاريخ">
               <input
                 type="date"
                 value={endDate}
                 onChange={e => setEndDate(e.target.value)}
-                className="w-full bg-dark border border-dark-border text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-500/50"
+                className={FIELD}
               />
-            </div>
+            </Field>
             <div className="flex items-end">
-              <button
+              <Btn
+                variant="primary"
                 onClick={fetchReport}
                 disabled={reportLoading}
-                className="w-full px-4 py-3 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-xl text-sm font-semibold disabled:opacity-40 active:scale-[0.98] transition-all"
+                className="w-full"
               >
                 {reportLoading ? 'جاري الحساب...' : 'احسب الساعات'}
-              </button>
+              </Btn>
             </div>
           </div>
 
           {report && (
             <>
               <div className="grid grid-cols-3 gap-3">
-                <div className="rounded-2xl bg-dark-card border border-dark-border p-4">
+                <div className={`${CARD} p-4`}>
                   <p className="text-[11px] text-gray-500">إجمالي الساعات</p>
-                  <p className="text-lg sm:text-2xl font-bold text-amber-400 mt-1">{fmtMinutes(report.totals.hours)}</p>
+                  <p className="text-lg sm:text-2xl font-extrabold text-primary mt-1">{fmtMinutes(report.totals.hours)}</p>
                 </div>
-                <div className="rounded-2xl bg-dark-card border border-dark-border p-4">
+                <div className={`${CARD} p-4`}>
                   <p className="text-[11px] text-gray-500">عدد الورديات</p>
-                  <p className="text-lg sm:text-2xl font-bold text-white mt-1">{report.totals.shifts}</p>
+                  <p className="text-lg sm:text-2xl font-extrabold text-white mt-1">{report.totals.shifts}</p>
                 </div>
-                <div className="rounded-2xl bg-dark-card border border-dark-border p-4">
+                <div className={`${CARD} p-4`}>
                   <p className="text-[11px] text-gray-500">لسه جوه</p>
-                  <p className="text-lg sm:text-2xl font-bold text-emerald-400 mt-1">{report.totals.openShifts}</p>
+                  <p className="text-lg sm:text-2xl font-extrabold text-emerald-400 mt-1">{report.totals.openShifts}</p>
                 </div>
               </div>
 
-              <div className="rounded-2xl bg-dark-card border border-dark-border overflow-hidden">
-                <p className="px-4 sm:px-5 pt-4 pb-2 text-xs font-semibold text-amber-400/70 uppercase tracking-wider">الساعات لكل موظف — لحساب المرتب</p>
+              <div className={CARD}>
+                <div className="px-4 sm:px-5 pt-4 sm:pt-5">
+                  <SectionTitle>الساعات لكل موظف — لحساب المرتب</SectionTitle>
+                </div>
                 {report.byStaff.length === 0 ? (
-                  <p className="p-5 text-sm text-gray-500">لا توجد ورديات في هذه الفترة</p>
+                  <EmptyState title="لا توجد ورديات في هذه الفترة" />
                 ) : (
-                  report.byStaff.map(row => (
-                    <div key={row.userId} className="flex items-center gap-3 px-4 sm:px-5 py-3 border-t border-dark-border/60">
-                      <div className="w-9 h-9 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-gray-300 text-sm font-bold flex-shrink-0">
-                        {row.staffName.slice(0, 1)}
+                  <div className="divide-y divide-dark-border/40 px-2 sm:px-3 pb-2">
+                    {report.byStaff.map(row => (
+                      <div key={row.userId} className="flex items-center gap-3 px-2 sm:px-3 py-3">
+                        <div className="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-sm font-bold shrink-0">
+                          {row.staffName.slice(0, 1)}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-white truncate">{row.staffName}</p>
+                          <p className="text-[11px] text-gray-500 mt-0.5 truncate">
+                            {roleLabels[row.role] || row.role}
+                            {row.staffCode ? ` · ${row.staffCode}` : ''}
+                            {row.days ? ` · ${row.days} يوم عمل` : ''}
+                          </p>
+                        </div>
+                        <span className="shrink-0 text-sm font-bold text-primary">{row.hoursLabel}</span>
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-white truncate">{row.staffName}</p>
-                        <p className="text-[11px] text-gray-500 mt-0.5 truncate">
-                          {roleLabels[row.role] || row.role}
-                          {row.staffCode ? ` · ${row.staffCode}` : ''}
-                          {row.days ? ` · ${row.days} يوم عمل` : ''}
-                        </p>
-                      </div>
-                      <span className="flex-shrink-0 text-sm font-bold text-amber-400">{row.hoursLabel}</span>
-                    </div>
-                  ))
+                    ))}
+                  </div>
                 )}
               </div>
 
               {report.byBranch.length > 0 && (
-                <div className="rounded-2xl bg-dark-card border border-dark-border overflow-hidden">
-                  <p className="px-4 sm:px-5 pt-4 pb-2 text-xs font-semibold text-amber-400/70 uppercase tracking-wider">حسب الفرع</p>
-                  {report.byBranch.map(row => (
-                    <div key={row.branchId} className="flex items-center justify-between gap-3 px-4 sm:px-5 py-3 border-t border-dark-border/60">
-                      <span className="text-sm text-gray-300 truncate min-w-0">{row.branchName}</span>
-                      <span className="text-sm font-bold text-white flex-shrink-0">{row.hoursLabel}</span>
-                    </div>
-                  ))}
+                <div className={CARD}>
+                  <div className="px-4 sm:px-5 pt-4 sm:pt-5">
+                    <SectionTitle>حسب الفرع</SectionTitle>
+                  </div>
+                  <div className="divide-y divide-dark-border/40 px-2 sm:px-3 pb-2">
+                    {report.byBranch.map(row => (
+                      <div key={row.branchId} className="flex items-center justify-between gap-3 px-2 sm:px-3 py-3">
+                        <span className="text-sm text-gray-300 truncate min-w-0">{row.branchName}</span>
+                        <span className="text-sm font-bold text-white shrink-0">{row.hoursLabel}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
               {report.data.length > 0 && (
-                <div className="rounded-2xl bg-dark-card border border-dark-border overflow-hidden">
-                  <p className="px-4 sm:px-5 pt-4 pb-2 text-xs font-semibold text-amber-400/70 uppercase tracking-wider">كل الختمات</p>
-                  <div className="max-h-96 overflow-y-auto">
+                <div className={CARD}>
+                  <div className="px-4 sm:px-5 pt-4 sm:pt-5">
+                    <SectionTitle>كل الختمات</SectionTitle>
+                  </div>
+                  <div className="max-h-96 overflow-y-auto divide-y divide-dark-border/40 px-2 sm:px-3 pb-2">
                     {report.data.slice().reverse().map(row => (
-                      <div key={row.id} className="flex items-center gap-2 px-4 sm:px-5 py-2.5 border-t border-dark-border/60 text-xs">
-                        <span className="text-gray-500 flex-shrink-0 w-20">{fmtDay(row.day)}</span>
-                        <span className="text-white font-medium truncate flex-1 min-w-0">{row.staffName}</span>
-                        <span className="text-gray-400 flex-shrink-0">{fmtTime(row.checkInTime)} ← {row.open ? 'شغال' : fmtTime(row.checkOutTime)}</span>
-                        <span className="text-amber-400 font-bold flex-shrink-0 w-16 text-left">{fmtMinutes(row.minutes)}</span>
+                      <div key={row.id} className="flex items-center gap-2 px-2 sm:px-3 py-2.5 text-xs">
+                        <span className="text-gray-500 shrink-0 w-20">{fmtDay(row.day)}</span>
+                        <span className="text-white font-semibold truncate flex-1 min-w-0">{row.staffName}</span>
+                        <span className="text-gray-400 shrink-0">{fmtTime(row.checkInTime)} ← {row.open ? 'شغال' : fmtTime(row.checkOutTime)}</span>
+                        <span className="text-primary font-bold shrink-0 w-16 text-left">{fmtMinutes(row.minutes)}</span>
                       </div>
                     ))}
                   </div>
@@ -859,251 +828,199 @@ export default function StaffPage() {
 
       {/* Payout modal — the amount follows the worked hours, he can still type his own */}
       {payStaff && (
-        <div
-          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center overflow-y-auto p-3 sm:p-4"
-          onClick={closePay}
+        <Modal
+          open
+          width="max-w-lg"
+          title={`صرف مرتّب ${payStaff.name}`}
+          subtitle={`${salary?.salary.label || 'المرتب لسه متحددش في حسابه'}${payStaff.staffCode ? ` • ${payStaff.staffCode}` : ''}`}
+          onClose={closePay}
+          footer={
+            <>
+              <Btn variant="ghost" onClick={closePay}>
+                <span>إلغاء</span>
+              </Btn>
+              <Btn type="submit" form="staff-pay-form" variant="primary" disabled={payBusy || salaryLoading}>
+                <span>{payBusy ? 'جاري الصرف...' : 'تم الصرف'}</span>
+              </Btn>
+            </>
+          }
         >
-          <div
-            className="relative bg-dark-card border border-dark-border rounded-2xl w-full max-w-lg my-auto shadow-2xl"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-amber-500/40 to-transparent" />
-            <div className="p-4 sm:p-5">
-              <div className="flex items-center justify-between gap-3 mb-4">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 text-white flex items-center justify-center flex-shrink-0">
-                    <WalletIcon />
-                  </div>
-                  <div className="min-w-0">
-                    <h2 className="text-white font-bold truncate">صرف مرتّب {payStaff.name}</h2>
-                    <p className="text-xs text-gray-400 mt-0.5 truncate">
-                      {salary?.salary.label || 'المرتب لسه متحددش في حسابه'}
-                      {payStaff.staffCode ? ` • ${payStaff.staffCode}` : ''}
-                    </p>
-                  </div>
-                </div>
-                <button onClick={closePay} className="w-10 h-10 shrink-0 flex items-center justify-center rounded-lg text-gray-500 hover:text-white hover:bg-white/5">
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
+          {payError && <NoticeBanner kind="err" text={payError} onDismiss={() => setPayError('')} />}
 
-              {payError && <div className="mb-3"><NoticeBanner kind="err" text={payError} onDismiss={() => setPayError('')} /></div>}
-
-              <form onSubmit={submitPay} className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1.5">من يوم</label>
-                    <input
-                      type="date"
-                      value={payStart}
-                      max={payEnd}
-                      onChange={e => changePayPeriod(e.target.value, payEnd)}
-                      className="w-full bg-dark border border-dark-border text-white rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-amber-500/50"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1.5">إلى يوم</label>
-                    <input
-                      type="date"
-                      value={payEnd}
-                      min={payStart}
-                      onChange={e => changePayPeriod(payStart, e.target.value)}
-                      className="w-full bg-dark border border-dark-border text-white rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-amber-500/50"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="rounded-xl bg-white/[0.03] border border-white/5 p-2.5">
-                    <p className="text-[11px] text-gray-500">ساعات الشغل</p>
-                    <p className="text-sm font-bold text-amber-400 mt-0.5">
-                      {salaryLoading ? '...' : (salary?.workedLabel || '0س 00د')}
-                    </p>
-                  </div>
-                  <div className="rounded-xl bg-white/[0.03] border border-white/5 p-2.5">
-                    <p className="text-[11px] text-gray-500">أيام حضر</p>
-                    <p className="text-sm font-bold text-white mt-0.5">{salaryLoading ? '...' : (salary?.workedDays ?? 0)}</p>
-                  </div>
-                  <div className="rounded-xl bg-emerald-500/[0.06] border border-emerald-500/15 p-2.5">
-                    <p className="text-[11px] text-emerald-500/70">المقترح</p>
-                    <p className="text-sm font-bold text-emerald-400 mt-0.5">
-                      {salaryLoading ? '...' : money(salary?.suggestedPiasters ?? 0)}
-                    </p>
-                  </div>
-                </div>
-
-                {!!salary?.openShifts && (
-                  <p className="text-[11px] text-amber-400">
-                    {payStaff.name} لسه مختمش انصراف في {salary.openShifts} وردية — الساعات ممكن تتغير.
-                  </p>
-                )}
-
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1.5">مبلغ السداد (ج.م)</label>
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    min="0"
-                    step="1"
-                    required
-                    value={payEgp}
-                    onChange={e => setPayEgp(e.target.value)}
-                    placeholder={salary?.remainingPiasters ? String(salary.remainingPiasters / 100) : '0'}
-                    className="w-full bg-dark border border-dark-border text-white font-mono rounded-xl px-3 py-3 text-lg font-bold focus:outline-none focus:border-emerald-500/50"
-                    dir="ltr"
-                  />
-                  <p className="mt-1.5 text-[11px] text-gray-500">
-                    {salary?.salary.basis === 'HOURLY'
-                      ? `سعر الساعة ${money(salary.salary.piasters ?? 0)} × ${salary.workedLabel} شغل = ${money(salary.suggestedPiasters)}`
-                      : salary?.salary.piasters
-                        ? `المرتب الشهري ${money(salary.salary.piasters)} — عدّل الرقم لو شغل نص شهر`
-                        : 'اكتب المبلغ بنفسك'}
-                    {salary && salary.paidPiasters > 0 ? ` • المتسدد في الفترة دي ${money(salary.paidPiasters)}` : ''}
-                    {!!salary && salary.suggestedPiasters > 0 && salary.remainingPiasters === 0 && ' — الفترة دي متسددة بالكامل'}
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1.5">طريقة الصرف</label>
-                    <select
-                      value={payMethod}
-                      onChange={e => setPayMethod(e.target.value)}
-                      className="w-full bg-dark border border-dark-border text-white rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-amber-500/50"
-                    >
-                      {paymentMethods.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1.5">ملاحظات</label>
-                    <input
-                      type="text"
-                      value={payNotes}
-                      onChange={e => setPayNotes(e.target.value)}
-                      placeholder="اختياري"
-                      className="w-full bg-dark border border-dark-border text-white rounded-xl px-3 py-2.5 text-sm placeholder:text-gray-600 focus:outline-none focus:border-amber-500/50"
-                    />
-                  </div>
-                </div>
-
-                {salary?.branchId && (
-                  <p className="text-[11px] text-gray-500">
-                    بيتسجل في مصروفات «رواتب» بتاعة {salary.branches.find(b => b.id === salary.branchId)?.name || 'الفرع'} — {salary.period.label}
-                  </p>
-                )}
-
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={closePay}
-                    className="flex-1 px-4 py-3 bg-white/5 border border-white/10 text-gray-300 rounded-xl text-sm font-semibold hover:bg-white/10 transition-colors"
-                  >
-                    إلغاء
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={payBusy || salaryLoading}
-                    className="flex-1 px-4 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-xl text-sm font-bold disabled:opacity-40 active:scale-[0.98] transition-all"
-                  >
-                    {payBusy ? 'جاري الصرف...' : 'تم الصرف'}
-                  </button>
-                </div>
-              </form>
-
-              {salary && salary.payments.length > 0 && (
-                <div className="mt-4 border-t border-dark-border pt-3">
-                  <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">اللي اتصرف في الفترة دي</p>
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {salary.payments.map(p => (
-                      <div key={p.id} className="flex items-center gap-2 rounded-xl bg-white/[0.03] border border-white/5 px-3 py-2 text-xs">
-                        <div className="min-w-0 flex-1">
-                          <p className="text-white font-semibold">{money(p.amountPiasters)} <span className="text-gray-500 font-normal">• {p.paymentMethodLabel} • {p.branchName}</span></p>
-                          <p className="text-gray-500 mt-0.5 truncate">
-                            {arDate(p.periodStart)} ← {arDate(p.periodEnd)}
-                            {p.workedMinutes ? ` • ${fmtMinutes(p.workedMinutes)}` : ''}
-                            {p.notes ? ` • ${p.notes}` : ''}
-                          </p>
-                        </div>
-                        {hasPermission('DELETE_EXPENSES') && (
-                          <button
-                            onClick={() => cancelPayment(p.id)}
-                            disabled={payBusy}
-                            className="shrink-0 px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-rose-500/10 border border-rose-500/20 text-rose-300 hover:bg-rose-500/20 disabled:opacity-40 transition-colors"
-                          >
-                            إلغاء
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+          <form id="staff-pay-form" onSubmit={submitPay} className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="من يوم">
+                <input
+                  type="date"
+                  value={payStart}
+                  max={payEnd}
+                  onChange={e => changePayPeriod(e.target.value, payEnd)}
+                  className={FIELD}
+                />
+              </Field>
+              <Field label="إلى يوم">
+                <input
+                  type="date"
+                  value={payEnd}
+                  min={payStart}
+                  onChange={e => changePayPeriod(payStart, e.target.value)}
+                  className={FIELD}
+                />
+              </Field>
             </div>
-          </div>
-        </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              <div className="rounded-xl bg-dark border border-dark-border p-2.5">
+                <p className="text-[11px] text-gray-500">ساعات الشغل</p>
+                <p className="text-sm font-semibold text-primary mt-0.5">
+                  {salaryLoading ? '...' : (salary?.workedLabel || '0س 00د')}
+                </p>
+              </div>
+              <div className="rounded-xl bg-dark border border-dark-border p-2.5">
+                <p className="text-[11px] text-gray-500">أيام حضر</p>
+                <p className="text-sm font-semibold text-white mt-0.5">{salaryLoading ? '...' : (salary?.workedDays ?? 0)}</p>
+              </div>
+              <div className="rounded-xl bg-emerald-500/[0.06] border border-emerald-500/15 p-2.5">
+                <p className="text-[11px] text-emerald-500/70">المقترح</p>
+                <p className="text-sm font-semibold text-emerald-400 mt-0.5">
+                  {salaryLoading ? '...' : money(salary?.suggestedPiasters ?? 0)}
+                </p>
+              </div>
+            </div>
+
+            {!!salary?.openShifts && (
+              <p className="text-[11px] text-primary">
+                {payStaff.name} لسه مختمش انصراف في {salary.openShifts} وردية — الساعات ممكن تتغير.
+              </p>
+            )}
+
+            <div>
+              <label className={LABEL}>مبلغ السداد (ج.م)</label>
+              <input
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="1"
+                required
+                value={payEgp}
+                onChange={e => setPayEgp(e.target.value)}
+                placeholder={salary?.remainingPiasters ? String(salary.remainingPiasters / 100) : '0'}
+                className="w-full bg-dark border border-dark-border text-white font-mono rounded-xl px-4 py-3 text-lg font-bold focus:outline-none focus:border-primary/60 transition-colors min-h-[44px]"
+                dir="ltr"
+              />
+              <p className="mt-1.5 text-[11px] text-gray-500">
+                {salary?.salary.basis === 'HOURLY'
+                  ? `سعر الساعة ${money(salary.salary.piasters ?? 0)} × ${salary.workedLabel} شغل = ${money(salary.suggestedPiasters)}`
+                  : salary?.salary.piasters
+                    ? `المرتب الشهري ${money(salary.salary.piasters)} — عدّل الرقم لو شغل نص شهر`
+                    : 'اكتب المبلغ بنفسك'}
+                {salary && salary.paidPiasters > 0 ? ` • المتسدد في الفترة دي ${money(salary.paidPiasters)}` : ''}
+                {!!salary && salary.suggestedPiasters > 0 && salary.remainingPiasters === 0 && ' — الفترة دي متسددة بالكامل'}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field label="طريقة الصرف">
+                <Picker
+                  value={payMethod}
+                  onChange={setPayMethod}
+                  ariaLabel="طريقة الصرف"
+                  className="w-full min-w-0"
+                  options={paymentMethods}
+                />
+              </Field>
+              <Field label="ملاحظات">
+                <input
+                  type="text"
+                  value={payNotes}
+                  onChange={e => setPayNotes(e.target.value)}
+                  placeholder="اختياري"
+                  className={FIELD}
+                />
+              </Field>
+            </div>
+
+            {salary?.branchId && (
+              <p className="text-[11px] text-gray-500">
+                بيتسجل في مصروفات «رواتب» بتاعة {salary.branches.find(b => b.id === salary.branchId)?.name || 'الفرع'} — {salary.period.label}
+              </p>
+            )}
+          </form>
+
+          {salary && salary.payments.length > 0 && (
+            <div>
+              <SectionTitle>اللي اتصرف في الفترة دي</SectionTitle>
+              <div className="mt-3 space-y-2 max-h-48 overflow-y-auto">
+                {salary.payments.map(p => (
+                  <div key={p.id} className="flex items-center gap-2 rounded-xl bg-dark border border-dark-border p-3 text-xs">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-white font-semibold">{money(p.amountPiasters)} <span className="text-gray-500 font-normal">• {p.paymentMethodLabel} • {p.branchName}</span></p>
+                      <p className="text-gray-500 mt-0.5 truncate">
+                        {arDate(p.periodStart)} ← {arDate(p.periodEnd)}
+                        {p.workedMinutes ? ` • ${fmtMinutes(p.workedMinutes)}` : ''}
+                        {p.notes ? ` • ${p.notes}` : ''}
+                      </p>
+                    </div>
+                    {hasPermission('DELETE_EXPENSES') && (
+                      <Btn
+                        variant="danger"
+                        onClick={() => cancelPayment(p.id)}
+                        disabled={payBusy}
+                        className="shrink-0"
+                      >
+                        <span>إلغاء</span>
+                      </Btn>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </Modal>
       )}
 
       {/* Staff card modal */}
       {cardStaff && (
-        <div
-          className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4 overflow-y-auto"
-          onClick={() => setCardStaff(null)}
+        <Modal
+          open
+          title={`كارت ${cardStaff.name}`}
+          subtitle={`الكود ${cardStaff.staffCode} — يُختم بيها الدخول والخروج`}
+          onClose={() => setCardStaff(null)}
+          footer={
+            <>
+              <Btn
+                variant="primary"
+                icon="download"
+                onClick={() => downloadCard('png')}
+                disabled={!cardImage || !!downloading}
+                className="flex-1 sm:flex-none"
+              >
+                <span>{downloading === 'png' ? 'جاري التحميل...' : 'تحميل كصورة'}</span>
+              </Btn>
+              <Btn
+                variant="ghost"
+                icon="print"
+                onClick={() => downloadCard('pdf')}
+                disabled={!cardImage || !!downloading}
+                className="flex-1 sm:flex-none"
+              >
+                <span>{downloading === 'pdf' ? 'جاري التحميل...' : 'تحميل كـ PDF للطباعة'}</span>
+              </Btn>
+            </>
+          }
         >
-          <div
-            className="relative bg-gradient-to-br from-dark-card via-dark-card to-dark-card rounded-2xl border border-dark-border/50 w-full max-w-2xl my-auto shadow-2xl"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-amber-500/40 to-transparent"></div>
-            <div className="p-4 sm:p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center text-white flex-shrink-0">
-                    <BadgeIcon />
-                  </div>
-                  <div className="min-w-0">
-                    <h2 className="text-white font-bold truncate">كارت {cardStaff.name}</h2>
-                    <p className="text-xs text-gray-400 mt-0.5">الكود {cardStaff.staffCode} — يُختم بيها الدخول والخروج</p>
-                  </div>
-                </div>
-                <button onClick={() => setCardStaff(null)} className="w-10 h-10 flex items-center justify-center rounded-lg text-gray-500 hover:text-white hover:bg-white/5 flex-shrink-0">
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
+          {cardError && <NoticeBanner kind="err" text={cardError} onDismiss={() => setCardError('')} />}
 
-              {cardError && <div className="mb-3"><NoticeBanner kind="err" text={cardError} onDismiss={() => setCardError('')} /></div>}
-
-              <div className="rounded-xl overflow-hidden bg-black/40 border border-white/5">
-                {cardImage ? (
-                  <canvas ref={cardCanvasRef} className="w-full h-auto block" />
-                ) : (
-                  <div className="flex items-center justify-center py-20 text-gray-500 text-sm">جاري إنشاء الكارت...</div>
-                )}
-              </div>
-
-              <div className="mt-4 flex flex-col sm:flex-row gap-2">
-                <button
-                  onClick={() => downloadCard('png')}
-                  disabled={!cardImage || !!downloading}
-                  className="flex-1 px-4 py-3 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-xl text-sm font-semibold disabled:opacity-40 active:scale-[0.98] transition-all"
-                >
-                  {downloading === 'png' ? 'جاري التحميل...' : 'تحميل كصورة'}
-                </button>
-                <button
-                  onClick={() => downloadCard('pdf')}
-                  disabled={!cardImage || !!downloading}
-                  className="flex-1 px-4 py-3 bg-white/5 border border-white/10 text-gray-200 rounded-xl text-sm font-semibold disabled:opacity-40 hover:bg-white/10 transition-colors"
-                >
-                  {downloading === 'pdf' ? 'جاري التحميل...' : 'تحميل كـ PDF للطباعة'}
-                </button>
-              </div>
-              <p className="mt-3 text-[11px] text-gray-500">اطبع الكارت وعلّقه للموظف، أو ابعتلهوله على الواتساب. نفس الكارت اللي بيمسحه العضو.</p>
-            </div>
+          <div className="rounded-xl overflow-hidden bg-dark border border-dark-border">
+            {cardImage ? (
+              <canvas ref={cardCanvasRef} className="w-full h-auto block" />
+            ) : (
+              <div className="flex items-center justify-center py-20 text-gray-500 text-sm">جاري إنشاء الكارت...</div>
+            )}
           </div>
-        </div>
+
+          <p className="text-[11px] text-gray-500">اطبع الكارت وعلّقه للموظف، أو ابعتلهوله على الواتساب. نفس الكارت اللي بيمسحه العضو.</p>
+        </Modal>
       )}
     </div>
   );

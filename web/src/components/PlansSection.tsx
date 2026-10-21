@@ -2,6 +2,11 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { addPendingOperation } from '../utils/offlineDb';
+import NoticeBanner from '../components/NoticeBanner';
+import {
+  Badge, Btn, CARD, EmptyState, FIELD, Field, ListCard, Loading, Modal,
+  Picker, SectionTitle, TableShell, Td, Th, Row, UiIcon
+} from '../components/ui';
 
 interface Plan {
   id: string;
@@ -46,6 +51,7 @@ function PlansSection() {
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
   const singleBranchUser = !isOwner && (user?.branches?.length || 0) === 1;
   const canManagePlans = isOwner || user?.role === 'BRANCH_MANAGER';
@@ -54,6 +60,12 @@ function PlansSection() {
     fetchPlans();
     fetchBranches();
   }, [branchFilter]);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(null), 5000);
+    return () => clearTimeout(timer);
+  }, [notice]);
 
   const fetchPlans = async () => {
     setLoading(true);
@@ -137,7 +149,7 @@ function PlansSection() {
           });
         }
         setShowModal(false);
-        alert('تم حفظ الخطة محلياً (سيتم التزامن عند عودة الاتصال)');
+        setNotice({ kind: 'ok', text: 'تم حفظ الخطة محلياً (سيتم التزامن عند عودة الاتصال)' });
       } catch {
         setError('حدث خطأ في الحفظ المحلي');
       } finally {
@@ -187,7 +199,7 @@ function PlansSection() {
           });
         }
         setShowModal(false);
-        alert('تم حفظ الخطة محلياً (سيتم التزامن عند عودة الاتصال)');
+        setNotice({ kind: 'ok', text: 'تم حفظ الخطة محلياً (سيتم التزامن عند عودة الاتصال)' });
       } catch {
         setError('حدث خطأ في الاتصال');
       }
@@ -206,7 +218,7 @@ function PlansSection() {
         branchId: plan.branchId,
         userId: user!.id
       });
-      alert('تم حفظ التغيير محلياً (سيتم التزامن عند عودة الاتصال)');
+      setNotice({ kind: 'ok', text: 'تم حفظ التغيير محلياً (سيتم التزامن عند عودة الاتصال)' });
       return;
     }
     try {
@@ -226,216 +238,276 @@ function PlansSection() {
         branchId: plan.branchId,
         userId: user!.id
       });
-      alert('تم حفظ التغيير محلياً (سيتم التزامن عند عودة الاتصال)');
+      setNotice({ kind: 'ok', text: 'تم حفظ التغيير محلياً (سيتم التزامن عند عودة الاتصال)' });
     }
   };
 
   const formatPrice = (piasters: number) => `${(piasters / 100).toLocaleString('ar-EG-u-nu-latn')} ج.م`;
 
   return (
-    <div className="space-y-6">
-      {/* Offline Banner */}
-      {!isOnline && (
-        <div className="bg-amber-500/10 border border-amber-500/50 rounded-lg p-3 text-amber-400 text-sm">
-          غير متصل بالإنترنت — جميع العمليات تُحفظ محلياً وتُزامَن تلقائياً عند عودة الاتصال
-        </div>
-      )}
-
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-white">الخطط</h2>
-          <p className="text-gray-400 mt-1">إدارة خطط الاشتراك</p>
-        </div>
-        <button
-          onClick={openCreateModal}
-          className="px-4 py-2 bg-primary hover:bg-primary-dark text-white rounded-lg transition-colors"
-        >
-          + إضافة خطة
-        </button>
-      </div>
+    <div className="space-y-4 sm:space-y-6">
+      {notice && <NoticeBanner kind={notice.kind} text={notice.text} onDismiss={() => setNotice(null)} />}
 
       {!singleBranchUser && (
-        <div className="bg-dark-card border border-dark-border rounded-lg p-4">
-          <select
+        <div className={`${CARD} p-4 sm:p-5`}>
+          <Picker
             value={branchFilter}
-            onChange={(e) => setBranchFilter(e.target.value)}
-            className="px-4 py-2 bg-dark border border-dark-border rounded-lg text-white focus:outline-none focus:border-primary"
-          >
-            <option value="">كل الفروع</option>
-            {branches.map(b => (
-              <option key={b.id} value={b.id}>{b.name}</option>
-            ))}
-          </select>
+            onChange={setBranchFilter}
+            ariaLabel="تصفية بالفرع"
+            className="w-full sm:min-w-[220px]"
+            options={[
+              { value: '', label: 'كل الفروع' },
+              ...branches.map(b => ({ value: b.id, label: b.name }))
+            ]}
+          />
         </div>
       )}
 
-      <div className="bg-dark-card border border-dark-border rounded-lg overflow-hidden">
+      <div className={`${CARD} overflow-hidden`}>
+        <div className="p-4 sm:p-5">
+          <SectionTitle
+            right={
+              <Btn variant="primary" icon="plus" onClick={openCreateModal} className="w-full sm:w-auto">
+                إضافة خطة
+              </Btn>
+            }
+          >
+            الخطط
+          </SectionTitle>
+          <p className="text-[12px] text-gray-500 mt-1.5">إدارة خطط الاشتراك</p>
+        </div>
+
         {loading ? (
-          <div className="p-8 text-center text-gray-400">جاري التحميل...</div>
+          <Loading />
         ) : plans.length === 0 ? (
-          <div className="p-8 text-center text-gray-400">لا توجد خطط</div>
+          <EmptyState icon="subscriptions" title="لا توجد خطط" />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-dark border-b border-dark-border">
-                <tr>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-400">الاسم</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-400">المدة</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-400">السعر</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-400">الفرع</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-400">الحالة</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-400">إجراءات</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-dark-border">
+          <>
+            {/* Desktop Table */}
+            <div className="hidden sm:block">
+              <TableShell
+                minWidth="min-w-[640px]"
+                head={
+                  <>
+                    <Th>الاسم</Th>
+                    <Th>المدة</Th>
+                    <Th>السعر</Th>
+                    <Th>الفرع</Th>
+                    <Th>الحالة</Th>
+                    <Th>إجراءات</Th>
+                  </>
+                }
+              >
                 {plans.map(plan => (
-                  <tr key={plan.id} className="hover:bg-dark/50">
-                    <td className="px-4 py-3">
-                      <div className="text-sm font-medium text-white">{plan.nameAr}</div>
-                      <div className="text-xs text-gray-400">{plan.name}</div>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-300">{plan.durationDays} يوم</td>
-                    <td className="px-4 py-3 text-sm text-white font-medium">{formatPrice(plan.pricePiasters)}</td>
-                    <td className="px-4 py-3 text-sm text-gray-300">{plan.branch.code}</td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-1 rounded text-xs border ${plan.isActive ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' : 'bg-gray-500/20 text-gray-400 border-gray-500/50'}`}>
-                        {plan.isActive ? 'نشط' : 'معطل'}
+                  <Row key={plan.id}>
+                    <Td>
+                      <div className="text-sm font-semibold text-white">{plan.nameAr}</div>
+                      <div className="text-xs text-gray-500 mt-0.5">{plan.name}</div>
+                    </Td>
+                    <Td>
+                      <span className="inline-flex items-center gap-1.5 text-sm text-gray-300">
+                        <UiIcon name="clock" className="w-3.5 h-3.5 text-gray-500" />
+                        {plan.durationDays} يوم
                       </span>
-                    </td>
-                    <td className="px-4 py-3">
+                    </Td>
+                    <Td className="text-sm font-semibold text-white">{formatPrice(plan.pricePiasters)}</Td>
+                    <Td>
+                      <span className="inline-flex items-center gap-1.5 text-sm text-gray-300">
+                        <UiIcon name="branches" className="w-3.5 h-3.5 text-gray-500" />
+                        {plan.branch.code}
+                      </span>
+                    </Td>
+                    <Td>
+                      <Badge tone={plan.isActive ? 'green' : 'gray'}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${plan.isActive ? 'bg-emerald-400' : 'bg-gray-400'}`} />
+                        {plan.isActive ? 'نشط' : 'معطل'}
+                      </Badge>
+                    </Td>
+                    <Td>
                       {canManagePlans ? (
                         <div className="flex gap-2">
-                          <button
-                            onClick={() => openEditModal(plan)}
-                            className="px-2 py-1 text-xs bg-primary/20 text-primary border border-primary/50 rounded hover:bg-primary/30"
-                          >
+                          <Btn size="sm" variant="ghost" icon="edit" onClick={() => openEditModal(plan)}>
                             تعديل
-                          </button>
-                          <button
+                          </Btn>
+                          <Btn
+                            size="sm"
+                            variant={plan.isActive ? 'danger' : 'ghost'}
+                            icon={plan.isActive ? 'close' : 'check'}
                             onClick={() => toggleActive(plan)}
-                            className={`px-2 py-1 text-xs rounded border ${plan.isActive ? 'bg-rose-500/20 text-rose-400 border-rose-500/50 hover:bg-rose-500/30' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50 hover:bg-emerald-500/30'}`}
                           >
                             {plan.isActive ? 'تعطيل' : 'تفعيل'}
-                          </button>
+                          </Btn>
                         </div>
                       ) : (
-                        <span className="text-xs text-gray-500">—</span>
+                        <span className="text-xs text-gray-600">—</span>
                       )}
-                    </td>
-                  </tr>
+                    </Td>
+                  </Row>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </TableShell>
+            </div>
+
+            {/* Mobile Cards */}
+            <div className="sm:hidden p-3 space-y-3">
+              {plans.map(plan => (
+                <ListCard key={plan.id}>
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-white truncate">{plan.nameAr}</div>
+                      <div className="text-xs text-gray-500 truncate">{plan.name}</div>
+                    </div>
+                    <Badge tone={plan.isActive ? 'green' : 'gray'}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${plan.isActive ? 'bg-emerald-400' : 'bg-gray-400'}`} />
+                      {plan.isActive ? 'نشط' : 'معطل'}
+                    </Badge>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 mb-3 text-xs text-gray-400">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-dark border border-dark-border rounded-lg">
+                      <UiIcon name="clock" className="w-3 h-3" />
+                      {plan.durationDays} يوم
+                    </span>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-dark border border-dark-border rounded-lg">
+                      <UiIcon name="branches" className="w-3 h-3" />
+                      {plan.branch.code}
+                    </span>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-dark border border-dark-border rounded-lg text-primary font-semibold">
+                      {formatPrice(plan.pricePiasters)}
+                    </span>
+                  </div>
+
+                  {canManagePlans && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <Btn variant="ghost" icon="edit" onClick={() => openEditModal(plan)}>
+                        تعديل
+                      </Btn>
+                      <Btn
+                        variant={plan.isActive ? 'danger' : 'ghost'}
+                        icon={plan.isActive ? 'close' : 'check'}
+                        onClick={() => toggleActive(plan)}
+                      >
+                        {plan.isActive ? 'تعطيل' : 'تفعيل'}
+                      </Btn>
+                    </div>
+                  )}
+                </ListCard>
+              ))}
+            </div>
+          </>
         )}
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-dark-card border border-dark-border rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold text-white">{editingPlan ? 'تعديل الخطة' : 'إضافة خطة جديدة'}</h2>
-                <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-white">✕</button>
-              </div>
-
-              {error && (
-                <div className="mb-4 p-3 bg-rose-500/10 border border-rose-500/50 rounded-lg text-rose-400 text-sm">{error}</div>
-              )}
-
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">الفرع *</label>
-                  {singleBranchUser ? (
-                    <div className="w-full px-4 py-2 bg-dark border border-dark-border rounded-lg text-gray-400">
-                      {user?.branches?.[0]?.name}
-                    </div>
-                  ) : (
-                    <select
-                      required
-                      value={formData.branchId}
-                      onChange={(e) => setFormData({ ...formData, branchId: e.target.value })}
-                      className="w-full px-4 py-2 bg-dark border border-dark-border rounded-lg text-white focus:outline-none focus:border-primary"
-                    >
-                      <option value="">اختر الفرع</option>
-                      {branches.map(b => (
-                        <option key={b.id} value={b.id}>{b.name}</option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">الاسم (إنجليزي) *</label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="w-full px-4 py-2 bg-dark border border-dark-border rounded-lg text-white focus:outline-none focus:border-primary"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">الاسم (عربي) *</label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.nameAr}
-                      onChange={(e) => setFormData({ ...formData, nameAr: e.target.value })}
-                      className="w-full px-4 py-2 bg-dark border border-dark-border rounded-lg text-white focus:outline-none focus:border-primary"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">المدة (أيام) *</label>
-                    <input
-                      type="number"
-                      required
-                      min="1"
-                      value={formData.durationDays}
-                      onChange={(e) => setFormData({ ...formData, durationDays: parseInt(e.target.value) })}
-                      className="w-full px-4 py-2 bg-dark border border-dark-border rounded-lg text-white focus:outline-none focus:border-primary"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">السعر (ج.م) *</label>
-                    <input
-                      type="number"
-                      required
-                      min="0"
-                      step="0.01"
-                      value={formData.pricePiasters}
-                      onChange={(e) => setFormData({ ...formData, pricePiasters: parseFloat(e.target.value) })}
-                      className="w-full px-4 py-2 bg-dark border border-dark-border rounded-lg text-white focus:outline-none focus:border-primary"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">الوصف (عربي)</label>
-                  <textarea
-                    value={formData.descriptionAr}
-                    onChange={(e) => setFormData({ ...formData, descriptionAr: e.target.value })}
-                    rows={2}
-                    className="w-full px-4 py-2 bg-dark border border-dark-border rounded-lg text-white focus:outline-none focus:border-primary"
-                  />
-                </div>
-
-                <div className="flex gap-3 pt-4">
-                  <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-2 bg-dark border border-dark-border text-white rounded-lg hover:bg-dark/80">
-                    إلغاء
-                  </button>
-                  <button type="submit" disabled={submitting} className={`flex-1 py-2 text-white rounded-lg disabled:opacity-50 ${!isOnline ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-primary hover:bg-primary-dark'}`}>
-                    {submitting ? 'جاري الحفظ...' : !isOnline ? 'حفظ محلياً' : 'حفظ'}
-                  </button>
-                </div>
-              </form>
+        <Modal
+          open
+          title={editingPlan ? 'تعديل الخطة' : 'إضافة خطة جديدة'}
+          onClose={() => setShowModal(false)}
+          width="max-w-lg"
+          footer={
+            <>
+              <Btn type="button" variant="ghost" onClick={() => setShowModal(false)}>
+                إلغاء
+              </Btn>
+              <Btn
+                type="submit"
+                form="plan-form"
+                variant="primary"
+                disabled={submitting}
+              >
+                {submitting ? (
+                  <span className="inline-flex items-center gap-2">
+                    <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                    جاري الحفظ...
+                  </span>
+                ) : !isOnline ? 'حفظ محلياً' : 'حفظ'}
+              </Btn>
+            </>
+          }
+        >
+          {error && (
+            <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-sm flex items-center gap-2">
+              <UiIcon name="warning" className="w-4 h-4 flex-shrink-0" />
+              {error}
             </div>
-          </div>
-        </div>
+          )}
+
+          <form id="plan-form" onSubmit={handleSubmit} className="space-y-4">
+            <Field label="الفرع" required>
+              {singleBranchUser ? (
+                <div className="px-4 py-2.5 min-h-[44px] flex items-center bg-dark border border-dark-border rounded-xl text-gray-400 text-sm">
+                  {user?.branches?.[0]?.name}
+                </div>
+              ) : (
+                <select
+                  required
+                  value={formData.branchId}
+                  onChange={(e) => setFormData({ ...formData, branchId: e.target.value })}
+                  aria-label="اختر الفرع"
+                  className={FIELD}
+                >
+                  <option value="">اختر الفرع</option>
+                  {branches.map(b => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
+              )}
+            </Field>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              <Field label="الاسم (إنجليزي)" required>
+                <input
+                  type="text"
+                  required
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className={FIELD}
+                />
+              </Field>
+              <Field label="الاسم (عربي)" required>
+                <input
+                  type="text"
+                  required
+                  value={formData.nameAr}
+                  onChange={(e) => setFormData({ ...formData, nameAr: e.target.value })}
+                  className={FIELD}
+                />
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              <Field label="المدة (أيام)" required>
+                <input
+                  type="number"
+                  required
+                  min="1"
+                  value={formData.durationDays}
+                  onChange={(e) => setFormData({ ...formData, durationDays: parseInt(e.target.value) })}
+                  className={FIELD}
+                />
+              </Field>
+              <Field label="السعر (ج.م)" required>
+                <input
+                  type="number"
+                  required
+                  min="0"
+                  step="0.01"
+                  value={formData.pricePiasters}
+                  onChange={(e) => setFormData({ ...formData, pricePiasters: parseFloat(e.target.value) })}
+                  className={FIELD}
+                />
+              </Field>
+            </div>
+
+            <Field label="الوصف (عربي)">
+              <textarea
+                value={formData.descriptionAr}
+                onChange={(e) => setFormData({ ...formData, descriptionAr: e.target.value })}
+                rows={2}
+                className={`${FIELD} resize-none`}
+              />
+            </Field>
+          </form>
+        </Modal>
       )}
     </div>
   );

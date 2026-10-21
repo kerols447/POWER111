@@ -40,19 +40,19 @@ export function NetworkStatus() {
 
   return (
     <div
-      className={`fixed bottom-4 left-4 z-50 flex items-center gap-2 px-4 py-2 rounded-lg shadow-lg text-sm font-medium transition-all ${
+      className={`fixed bottom-4 left-4 z-50 flex items-center gap-2 px-4 py-2.5 rounded-xl border shadow-lg shadow-black/40 text-sm font-medium transition-colors ${
         isOnline
-          ? 'bg-emerald-600 text-white'
-          : 'bg-rose-600 text-white'
+          ? 'bg-dark-card border-dark-border text-gray-200'
+          : 'bg-dark-card border-primary/40 text-primary'
       }`}
     >
-      <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-300' : 'bg-rose-300 animate-pulse'}`} />
+      <div className={`w-2 h-2 rounded-full shrink-0 ${isOnline ? 'bg-emerald-400' : 'bg-primary animate-pulse'}`} />
 
       {!isOnline ? (
         <>
           <span>غير متصل</span>
           {pendingCount > 0 && (
-            <span className="bg-rose-800 px-2 py-0.5 rounded-full text-xs">
+            <span className="bg-primary/15 text-primary px-2 py-0.5 rounded-lg text-[11px] font-bold">
               {pendingCount} عملية معلقة
             </span>
           )}
@@ -61,7 +61,7 @@ export function NetworkStatus() {
         <>
           {isSyncing ? (
             <>
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
               <span>جاري المزامنة...</span>
             </>
           ) : (
@@ -69,12 +69,12 @@ export function NetworkStatus() {
               <span>متصل</span>
               {pendingCount > 0 && (
                 <>
-                  <span className="bg-emerald-800 px-2 py-0.5 rounded-full text-xs">
+                  <span className="bg-white/5 text-gray-300 px-2 py-0.5 rounded-lg text-[11px] font-bold">
                     {pendingCount} عملية في الانتظار
                   </span>
                   <button
                     onClick={handleManualSync}
-                    className="ml-2 px-2 py-0.5 bg-white/20 hover:bg-white/30 rounded text-xs transition-colors"
+                    className="ml-2 px-2 py-0.5 bg-white/5 hover:bg-white/10 rounded-lg text-xs transition-colors"
                     title="مزامنة الآن"
                   >
                     ↻

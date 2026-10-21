@@ -1,6 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { whatsappLink, displayPhone } from '../utils/whatsapp';
+import {
+  PageHeader, SectionTitle, Badge, Btn, Field, Picker, SearchField,
+  Loading, EmptyState, Modal, CARD, FIELD, UiIcon
+} from '../components/ui';
 
 interface Member {
   id: string;
@@ -73,6 +77,7 @@ function WhatsAppPage() {
   const [sending, setSending] = useState(false);
   const [queueIndex, setQueueIndex] = useState(0);
   const [sentIds, setSentIds] = useState<Set<string>>(new Set());
+  const [popupBlocked, setPopupBlocked] = useState(false);
 
   const singleBranchUser = !isOwner && (user?.branches?.length || 0) === 1;
 
@@ -158,6 +163,7 @@ function WhatsAppPage() {
     if (selectedMembers.length === 0) return;
     setSentIds(new Set());
     setQueueIndex(0);
+    setPopupBlocked(false);
     setSending(true);
   };
 
@@ -173,9 +179,10 @@ function WhatsAppPage() {
     if (!link) return;
     const opened = window.open(link, '_blank', 'noopener,noreferrer');
     if (!opened) {
-      alert('المتصفح مانع فتح نافذة جديدة — اسمح بالنوافذ المنبثقة لهذا الموقع ثم كمّل.');
+      setPopupBlocked(true);
       return;
     }
+    setPopupBlocked(false);
     setSentIds((prev) => new Set(prev).add(current.id));
     setQueueIndex((prev) => prev + 1);
   };
@@ -187,55 +194,51 @@ function WhatsAppPage() {
     : 0;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-white tracking-tight">
-          رسائل واتساب
-        </h1>
-        <p className="text-sm text-gray-400 mt-1">اكتب الرسالة مرة واحدة وابعتها لكل الأعضاء المحددين</p>
-      </div>
+    <div className="space-y-5 sm:space-y-7">
+      <PageHeader
+        icon="whatsapp"
+        title="رسائل واتساب"
+        caption="اكتب الرسالة مرة واحدة وابعتها لكل الأعضاء المحددين"
+      />
 
-      <div className="bg-dark-card border border-dark-border rounded-2xl p-4 sm:p-5 space-y-4">
+      {/* Branch + search + recipient filters */}
+      <div className={`${CARD} p-4 sm:p-5 space-y-4`}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {!singleBranchUser && (
-            <div>
-              <label className="block text-sm text-gray-400 mb-2">الفرع</label>
-              <select
+            <Field label="الفرع">
+              <Picker
                 value={selectedBranch}
-                onChange={(e) => {
-                  setSelectedBranch(e.target.value);
+                onChange={(v) => {
+                  setSelectedBranch(v);
                   setSelectedIds(new Set());
                 }}
-                className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white text-sm focus:outline-none focus:border-primary/60"
-              >
-                {branches.map((b) => (
-                  <option key={b.id} value={b.id}>{b.name}</option>
-                ))}
-              </select>
-            </div>
+                ariaLabel="الفرع"
+                className="w-full"
+                options={branches.map((b) => ({ value: b.id, label: b.name }))}
+              />
+            </Field>
           )}
 
-          <div>
-            <label className="block text-sm text-gray-400 mb-2">بحث سريع</label>
-            <input
-              type="text"
+          <Field label="بحث سريع">
+            <SearchField
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(v) => setSearch(v)}
               placeholder="اسم أو هاتف أو كود العضو"
-              className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white text-sm focus:outline-none focus:border-primary/60 placeholder:text-gray-600"
+              className="w-full"
             />
-          </div>
+          </Field>
         </div>
 
         <div className="flex flex-wrap gap-2">
           {FILTERS.map((f) => (
             <button
               key={f.key}
+              type="button"
               onClick={() => setFilter(f.key)}
-              className={`px-3.5 py-2 min-h-10 rounded-lg text-xs font-medium border transition-all ${
+              className={`px-3.5 py-2 min-h-[44px] rounded-xl text-[13px] font-semibold border transition-colors whitespace-nowrap ${
                 filter === f.key
                   ? 'bg-primary/10 border-primary/40 text-primary'
-                  : 'bg-dark border-dark-border text-gray-400 hover:border-gray-500'
+                  : 'bg-dark border-dark-border text-gray-400 hover:text-white hover:border-primary/30'
               }`}
             >
               {f.label}
@@ -244,21 +247,23 @@ function WhatsAppPage() {
         </div>
       </div>
 
-      <div className="bg-dark-card border border-dark-border rounded-2xl p-4 sm:p-5 space-y-4">
-        <h2 className="text-base font-bold text-white">نص الرسالة</h2>
+      {/* Message composer */}
+      <div className={`${CARD} p-4 sm:p-5 space-y-4`}>
+        <SectionTitle>نص الرسالة</SectionTitle>
 
         <div className="flex flex-wrap gap-2">
           {TEMPLATES.map((t) => (
             <button
               key={t.key}
+              type="button"
               onClick={() => {
                 setActiveTemplate(t.key);
                 setMessage(t.text);
               }}
-              className={`px-3.5 py-2 min-h-10 rounded-lg text-xs font-medium border transition-all ${
+              className={`px-3.5 py-2 min-h-[44px] rounded-xl text-[13px] font-semibold border transition-colors whitespace-nowrap ${
                 activeTemplate === t.key
                   ? 'bg-primary/10 border-primary/40 text-primary'
-                  : 'bg-dark border-dark-border text-gray-400 hover:border-gray-500'
+                  : 'bg-dark border-dark-border text-gray-400 hover:text-white hover:border-primary/30'
               }`}
             >
               {t.label}
@@ -270,7 +275,7 @@ function WhatsAppPage() {
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           rows={7}
-          className="w-full px-4 py-3 bg-dark border border-dark-border rounded-xl text-white text-sm leading-relaxed focus:outline-none focus:border-primary/60 resize-y"
+          className={`${FIELD} resize-y leading-relaxed`}
           placeholder="اكتب رسالتك هنا…"
         />
 
@@ -278,18 +283,19 @@ function WhatsAppPage() {
           <p className="text-xs text-gray-500">
             استخدم <span className="text-primary font-mono">{'{الاسم}'}</span> ليحل محله اسم كل عضو تلقائياً
           </p>
-          <button
+          <Btn
+            variant="ghost"
+            icon="plus"
             onClick={() => setMessage(message + '{الاسم}')}
-            className="px-3 py-2 min-h-10 rounded-lg bg-dark border border-dark-border text-gray-300 hover:border-primary/40 text-xs font-medium transition-all"
           >
-            + إدراج اسم العضو
-          </button>
+            إدراج اسم العضو
+          </Btn>
         </div>
 
         {selectedMembers[0] && (
           <div className="bg-dark rounded-xl p-4 border border-dark-border">
             <p className="text-xs text-gray-500 mb-2">معاينة على: {selectedMembers[0].person.name}</p>
-            <div className="bg-emerald-900/30 border border-emerald-800/40 rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-md mr-auto">
+            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-md mr-auto">
               <p className="text-sm text-white whitespace-pre-line leading-relaxed">
                 {personalize(message, selectedMembers[0].person.name)}
               </p>
@@ -298,44 +304,46 @@ function WhatsAppPage() {
         )}
       </div>
 
-      <div className="bg-dark-card border border-dark-border rounded-2xl p-4 sm:p-5 space-y-4">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <h2 className="text-base font-bold text-white">
+      {/* Recipients */}
+      <div className={`${CARD} p-4 sm:p-5 space-y-4`}>
+        <SectionTitle
+          right={
+            <div className="flex items-center gap-2">
+              <Btn variant="ghost" onClick={toggleSelectVisible}>
+                {recipients.every((m) => selectedIds.has(m.id)) ? 'إلغاء التحديد' : 'تحديد الكل'}
+              </Btn>
+              <Btn
+                variant="primary"
+                icon="whatsapp"
+                onClick={startSending}
+                disabled={selectedIds.size === 0}
+              >
+                ابدأ الإرسال
+              </Btn>
+            </div>
+          }
+        >
+          <span className="flex items-center gap-2">
             المستلمون
             <span className="text-gray-500 text-sm font-normal mr-2">
               ({selectedIds.size} مختار من {recipients.length})
             </span>
-          </h2>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={toggleSelectVisible}
-              className="px-3 py-2 min-h-10 rounded-lg bg-dark border border-dark-border text-gray-300 hover:border-primary/40 text-xs font-medium transition-all"
-            >
-              {recipients.every((m) => selectedIds.has(m.id)) ? 'إلغاء التحديد' : 'تحديد الكل'}
-            </button>
-            <button
-              onClick={startSending}
-              disabled={selectedIds.size === 0}
-              className="px-4 py-2 min-h-10 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-bold transition-all"
-            >
-              ابدأ الإرسال
-            </button>
-          </div>
-        </div>
+          </span>
+        </SectionTitle>
 
         {loading ? (
-          <p className="text-sm text-gray-500 py-6 text-center">جاري التحميل…</p>
+          <Loading label="جاري التحميل…" />
         ) : recipients.length === 0 ? (
-          <p className="text-sm text-gray-500 py-6 text-center">لا يوجد أعضاء مطابقون</p>
+          <EmptyState icon="users" title="لا يوجد أعضاء مطابقون" />
         ) : (
-          <div className="max-h-80 overflow-y-auto space-y-1.5 pr-1">
+          <div className="max-h-80 overflow-y-auto space-y-2 pr-1">
             {recipients.map((member) => {
               const days = daysUntil(member.subscriptions[0]?.endDate);
               const isSelected = selectedIds.has(member.id);
               return (
                 <label
                   key={member.id}
-                  className={`flex items-center gap-3 p-2.5 rounded-xl border cursor-pointer transition-all ${
+                  className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
                     isSelected
                       ? 'bg-primary/5 border-primary/30'
                       : 'bg-dark border-dark-border hover:border-primary/30'
@@ -345,23 +353,18 @@ function WhatsAppPage() {
                     type="checkbox"
                     checked={isSelected}
                     onChange={() => toggleSelect(member.id)}
-                    className="w-4 h-4 rounded accent-amber-500 flex-shrink-0"
+                    className="w-4 h-4 rounded accent-primary flex-shrink-0"
                   />
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-white truncate">{member.person.name}</p>
+                    <p className="text-sm font-semibold text-white truncate">{member.person.name}</p>
                     <p className="text-xs text-gray-500 font-mono" dir="ltr">{displayPhone(member.person.phone)}</p>
                   </div>
-                  <span
-                    className={`text-[11px] px-2 py-0.5 rounded-md font-medium flex-shrink-0 ${
-                      days === null || days <= 0
-                        ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-                        : days <= 7
-                          ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                          : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                    }`}
+                  <Badge
+                    tone={days === null || days <= 0 ? 'red' : days <= 7 ? 'amber' : 'green'}
+                    className="shrink-0"
                   >
                     {days === null ? 'بدون اشتراك' : days <= 0 ? 'منتهي' : `${days} يوم`}
-                  </span>
+                  </Badge>
                 </label>
               );
             })}
@@ -369,91 +372,84 @@ function WhatsAppPage() {
         )}
       </div>
 
-      {sending && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-dark-card border border-dark-border rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6 space-y-5">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-white">إرسال الرسائل</h3>
-              <button
-                onClick={() => setSending(false)}
-                className="w-10 h-10 shrink-0 rounded-lg bg-dark border border-dark-border text-gray-400 hover:text-white transition-colors"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between text-xs text-gray-400 mb-2">
-                <span>تم إرسال {sentIds.size} ومتخطى {queueIndex - sentIds.size} من {selectedMembers.length}</span>
-                <span>{progress}%</span>
-              </div>
-              <div className="h-2 bg-dark rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-emerald-500 transition-all duration-300"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
-            </div>
-
-            {current ? (
-              <>
-                <div className="bg-dark rounded-xl p-4 border border-dark-border">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-sm font-bold text-white">{current.person.name}</p>
-                    <span className="text-xs text-gray-500 font-mono" dir="ltr">
-                      {displayPhone(current.person.phone)}
-                    </span>
-                  </div>
-                  <div className="bg-emerald-900/30 border border-emerald-800/40 rounded-2xl rounded-tr-sm px-3 py-2 max-h-40 overflow-y-auto">
-                    <p className="text-xs text-white whitespace-pre-line leading-relaxed">
-                      {personalize(message, current.person.name)}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <button
-                    onClick={openCurrent}
-                    disabled={!whatsappLink(current.person.phone)}
-                    className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-bold transition-all flex items-center justify-center gap-2"
-                  >
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M12.04 2a9.9 9.9 0 0 0-8.51 14.94L2 22l5.2-1.49A9.9 9.9 0 1 0 12.04 2z" />
-                    </svg>
-                    افتح واتساب وأرسل للعضو
-                  </button>
-                  <button
-                    onClick={skipCurrent}
-                    className="w-full py-2.5 rounded-xl bg-dark border border-dark-border text-gray-400 hover:text-white text-sm font-medium transition-all"
-                  >
-                    تخطي هذا العضو
-                  </button>
-                </div>
-                <p className="text-xs text-gray-500 text-center leading-relaxed">
-                  هتفتح محادثة {current.person.name} والرسالة جاهزة — دوس إرسال في واتساب، وارجع كمّل للتالي.
-                </p>
-              </>
-            ) : (
-              <div className="text-center py-6 space-y-3">
-                <div className="w-14 h-14 mx-auto rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
-                  <span className="text-2xl">✓</span>
-                </div>
-                <p className="text-sm text-white font-medium">
-                  {remaining.length === 0
-                    ? `خلصت القائمة — تم إرسال ${sentIds.size} رسالة`
-                    : 'مفيش أعضاء تانية في القائمة'}
-                </p>
-                <button
-                  onClick={() => setSending(false)}
-                  className="px-5 py-2.5 rounded-xl bg-primary text-black text-sm font-bold hover:bg-primary/90 transition-all"
-                >
-                  إنهاء
-                </button>
-              </div>
-            )}
+      {/* Sending queue */}
+      <Modal
+        open={sending}
+        title="إرسال الرسائل"
+        onClose={() => { setSending(false); setPopupBlocked(false); }}
+        width="max-w-md"
+      >
+        {popupBlocked && (
+          <div className="bg-primary/10 border border-primary/30 rounded-xl p-3.5 flex items-start gap-2.5">
+            <UiIcon name="warning" className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+            <p className="text-[12px] text-primary leading-relaxed">
+              المتصفح مانع فتح نافذة جديدة — اسمح بالنوافذ المنبثقة لهذا الموقع ثم كمّل.
+            </p>
+          </div>
+        )}
+        <div>
+          <div className="flex items-center justify-between text-xs text-gray-400 mb-2">
+            <span>تم إرسال {sentIds.size} ومتخطى {queueIndex - sentIds.size} من {selectedMembers.length}</span>
+            <span>{progress}%</span>
+          </div>
+          <div className="h-2 bg-dark rounded-full overflow-hidden">
+            <div
+              className="h-full bg-primary transition-all duration-300"
+              style={{ width: `${progress}%` }}
+            />
           </div>
         </div>
-      )}
+
+        {current ? (
+          <>
+            <div className="bg-dark rounded-xl p-4 border border-dark-border">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-bold text-white">{current.person.name}</p>
+                <span className="text-xs text-gray-500 font-mono" dir="ltr">
+                  {displayPhone(current.person.phone)}
+                </span>
+              </div>
+              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl rounded-tr-sm px-3 py-2 max-h-40 overflow-y-auto">
+                <p className="text-xs text-white whitespace-pre-line leading-relaxed">
+                  {personalize(message, current.person.name)}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Btn
+                variant="primary"
+                icon="whatsapp"
+                onClick={openCurrent}
+                disabled={!whatsappLink(current.person.phone)}
+                className="w-full"
+              >
+                افتح واتساب وأرسل للعضو
+              </Btn>
+              <Btn variant="ghost" onClick={skipCurrent} className="w-full">
+                تخطي هذا العضو
+              </Btn>
+            </div>
+            <p className="text-xs text-gray-500 text-center leading-relaxed">
+              هتفتح محادثة {current.person.name} والرسالة جاهزة — دوس إرسال في واتساب، وارجع كمّل للتالي.
+            </p>
+          </>
+        ) : (
+          <div className="text-center py-6 space-y-3">
+            <span className="w-14 h-14 mx-auto rounded-full flex items-center justify-center bg-primary/10 border border-primary/20 text-primary">
+              <UiIcon name="check" className="w-6 h-6" />
+            </span>
+            <p className="text-sm text-white font-semibold">
+              {remaining.length === 0
+                ? `خلصت القائمة — تم إرسال ${sentIds.size} رسالة`
+                : 'مفيش أعضاء تانية في القائمة'}
+            </p>
+            <Btn variant="primary" onClick={() => setSending(false)}>
+              إنهاء
+            </Btn>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

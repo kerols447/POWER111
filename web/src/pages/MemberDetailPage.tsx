@@ -9,6 +9,7 @@ import { whatsappLink, displayPhone } from '../utils/whatsapp';
 import ConfirmDialog from '../components/ConfirmDialog';
 import NoticeBanner from '../components/NoticeBanner';
 import MemberFormModal, { MemberFormValues } from '../components/MemberFormModal';
+import { Badge, Btn, SectionTitle, Loading, UiIcon, CARD, TONE } from '../components/ui';
 
 interface Member {
   id: string;
@@ -229,23 +230,14 @@ function MemberDetailPage() {
   };
 
   const getStatusBadge = (status: string) => {
-    const colors: Record<string, string> = {
-      ACTIVE: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50',
-      EXPIRED: 'bg-rose-500/20 text-rose-400 border-rose-500/50',
-      SUSPENDED: 'bg-amber-500/20 text-amber-400 border-amber-500/50',
-      FROZEN: 'bg-primary/10 text-primary border-primary/50',
+    const tones: Record<string, { tone: 'green' | 'red' | 'amber' | 'gold'; label: string }> = {
+      ACTIVE: { tone: 'green', label: 'نشط' },
+      EXPIRED: { tone: 'red', label: 'منتهي' },
+      SUSPENDED: { tone: 'amber', label: 'موقوف' },
+      FROZEN: { tone: 'gold', label: 'مجمد' },
     };
-    const labels: Record<string, string> = {
-      ACTIVE: 'نشط',
-      EXPIRED: 'منتهي',
-      SUSPENDED: 'موقوف',
-      FROZEN: 'مجمد',
-    };
-    return (
-      <span className={`px-3 py-1 rounded-full text-xs border ${colors[status] || colors.EXPIRED}`}>
-        {labels[status] || status}
-      </span>
-    );
+    const c = tones[status] || tones.EXPIRED;
+    return <Badge tone={c.tone}>{c.label}</Badge>;
   };
 
   const formatPrice = (piasters: number) => {
@@ -253,11 +245,7 @@ function MemberDetailPage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-gray-400">جاري التحميل...</div>
-      </div>
-    );
+    return <Loading />;
   }
 
   if (!member) {
@@ -274,21 +262,21 @@ function MemberDetailPage() {
   }, 0) || 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 sm:space-y-7">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3 sm:gap-4 min-w-0">
           <button
             onClick={() => navigate('/admin/members')}
             aria-label="رجوع"
-            className="w-10 h-10 flex items-center justify-center hover:bg-dark-card rounded-lg transition-colors flex-shrink-0"
+            className="w-11 h-11 sm:w-10 sm:h-10 flex items-center justify-center hover:bg-dark-card rounded-lg transition-colors shrink-0"
           >
             <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
           <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold text-white truncate">{member.person.name}</h1>
+            <h1 className="text-xl sm:text-2xl font-extrabold text-white truncate">{member.person.name}</h1>
             <p className="text-gray-400 mt-1 text-xs sm:text-sm">
               {member.branch.name} • {member.memberCode}
             </p>
@@ -297,34 +285,30 @@ function MemberDetailPage() {
         <div className="flex flex-wrap items-center gap-2">
           {getStatusBadge(member.status)}
           {hasPermission('CREATE_SUBSCRIPTIONS') && (
-            <button
+            <Btn
+              variant="primary"
+              icon="plus"
               onClick={() => navigate(`/admin/subscriptions?member=${member.id}`)}
-              className="inline-flex items-center gap-2 px-4 min-h-11 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-white text-sm font-semibold rounded-lg transition-colors"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
               {activeSubscription ? 'تجديد الاشتراك' : 'إضافة اشتراك'}
-            </button>
+            </Btn>
           )}
           {hasPermission('EDIT_MEMBERS') && (
-            <button
+            <Btn
+              variant="ghost"
+              icon="edit"
               onClick={() => {
                 setEditError('');
                 setShowEdit(true);
               }}
-              className="px-4 min-h-11 py-2.5 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/30 text-sm rounded-lg transition-colors"
             >
               تعديل البيانات
-            </button>
+            </Btn>
           )}
           {hasPermission('DELETE_MEMBERS') && (
-            <button
-              onClick={() => setConfirmOpen(true)}
-              className="px-4 min-h-11 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-sm rounded-lg transition-colors"
-            >
+            <Btn variant="danger" icon="trash" onClick={() => setConfirmOpen(true)}>
               حذف العضو
-            </button>
+            </Btn>
           )}
         </div>
       </div>
@@ -369,8 +353,10 @@ function MemberDetailPage() {
       {activeTab === 'info' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Member Info Card */}
-          <div className="lg:col-span-2 bg-dark-card border border-dark-border rounded-xl p-6">
-            <h2 className="text-lg font-bold text-white mb-4">معلومات العضو</h2>
+          <div className={`lg:col-span-2 ${CARD} p-6`}>
+            <div className="mb-4">
+              <SectionTitle>معلومات العضو</SectionTitle>
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm text-gray-400 mb-1">الاسم</label>
@@ -385,7 +371,7 @@ function MemberDetailPage() {
                       href={whatsappLink(member.person.phone) as string}
                       target="_blank"
                       rel="noreferrer"
-                      className="flex items-center gap-1.5 px-2.5 py-1 min-h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 transition-all text-xs font-medium"
+                      className="flex items-center gap-1.5 px-2.5 py-1 min-h-[44px] sm:min-h-[36px] rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 transition-all text-xs font-medium"
                     >
                       <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M12.04 2a9.9 9.9 0 0 0-8.51 14.94L2 22l5.2-1.49A9.9 9.9 0 1 0 12.04 2z" />
@@ -427,8 +413,10 @@ function MemberDetailPage() {
           </div>
 
           {/* QR & Barcode Card */}
-          <div className="bg-dark-card border border-dark-border rounded-xl p-6">
-            <h2 className="text-lg font-bold text-white mb-4">بطاقة العضو</h2>
+          <div className={`${CARD} p-6`}>
+            <div className="mb-4">
+              <SectionTitle>بطاقة العضو</SectionTitle>
+            </div>
             <div className="space-y-4">
               {qrImage && (
                 <div className="bg-white p-4 rounded-lg flex items-center justify-center">
@@ -438,7 +426,7 @@ function MemberDetailPage() {
               <div className="bg-white p-4 rounded-lg flex items-center justify-center">
                 <svg ref={barcodeRef} className="w-full"></svg>
               </div>
-              <button
+              <Btn
                 onClick={() => {
                   const printWindow = window.open('', '_blank');
                   if (printWindow) {
@@ -466,10 +454,12 @@ function MemberDetailPage() {
                     printWindow.print();
                   }
                 }}
-                className="w-full py-2 bg-primary hover:bg-primary-dark text-white rounded-lg transition-colors"
+                variant="primary"
+                icon="print"
+                className="w-full"
               >
                 طباعة البطاقة
-              </button>
+              </Btn>
             </div>
           </div>
         </div>
@@ -480,10 +470,11 @@ function MemberDetailPage() {
         <div className="space-y-4">
           {/* Active Subscription Summary */}
           {activeSubscription && (
-            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-emerald-400">الاشتراك النشط</h3>
-                {getStatusBadge(activeSubscription.status)}
+            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-6">
+              <div className="mb-4">
+                <SectionTitle tone={TONE.revenue} right={getStatusBadge(activeSubscription.status)}>
+                  الاشتراك النشط
+                </SectionTitle>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
@@ -511,17 +502,19 @@ function MemberDetailPage() {
           )}
 
           {/* All Subscriptions */}
-          <div className="bg-dark-card border border-dark-border rounded-xl overflow-hidden">
-            <div className="p-4 border-b border-dark-border flex flex-wrap items-center justify-between gap-3">
-              <h3 className="text-lg font-bold text-white">كل الاشتراكات</h3>
-              {hasPermission('CREATE_SUBSCRIPTIONS') && (
-                <button
-                  onClick={() => navigate(`/admin/subscriptions?member=${member.id}`)}
-                  className="inline-flex items-center gap-1.5 px-3.5 min-h-11 py-2 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/30 text-sm font-medium rounded-lg transition-colors"
-                >
-                  {activeSubscription ? 'تجديد الباقة' : 'إضافة باقة'}
-                </button>
-              )}
+          <div className={`${CARD} overflow-hidden`}>
+            <div className="p-4 sm:p-5 border-b border-dark-border">
+              <SectionTitle
+                right={
+                  hasPermission('CREATE_SUBSCRIPTIONS') && (
+                    <Btn variant="ghost" onClick={() => navigate(`/admin/subscriptions?member=${member.id}`)}>
+                      {activeSubscription ? 'تجديد الباقة' : 'إضافة باقة'}
+                    </Btn>
+                  )
+                }
+              >
+                كل الاشتراكات
+              </SectionTitle>
             </div>
             {member?.subscriptions.length === 0 ? (
               <div className="p-8 text-center text-gray-400">لا توجد اشتراكات</div>
@@ -554,9 +547,9 @@ function MemberDetailPage() {
 
       {/* Attendance Tab */}
       {activeTab === 'attendance' && (
-        <div className="bg-dark-card border border-dark-border rounded-xl overflow-hidden">
-          <div className="p-4 border-b border-dark-border">
-            <h3 className="text-lg font-bold text-white">سجل الحضور (آخر 10 زيارات)</h3>
+        <div className={`${CARD} overflow-hidden`}>
+          <div className="p-4 sm:p-5 border-b border-dark-border">
+            <SectionTitle>سجل الحضور (آخر 10 زيارات)</SectionTitle>
           </div>
           {member?.attendances.length === 0 ? (
             <div className="p-8 text-center text-gray-400">لا يوجد سجل حضور</div>
@@ -565,10 +558,8 @@ function MemberDetailPage() {
               {member?.attendances.map(att => (
                 <div key={att.id} className="p-4 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                      <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
+                    <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
+                      <UiIcon name="clock" className="w-5 h-5" />
                     </div>
                     <div>
                       <p className="text-white font-medium">

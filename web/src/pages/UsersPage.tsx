@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
 import ConfirmDialog from '../components/ConfirmDialog';
 import NoticeBanner from '../components/NoticeBanner';
+import {
+  PageHeader, SectionTitle, StatTile, Badge, Btn, Field, LABEL, FIELD,
+  TableShell, Th, Td, Row, ListCard, Loading, Modal, UiIcon, CARD, TONE
+} from '../components/ui';
 
 interface Branch {
   id: string;
@@ -111,60 +115,11 @@ function salaryLabel(user: User): string | null {
   return user.salaryBasis === 'HOURLY' ? `${egp} ج.م / ساعة` : `${egp} ج.م شهرياً`;
 }
 
-// SVG Icons
-const PlusIcon = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-  </svg>
-);
+type BadgeTone = 'gold' | 'green' | 'red' | 'amber' | 'blue' | 'gray';
 
-const UsersIcon = () => (
-  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-  </svg>
-);
-
-const UserCheckIcon = () => (
-  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-  </svg>
-);
-
-const CrownIcon = () => (
-  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 3l3.057-3L12 4l3.943-4L19 3l-2 7H7L5 3zm2 8v6a2 2 0 002 2h6a2 2 0 002-2v-6" />
-  </svg>
-);
-
-const ShieldIcon = () => (
-  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-  </svg>
-);
-
-const EditIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-  </svg>
-);
-
-const TrashIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-  </svg>
-);
-
-const CloseIcon = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-  </svg>
-);
-
-const KeyIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-  </svg>
-);
+// The checkbox rows of the permission editor — one kit token set, ≥44px touch target.
+const PERM_CHECK = 'w-4 h-4 rounded bg-dark border-dark-border text-primary focus:outline-none shrink-0';
+const PERM_ROW = 'flex items-center gap-2.5 min-h-[44px] px-2 rounded-lg cursor-pointer hover:bg-white/5 transition-colors';
 
 function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
@@ -420,243 +375,205 @@ function UsersPage() {
     }
   };
 
-  const getRoleBadgeColor = (role: string) => {
+  const getRoleBadgeTone = (role: string): BadgeTone => {
     switch (role) {
-      case 'OWNER': return 'bg-amber-500/10 text-amber-300 border-amber-500/20';
-      case 'BRANCH_MANAGER': return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
-      case 'RECEPTIONIST': return 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20';
-      case 'ACCOUNTANT': return 'bg-yellow-500/10 text-yellow-300 border-yellow-500/20';
-      case 'TRAINER': return 'bg-blue-500/10 text-blue-300 border-blue-500/20';
-      case 'CONTENT_MANAGER': return 'bg-rose-500/10 text-rose-300 border-rose-500/20';
-      default: return 'bg-gray-500/10 text-gray-400 border-gray-500/20';
+      case 'OWNER': return 'gold';
+      case 'BRANCH_MANAGER': return 'amber';
+      case 'RECEPTIONIST': return 'green';
+      case 'ACCOUNTANT': return 'amber';
+      case 'TRAINER': return 'blue';
+      case 'CONTENT_MANAGER': return 'red';
+      default: return 'gray';
     }
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="flex items-center gap-3 text-gray-400">
-          <svg className="animate-spin w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-          <span>جاري التحميل...</span>
-        </div>
-      </div>
-    );
+    return <Loading />;
   }
 
   return (
-    <div className="space-y-6" dir="rtl">
+    <div className="space-y-5 sm:space-y-7" dir="rtl">
       {notice && <NoticeBanner kind={notice.kind} text={notice.text} onDismiss={() => setNotice(null)} />}
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
-            <UsersIcon />
-          </div>
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
-              إدارة المستخدمين
-            </h1>
-            <p className="text-sm text-gray-400 mt-0.5">إدارة حسابات وصلاحيات المستخدمين</p>
-          </div>
-        </div>
-        <button
-          onClick={() => {
-            setEditingUser(null);
-            setFormData({ ...emptyForm(), permissions: rolePermissions['RECEPTIONIST'] || [] });
-            setShowModal(true);
-          }}
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-xl font-medium transition-all duration-300 shadow-lg shadow-amber-500/20 hover:shadow-xl hover:shadow-amber-500/30 transform hover:-translate-y-0.5"
-        >
-          <PlusIcon />
-          <span>إضافة مستخدم جديد</span>
-        </button>
-      </div>
+      <PageHeader
+        icon="users"
+        title="إدارة المستخدمين"
+        caption="إدارة حسابات وصلاحيات المستخدمين"
+        actions={
+          <Btn
+            icon="plus"
+            variant="primary"
+            onClick={() => {
+              setEditingUser(null);
+              setFormData({ ...emptyForm(), permissions: rolePermissions['RECEPTIONIST'] || [] });
+              setShowModal(true);
+            }}
+          >
+            إضافة مستخدم جديد
+          </Btn>
+        }
+      />
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="relative overflow-hidden bg-gradient-to-br from-dark-card/80 via-dark-card/60 to-dark-card/80 backdrop-blur-sm rounded-2xl border border-dark-border/50 p-5">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.06),transparent_50%)]"></div>
-          <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-amber-500/20 to-transparent"></div>
-          <div className="relative">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                <UsersIcon />
-              </div>
-              <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">إجمالي المستخدمين</span>
-            </div>
-            <p className="text-2xl font-bold text-white">{users.length}</p>
-          </div>
-        </div>
-
-        <div className="relative overflow-hidden bg-gradient-to-br from-dark-card/80 via-dark-card/60 to-dark-card/80 backdrop-blur-sm rounded-2xl border border-dark-border/50 p-5">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.06),transparent_50%)]"></div>
-          <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-emerald-500/20 to-transparent"></div>
-          <div className="relative">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                <UserCheckIcon />
-              </div>
-              <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">النشطين</span>
-            </div>
-            <p className="text-2xl font-bold text-emerald-400">{users.filter(u => u.isActive).length}</p>
-          </div>
-        </div>
-
-        <div className="relative overflow-hidden bg-gradient-to-br from-dark-card/80 via-dark-card/60 to-dark-card/80 backdrop-blur-sm rounded-2xl border border-dark-border/50 p-5">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.06),transparent_50%)]"></div>
-          <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-yellow-500/20 to-transparent"></div>
-          <div className="relative">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-8 h-8 rounded-lg bg-yellow-500/10 flex items-center justify-center">
-                <CrownIcon />
-              </div>
-              <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">المالكين</span>
-            </div>
-            <p className="text-2xl font-bold text-yellow-400">{users.filter(u => u.role === 'OWNER').length}</p>
-          </div>
-        </div>
-
-        <div className="relative overflow-hidden bg-gradient-to-br from-dark-card/80 via-dark-card/60 to-dark-card/80 backdrop-blur-sm rounded-2xl border border-dark-border/50 p-5">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.06),transparent_50%)]"></div>
-          <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-amber-500/20 to-transparent"></div>
-          <div className="relative">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                <ShieldIcon />
-              </div>
-              <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">مديري الفروع</span>
-            </div>
-            <p className="text-2xl font-bold text-amber-400">{users.filter(u => u.role === 'BRANCH_MANAGER').length}</p>
-          </div>
-        </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <StatTile
+          icon="users"
+          tone={TONE.members}
+          label="إجمالي المستخدمين"
+          value={users.length}
+        />
+        <StatTile
+          icon="check"
+          tone={TONE.revenue}
+          label="النشطين"
+          value={users.filter(u => u.isActive).length}
+        />
+        <StatTile
+          icon="settings"
+          tone={TONE.outstanding}
+          label="المالكين"
+          value={users.filter(u => u.role === 'OWNER').length}
+        />
+        <StatTile
+          icon="branches"
+          tone={TONE.staff}
+          label="مديري الفروع"
+          value={users.filter(u => u.role === 'BRANCH_MANAGER').length}
+        />
       </div>
 
       {/* Users Table */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-dark-card/80 via-dark-card/60 to-dark-card/80 backdrop-blur-sm rounded-2xl border border-dark-border/50">
-        <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-amber-500/20 to-transparent"></div>
-        <div className="hidden sm:block overflow-x-auto">
-          <table className="w-full min-w-[700px]">
-            <thead>
-              <tr className="border-b border-dark-border/50">
-                <th className="px-2.5 sm:px-3.5 py-4 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">الاسم</th>
-                <th className="px-2.5 sm:px-3.5 py-4 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider hidden md:table-cell">البريد الإلكتروني</th>
-                <th className="px-2.5 sm:px-3.5 py-4 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">الدور</th>
-                <th className="px-2.5 sm:px-3.5 py-4 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider hidden xl:table-cell">الهاتف</th>
-                <th className="px-2.5 sm:px-3.5 py-4 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider hidden sm:table-cell">الفروع</th>
-                <th className="px-2.5 sm:px-3.5 py-4 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider hidden sm:table-cell">الصلاحيات</th>
-                <th className="px-2.5 sm:px-3.5 py-4 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">الحالة</th>
-                <th className="px-2.5 sm:px-3.5 py-4 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">إجراءات</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-dark-border/30">
-              {users.map((user) => (
-                <tr key={user.id} className="hover:bg-amber-500/5 transition-colors duration-200">
-                  <td className="px-2.5 sm:px-3.5 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-amber-500/20 to-amber-600/10 flex items-center justify-center border border-amber-500/20 flex-shrink-0">
-                        <span className="text-sm font-bold text-amber-300">{user.name.charAt(0)}</span>
-                      </div>
-                      <div>
-                        <p className="text-white font-medium">{user.name}</p>
-                        <p className="text-xs text-gray-500 md:hidden">{user.email}</p>
-                        {user.staffCode && (
-                          <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/15 text-xs font-mono text-amber-300">
-                            <span className="text-gray-500">كارت</span>
-                            <span dir="ltr">{user.staffCode}</span>
-                          </span>
-                        )}
-                        {salaryLabel(user) && (
-                          <p className="text-xs text-emerald-400 mt-1">{salaryLabel(user)}</p>
-                        )}
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-2.5 sm:px-3.5 py-4 max-w-[150px] truncate text-gray-400 font-mono text-sm hidden md:table-cell" title={user.email}>{user.email}</td>
-                  <td className="px-2.5 sm:px-3.5 py-4">
-                    <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium border ${getRoleBadgeColor(user.role)}`}>
-                      {roleLabels[user.role] || user.role}
-                    </span>
-                  </td>
-                  <td className="px-2.5 sm:px-3.5 py-4 text-gray-400 font-mono text-sm hidden xl:table-cell">{user.phone || '—'}</td>
-                  <td className="px-2.5 sm:px-3.5 py-4 hidden sm:table-cell">
-                    <div className="flex flex-wrap gap-1">
-                      {user.branchAccess.map(ba => (
-                        <span key={ba.branch.id} className="inline-flex px-2 py-0.5 text-xs font-medium bg-amber-500/10 text-amber-300 rounded-md border border-amber-500/15">
-                          {ba.branch.code}
-                        </span>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="px-2.5 sm:px-3.5 py-4 hidden sm:table-cell">
-                    {user.role === 'OWNER' ? (
-                      <span className="inline-flex items-center gap-1 text-xs text-amber-300 font-medium">
-                        <CrownIcon />
-                        كل الصلاحيات
-                      </span>
-                    ) : (
-                      <button
-                        onClick={() => openPermissionsEditor(user)}
-                        className="inline-flex items-center gap-1.5 text-xs bg-dark-hover/30 hover:bg-dark-hover/50 text-gray-300 px-3 py-1.5 rounded-lg border border-dark-border/30 transition-all duration-200"
-                      >
-                        <KeyIcon />
-                        تعديل ({user.permissions.length})
-                      </button>
-                    )}
-                  </td>
-                  <td className="px-2.5 sm:px-3.5 py-4">
-                    <button
-                      onClick={() => handleToggleActive(user)}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${
-                        user.isActive
-                          ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 hover:bg-emerald-500/20'
-                          : 'bg-rose-500/10 text-rose-300 border border-rose-500/20 hover:bg-rose-500/20'
-                      }`}
+      <div className={`${CARD} overflow-hidden`}>
+        <div className="hidden sm:block">
+          <TableShell
+            minWidth="min-w-[700px]"
+            head={
+              <>
+                <Th>الاسم</Th>
+                <Th className="hidden md:table-cell">البريد الإلكتروني</Th>
+                <Th>الدور</Th>
+                <Th className="hidden xl:table-cell">الهاتف</Th>
+                <Th className="hidden sm:table-cell">الفروع</Th>
+                <Th className="hidden sm:table-cell">الصلاحيات</Th>
+                <Th>الحالة</Th>
+                <Th>إجراءات</Th>
+              </>
+            }
+          >
+            {users.map((user) => (
+              <Row key={user.id}>
+                <Td>
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                      style={{ backgroundColor: `${TONE.members}14`, color: TONE.members }}
                     >
-                      <span className={`w-1.5 h-1.5 rounded-full ${user.isActive ? 'bg-emerald-400' : 'bg-rose-400'}`}></span>
-                      {user.isActive ? 'نشط' : 'معطل'}
-                    </button>
-                  </td>
-                  <td className="px-2.5 sm:px-3.5 py-4">
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => handleEdit(user)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium bg-amber-500/10 text-amber-300 rounded-lg border border-amber-500/20 hover:bg-amber-500/20 transition-all duration-200"
-                      >
-                        <EditIcon />
-                        <span className="hidden sm:inline">تعديل</span>
-                      </button>
-                      <button
-                        onClick={() => setPendingDelete(user)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium bg-rose-500/10 text-rose-300 rounded-lg border border-rose-500/20 hover:bg-rose-500/20 transition-all duration-200"
-                      >
-                        <TrashIcon />
-                        <span className="hidden sm:inline">حذف</span>
-                      </button>
+                      <span className="text-sm font-bold">{user.name.charAt(0)}</span>
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-white">{user.name}</p>
+                      <p className="text-xs text-gray-500 md:hidden">{user.email}</p>
+                      {user.staffCode && (
+                        <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-lg bg-primary/10 border border-primary/20 text-xs font-mono text-primary">
+                          <span className="text-gray-500">كارت</span>
+                          <span dir="ltr">{user.staffCode}</span>
+                        </span>
+                      )}
+                      {salaryLabel(user) && (
+                        <p className="text-xs text-emerald-400 mt-1">{salaryLabel(user)}</p>
+                      )}
+                    </div>
+                  </div>
+                </Td>
+                <Td className="hidden md:table-cell max-w-[150px]">
+                  <span className="block truncate text-sm text-gray-400 font-mono" title={user.email}>{user.email}</span>
+                </Td>
+                <Td>
+                  <Badge tone={getRoleBadgeTone(user.role)}>{roleLabels[user.role] || user.role}</Badge>
+                </Td>
+                <Td className="hidden xl:table-cell">
+                  <span className="text-sm text-gray-400 font-mono">{user.phone || '—'}</span>
+                </Td>
+                <Td className="hidden sm:table-cell">
+                  <div className="flex flex-wrap gap-1">
+                    {user.branchAccess.map(ba => (
+                      <span key={ba.branch.id} className="inline-flex px-2 py-0.5 text-xs font-semibold bg-primary/10 text-primary rounded-lg border border-primary/20">
+                        {ba.branch.code}
+                      </span>
+                    ))}
+                  </div>
+                </Td>
+                <Td className="hidden sm:table-cell">
+                  {user.role === 'OWNER' ? (
+                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary">
+                      <UiIcon name="check" className="w-4 h-4" />
+                      كل الصلاحيات
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => openPermissionsEditor(user)}
+                      className="inline-flex items-center gap-1.5 px-3 min-h-[44px] sm:min-h-[36px] text-xs font-semibold bg-white/5 text-gray-300 rounded-lg border border-dark-border hover:border-primary/50 hover:text-white transition-colors"
+                    >
+                      <UiIcon name="settings" className="w-3.5 h-3.5" />
+                      تعديل ({user.permissions.length})
+                    </button>
+                  )}
+                </Td>
+                <Td>
+                  <button
+                    onClick={() => handleToggleActive(user)}
+                    className={`inline-flex items-center gap-1.5 px-3 min-h-[44px] sm:min-h-[36px] rounded-lg text-xs font-semibold border transition-colors ${
+                      user.isActive
+                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'
+                        : 'bg-rose-500/10 text-rose-400 border-rose-500/20 hover:bg-rose-500/20'
+                    }`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${user.isActive ? 'bg-emerald-400' : 'bg-rose-400'}`}></span>
+                    {user.isActive ? 'نشط' : 'معطل'}
+                  </button>
+                </Td>
+                <Td>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleEdit(user)}
+                      title="تعديل"
+                      className="inline-flex items-center gap-1.5 px-2.5 xl:px-3 min-h-[44px] sm:min-h-[36px] bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold rounded-lg border border-primary/20 hover:border-primary/40 transition-colors"
+                    >
+                      <UiIcon name="edit" className="w-3.5 h-3.5" />
+                      <span className="hidden xl:inline">تعديل</span>
+                    </button>
+                    <button
+                      onClick={() => setPendingDelete(user)}
+                      title="حذف"
+                      className="inline-flex items-center gap-1.5 px-2.5 xl:px-3 min-h-[44px] sm:min-h-[36px] bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-semibold rounded-lg border border-rose-500/20 hover:border-rose-500/40 transition-colors"
+                    >
+                      <UiIcon name="trash" className="w-3.5 h-3.5" />
+                      <span className="hidden xl:inline">حذف</span>
+                    </button>
+                  </div>
+                </Td>
+              </Row>
+            ))}
+          </TableShell>
         </div>
 
         {/* Phone: one card per user, no sideways scrolling */}
-        <div className="sm:hidden divide-y divide-dark-border/30">
+        <div className="sm:hidden p-3 space-y-3">
           {users.map((user) => (
-            <div key={user.id} className="p-4">
+            <ListCard key={user.id}>
               <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-500/20 to-amber-600/10 flex items-center justify-center border border-amber-500/20 shrink-0">
-                  <span className="text-sm font-bold text-amber-300">{user.name.charAt(0)}</span>
+                <div
+                  className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
+                  style={{ backgroundColor: `${TONE.members}14`, color: TONE.members }}
+                >
+                  <span className="text-base font-bold">{user.name.charAt(0)}</span>
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold text-white truncate">{user.name}</p>
                   <p className="text-xs text-gray-500 font-mono break-all mt-0.5">{user.email}</p>
                   {user.staffCode && (
-                    <span className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/15 text-xs font-mono text-amber-300">
+                    <span className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-lg bg-primary/10 border border-primary/20 text-xs font-mono text-primary">
                       <span className="text-gray-500">كارت</span>
                       <span dir="ltr">{user.staffCode}</span>
                     </span>
@@ -665,9 +582,9 @@ function UsersPage() {
                     <p className="text-xs text-emerald-400 mt-1.5">{salaryLabel(user)}</p>
                   )}
                 </div>
-                <span className={`shrink-0 inline-flex px-2.5 py-1 rounded-full text-xs font-medium border ${getRoleBadgeColor(user.role)}`}>
-                  {roleLabels[user.role] || user.role}
-                </span>
+                <div className="shrink-0">
+                  <Badge tone={getRoleBadgeTone(user.role)}>{roleLabels[user.role] || user.role}</Badge>
+                </div>
               </div>
 
               <div className="mt-3 space-y-1.5 text-xs text-gray-400">
@@ -675,7 +592,7 @@ function UsersPage() {
                 {user.branchAccess.length > 0 && (
                   <div className="flex flex-wrap gap-1">
                     {user.branchAccess.map(ba => (
-                      <span key={ba.branch.id} className="inline-flex px-2 py-0.5 text-xs font-medium bg-amber-500/10 text-amber-300 rounded-md border border-amber-500/15">
+                      <span key={ba.branch.id} className="inline-flex px-2 py-0.5 text-xs font-semibold bg-primary/10 text-primary rounded-lg border border-primary/20">
                         {ba.branch.code}
                       </span>
                     ))}
@@ -683,13 +600,14 @@ function UsersPage() {
                 )}
               </div>
 
-              <div className="mt-4 flex flex-wrap items-center gap-2">
+              {/* Actions sit beside the info block — never inside a tappable wrapper */}
+              <div className="mt-3 pt-3 border-t border-dark-border/30 flex flex-wrap items-center gap-2">
                 <button
                   onClick={() => handleToggleActive(user)}
-                  className={`inline-flex items-center gap-1.5 px-3 py-2 min-h-10 rounded-lg text-xs font-medium border transition-all duration-200 ${
+                  className={`inline-flex items-center gap-1.5 px-3 min-h-[44px] rounded-lg text-xs font-semibold border transition-colors ${
                     user.isActive
-                      ? 'bg-rose-500/10 text-rose-300 border-rose-500/20 active:bg-rose-500/20'
-                      : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20 active:bg-emerald-500/20'
+                      ? 'bg-rose-500/10 text-rose-400 border-rose-500/20 active:bg-rose-500/20'
+                      : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 active:bg-emerald-500/20'
                   }`}
                 >
                   <span className={`w-1.5 h-1.5 rounded-full ${user.isActive ? 'bg-emerald-400' : 'bg-rose-400'}`}></span>
@@ -698,353 +616,217 @@ function UsersPage() {
                 {user.role !== 'OWNER' && (
                   <button
                     onClick={() => openPermissionsEditor(user)}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 min-h-10 text-xs font-medium bg-dark-hover/30 text-gray-300 rounded-lg border border-dark-border/30 active:bg-dark-hover/50 transition-all duration-200"
+                    className="inline-flex items-center gap-1.5 px-3 min-h-[44px] text-xs font-semibold bg-white/5 text-gray-300 rounded-lg border border-dark-border hover:border-primary/50 hover:text-white transition-colors"
                   >
-                    <KeyIcon />
+                    <UiIcon name="settings" className="w-3.5 h-3.5" />
                     <span>الصلاحيات ({user.permissions.length})</span>
                   </button>
                 )}
                 <button
                   onClick={() => handleEdit(user)}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 min-h-10 text-xs font-medium bg-amber-500/10 text-amber-300 rounded-lg border border-amber-500/20 active:bg-amber-500/20 transition-all duration-200"
+                  className="inline-flex items-center gap-1.5 px-3 min-h-[44px] text-xs font-semibold bg-primary/10 text-primary rounded-lg border border-primary/20"
                 >
-                  <EditIcon />
+                  <UiIcon name="edit" className="w-3.5 h-3.5" />
                   <span>تعديل</span>
                 </button>
                 <button
                   onClick={() => setPendingDelete(user)}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 min-h-10 text-xs font-medium bg-rose-500/10 text-rose-300 rounded-lg border border-rose-500/20 active:bg-rose-500/20 transition-all duration-200"
+                  className="inline-flex items-center gap-1.5 px-3 min-h-[44px] text-xs font-semibold bg-rose-500/10 text-rose-400 rounded-lg border border-rose-500/20"
                 >
-                  <TrashIcon />
+                  <UiIcon name="trash" className="w-3.5 h-3.5" />
                   <span>حذف</span>
                 </button>
               </div>
-            </div>
+            </ListCard>
           ))}
         </div>
       </div>
 
       {/* Create/Edit Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowModal(false)}>
-          <div
-            className="relative bg-gradient-to-br from-dark-card via-dark-card to-dark-card rounded-2xl border border-dark-border/50 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-amber-500/40 to-transparent"></div>
-            <div className="p-6">
-              {/* Modal Header */}
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center">
-                    <UsersIcon />
-                  </div>
-                  <h2 className="text-xl font-bold text-white">
-                    {editingUser ? 'تعديل مستخدم' : 'إضافة مستخدم جديد'}
-                  </h2>
-                </div>
-                <button
-                  onClick={() => {
-                    setShowModal(false);
-                    setEditingUser(null);
-                    setFormData(emptyForm());
-                  }}
-                  className="w-10 h-10 shrink-0 rounded-lg bg-dark-hover/50 flex items-center justify-center text-gray-400 hover:text-white hover:bg-dark-hover transition-colors"
-                >
-                  <CloseIcon />
-                </button>
-              </div>
+      <Modal
+        open={showModal}
+        title={editingUser ? 'تعديل مستخدم' : 'إضافة مستخدم جديد'}
+        onClose={() => {
+          setShowModal(false);
+          setEditingUser(null);
+          setFormData(emptyForm());
+        }}
+        footer={
+          <>
+            <Btn type="button" variant="ghost" onClick={() => {
+              setShowModal(false);
+              setEditingUser(null);
+              setFormData(emptyForm());
+            }}>
+              إلغاء
+            </Btn>
+            <Btn type="submit" form="user-form" icon="check" variant="primary">
+              {editingUser ? 'حفظ التعديلات' : 'إضافة المستخدم'}
+            </Btn>
+          </>
+        }
+      >
+        <form id="user-form" onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="الاسم" required>
+              <input
+                type="text"
+                required
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                className={FIELD}
+                placeholder="محمد أحمد"
+              />
+            </Field>
 
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-400 mb-2">الاسم *</label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
-                      placeholder="محمد أحمد"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-400 mb-2">البريد الإلكتروني *</label>
-                    <input
-                      type="email"
-                      required
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white font-mono placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
-                      placeholder="user@power111.com"
-                      dir="ltr"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-400 mb-2">
-                      كلمة المرور {editingUser ? '(اتركها فارغة)' : '*'}
-                    </label>
-                    <input
-                      type="password"
-                      required={!editingUser}
-                      value={formData.password}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
-                      placeholder="••••••••"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-400 mb-2">الدور *</label>
-                    <select
-                      required
-                      value={formData.role}
-                      onChange={(e) => handleRoleChange(e.target.value)}
-                      className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
-                    >
-                      <option value="OWNER">مالك</option>
-                      <option value="BRANCH_MANAGER">مدير فرع</option>
-                      <option value="RECEPTIONIST">موظف استقبال</option>
-                      <option value="ACCOUNTANT">محاسب</option>
-                      <option value="TRAINER">مدرب</option>
-                      <option value="CONTENT_MANAGER">مدير محتوى</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-400 mb-2">رقم الهاتف</label>
-                    <input
-                      type="tel"
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white font-mono placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
-                      placeholder="01234567890"
-                      dir="ltr"
-                    />
-                  </div>
-
-                  {formData.role !== 'OWNER' && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-400 mb-2">كود كارت الوردية</label>
-                      <input
-                        type="text"
-                        value={formData.staffCode}
-                        onChange={(e) => setFormData({ ...formData, staffCode: e.target.value })}
-                        className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white font-mono placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
-                        placeholder={editingUser ? '' : 'يتعيّن تلقائياً'}
-                        dir="ltr"
-                        maxLength={8}
-                      />
-                      <p className="mt-1.5 text-xs text-gray-500">
-                        {editingUser
-                          ? 'اكتب رقم الكارت نفسه اللي على البطاقة، مثلاً S01. سيبه فاضي لو عايز يظل زي ما هو.'
-                          : 'سيبه فاضي ياخد أقرب رقم فاضي (S04 مثلاً).'}
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {formData.role !== 'OWNER' && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-xl bg-dark-card/30 border border-dark-border/30 p-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-400 mb-2">
-                        {formData.salaryBasis === 'HOURLY' ? 'سعر الساعة (ج.م)' : 'المرتب الشهري (ج.م)'}
-                      </label>
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        min="0"
-                        step="1"
-                        value={formData.salaryEgp}
-                        onChange={(e) => setFormData({ ...formData, salaryEgp: e.target.value })}
-                        className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white font-mono placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
-                        placeholder="5000"
-                        dir="ltr"
-                      />
-                      <p className="mt-1.5 text-xs text-gray-500">سيبه فاضي لو لسه مش محدد.</p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-400 mb-2">طريقة الحساب</label>
-                      <select
-                        value={formData.salaryBasis}
-                        onChange={(e) => setFormData({ ...formData, salaryBasis: e.target.value as 'MONTHLY' | 'HOURLY' })}
-                        className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
-                      >
-                        <option value="MONTHLY">مرتب شهري ثابت</option>
-                        <option value="HOURLY">بالساعة</option>
-                      </select>
-                      <p className="mt-1.5 text-xs text-gray-500">
-                        كل عملية سداد بتتنزل أوتوماتيك في مصروفات «رواتب» بتاعة الفرع.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-2">الفروع المسموحة</label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-4 bg-dark-card/30 border border-dark-border/30 rounded-xl">
-                    {branches.map((branch) => (
-                      <label key={branch.id} className="flex items-center gap-3 cursor-pointer group p-2 rounded-lg hover:bg-dark-hover/20 transition-colors">
-                        <div className="relative">
-                          <input
-                            type="checkbox"
-                            checked={formData.branchIds.includes(branch.id)}
-                            onChange={() => toggleBranch(branch.id)}
-                            className="sr-only peer"
-                          />
-                          <div className="w-5 h-5 rounded-md border-2 border-white/25 peer-checked:border-amber-500 peer-checked:bg-amber-500 transition-all duration-200 flex items-center justify-center">
-                            {formData.branchIds.includes(branch.id) && (
-                              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                              </svg>
-                            )}
-                          </div>
-                        </div>
-                        <span className="text-sm text-gray-300 group-hover:text-white transition-colors">
-                          {branch.code} - {branch.name}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Permissions Section */}
-                {formData.role !== 'OWNER' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-400 mb-2">
-                      الصلاحيات
-                      <span className="text-xs text-gray-500 mr-2">(افتراضي حسب الدور - يمكنك التعديل)</span>
-                    </label>
-                    <div className="space-y-3 p-4 bg-dark-card/30 border border-dark-border/30 rounded-xl max-h-64 overflow-y-auto">
-                      {permissionGroups.map(group => {
-                        const groupPerms = group.permissions.filter(p => allPermissionsList.includes(p));
-                        if (groupPerms.length === 0) return null;
-                        return (
-                          <div key={group.label}>
-                            <p className="text-xs font-semibold text-amber-400/70 mb-2 uppercase tracking-wider">{group.label}</p>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                              {groupPerms.map(perm => (
-                                <label key={perm} className="flex items-center gap-2.5 cursor-pointer group p-1.5 rounded-lg hover:bg-dark-hover/20 transition-colors">
-                                  <div className="relative">
-                                    <input
-                                      type="checkbox"
-                                      checked={formData.permissions.includes(perm)}
-                                      onChange={() => togglePermission(perm)}
-                                      className="sr-only peer"
-                                    />
-                                    <div className="w-4 h-4 rounded-md border-2 border-white/25 peer-checked:border-amber-500 peer-checked:bg-amber-500 transition-all duration-200 flex items-center justify-center">
-                                      {formData.permissions.includes(perm) && (
-                                        <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                        </svg>
-                                      )}
-                                    </div>
-                                  </div>
-                                  <span className="text-xs text-gray-300 group-hover:text-white transition-colors">
-                                    {permissionLabels[perm] || perm}
-                                  </span>
-                                </label>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex gap-3 pt-2">
-                  <button
-                    type="submit"
-                    className="flex-1 px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-xl font-medium transition-all duration-300 shadow-lg shadow-amber-500/20 hover:shadow-xl"
-                  >
-                    {editingUser ? 'حفظ التعديلات' : 'إضافة المستخدم'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowModal(false);
-                      setEditingUser(null);
-                      setFormData(emptyForm());
-                    }}
-                    className="flex-1 px-5 py-2.5 bg-dark-hover/50 hover:bg-dark-hover text-white rounded-xl font-medium transition-all duration-200 border border-dark-border/30"
-                  >
-                    إلغاء
-                  </button>
-                </div>
-              </form>
-            </div>
+            <Field label="البريد الإلكتروني" required>
+              <input
+                type="email"
+                required
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                className={`${FIELD} font-mono`}
+                placeholder="user@power111.com"
+                dir="ltr"
+              />
+            </Field>
           </div>
-        </div>
-      )}
 
-      {/* Permissions Editor Modal */}
-      {showPermissionsModal && permissionsUser && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowPermissionsModal(false)}>
-          <div
-            className="relative bg-gradient-to-br from-dark-card via-dark-card to-dark-card rounded-2xl border border-dark-border/50 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-amber-500/40 to-transparent"></div>
-            <div className="p-6">
-              {/* Modal Header */}
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center">
-                    <KeyIcon />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-white">
-                      تعديل صلاحيات: {permissionsUser.name}
-                    </h2>
-                    <p className="text-sm text-gray-400">
-                      الدور: {roleLabels[permissionsUser.role] || permissionsUser.role}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => {
-                    setShowPermissionsModal(false);
-                    setPermissionsUser(null);
-                  }}
-                  className="w-10 h-10 shrink-0 rounded-lg bg-dark-hover/50 flex items-center justify-center text-gray-400 hover:text-white hover:bg-dark-hover transition-colors"
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label={`كلمة المرور${editingUser ? ' (اتركها فارغة)' : ''}`} required={!editingUser}>
+              <input
+                type="password"
+                required={!editingUser}
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                className={FIELD}
+                placeholder="••••••••"
+              />
+            </Field>
+
+            <Field label="الدور" required>
+              <select
+                required
+                value={formData.role}
+                onChange={(e) => handleRoleChange(e.target.value)}
+                className={`${FIELD} cursor-pointer`}
+              >
+                <option value="OWNER">مالك</option>
+                <option value="BRANCH_MANAGER">مدير فرع</option>
+                <option value="RECEPTIONIST">موظف استقبال</option>
+                <option value="ACCOUNTANT">محاسب</option>
+                <option value="TRAINER">مدرب</option>
+                <option value="CONTENT_MANAGER">مدير محتوى</option>
+              </select>
+            </Field>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="رقم الهاتف">
+              <input
+                type="tel"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                className={`${FIELD} font-mono`}
+                placeholder="01234567890"
+                dir="ltr"
+              />
+            </Field>
+
+            {formData.role !== 'OWNER' && (
+              <Field
+                label="كود كارت الوردية"
+                hint={
+                  editingUser
+                    ? 'اكتب رقم الكارت نفسه اللي على البطاقة، مثلاً S01. سيبه فاضي لو عايز يظل زي ما هو.'
+                    : 'سيبه فاضي ياخد أقرب رقم فاضي (S04 مثلاً).'
+                }
+              >
+                <input
+                  type="text"
+                  value={formData.staffCode}
+                  onChange={(e) => setFormData({ ...formData, staffCode: e.target.value })}
+                  className={`${FIELD} font-mono`}
+                  placeholder={editingUser ? '' : 'يتعيّن تلقائياً'}
+                  dir="ltr"
+                  maxLength={8}
+                />
+              </Field>
+            )}
+          </div>
+
+          {formData.role !== 'OWNER' && (
+            <div className={`${CARD} grid grid-cols-1 sm:grid-cols-2 gap-4 p-4`}>
+              <Field label={formData.salaryBasis === 'HOURLY' ? 'سعر الساعة (ج.م)' : 'المرتب الشهري (ج.م)'} hint="سيبه فاضي لو لسه مش محدد.">
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="1"
+                  value={formData.salaryEgp}
+                  onChange={(e) => setFormData({ ...formData, salaryEgp: e.target.value })}
+                  className={`${FIELD} font-mono`}
+                  placeholder="5000"
+                  dir="ltr"
+                />
+              </Field>
+              <Field label="طريقة الحساب" hint="كل عملية سداد بتتنزل أوتوماتيك في مصروفات «رواتب» بتاعة الفرع.">
+                <select
+                  value={formData.salaryBasis}
+                  onChange={(e) => setFormData({ ...formData, salaryBasis: e.target.value as 'MONTHLY' | 'HOURLY' })}
+                  className={`${FIELD} cursor-pointer`}
                 >
-                  <CloseIcon />
-                </button>
-              </div>
+                  <option value="MONTHLY">مرتب شهري ثابت</option>
+                  <option value="HOURLY">بالساعة</option>
+                </select>
+              </Field>
+            </div>
+          )}
 
-              <div className="space-y-3 max-h-96 overflow-y-auto mt-4 p-4 bg-dark-card/30 border border-dark-border/30 rounded-xl">
+          <Field label="الفروع المسموحة">
+            <div className={`${CARD} grid grid-cols-1 sm:grid-cols-2 gap-1 p-3`}>
+              {branches.map((branch) => (
+                <label key={branch.id} className={PERM_ROW}>
+                  <input
+                    type="checkbox"
+                    checked={formData.branchIds.includes(branch.id)}
+                    onChange={() => toggleBranch(branch.id)}
+                    className={PERM_CHECK}
+                  />
+                  <span className="text-sm text-gray-300">
+                    {branch.code} - {branch.name}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </Field>
+
+          {/* Permissions Section */}
+          {formData.role !== 'OWNER' && (
+            <div>
+              <label className={LABEL}>
+                الصلاحيات
+                <span className="text-xs text-gray-500 mr-2">(افتراضي حسب الدور - يمكنك التعديل)</span>
+              </label>
+              <div className="space-y-3">
                 {permissionGroups.map(group => {
                   const groupPerms = group.permissions.filter(p => allPermissionsList.includes(p));
                   if (groupPerms.length === 0) return null;
                   return (
-                    <div key={group.label}>
-                      <p className="text-xs font-semibold text-amber-400/70 mb-2 uppercase tracking-wider">{group.label}</p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    <div key={group.label} className={`${CARD} p-4`}>
+                      <div className="mb-2">
+                        <SectionTitle>{group.label}</SectionTitle>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
                         {groupPerms.map(perm => (
-                          <label key={perm} className="flex items-center gap-2.5 cursor-pointer group p-1.5 rounded-lg hover:bg-dark-hover/20 transition-colors">
-                            <div className="relative">
-                              <input
-                                type="checkbox"
-                                checked={customPermissions.includes(perm)}
-                                onChange={() => toggleCustomPermission(perm)}
-                                className="sr-only peer"
-                              />
-                              <div className="w-4 h-4 rounded-md border-2 border-white/25 peer-checked:border-amber-500 peer-checked:bg-amber-500 transition-all duration-200 flex items-center justify-center">
-                                {customPermissions.includes(perm) && (
-                                  <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                  </svg>
-                                )}
-                              </div>
-                            </div>
-                            <span className="text-xs text-gray-300 group-hover:text-white transition-colors">
+                          <label key={perm} className={PERM_ROW}>
+                            <input
+                              type="checkbox"
+                              checked={formData.permissions.includes(perm)}
+                              onChange={() => togglePermission(perm)}
+                              className={PERM_CHECK}
+                            />
+                            <span className="text-xs text-gray-300">
                               {permissionLabels[perm] || perm}
                             </span>
                           </label>
@@ -1054,27 +836,64 @@ function UsersPage() {
                   );
                 })}
               </div>
-
-              <div className="flex gap-3 pt-4 mt-4 border-t border-dark-border/30">
-                <button
-                  onClick={savePermissions}
-                  className="flex-1 px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-xl font-medium transition-all duration-300 shadow-lg shadow-amber-500/20 hover:shadow-xl"
-                >
-                  حفظ الصلاحيات
-                </button>
-                <button
-                  onClick={() => {
-                    setShowPermissionsModal(false);
-                    setPermissionsUser(null);
-                  }}
-                  className="flex-1 px-5 py-2.5 bg-dark-hover/50 hover:bg-dark-hover text-white rounded-xl font-medium transition-all duration-200 border border-dark-border/30"
-                >
-                  إلغاء
-                </button>
-              </div>
             </div>
+          )}
+        </form>
+      </Modal>
+
+      {/* Permissions Editor Modal */}
+      {showPermissionsModal && permissionsUser && (
+        <Modal
+          open
+          title={`تعديل صلاحيات: ${permissionsUser.name}`}
+          subtitle={`الدور: ${roleLabels[permissionsUser.role] || permissionsUser.role}`}
+          onClose={() => {
+            setShowPermissionsModal(false);
+            setPermissionsUser(null);
+          }}
+          footer={
+            <>
+              <Btn type="button" variant="ghost" onClick={() => {
+                setShowPermissionsModal(false);
+                setPermissionsUser(null);
+              }}>
+                إلغاء
+              </Btn>
+              <Btn type="button" variant="primary" icon="check" onClick={savePermissions}>
+                حفظ الصلاحيات
+              </Btn>
+            </>
+          }
+        >
+          <div className="space-y-3">
+            {permissionGroups.map(group => {
+              const groupPerms = group.permissions.filter(p => allPermissionsList.includes(p));
+              if (groupPerms.length === 0) return null;
+              return (
+                <div key={group.label} className={`${CARD} p-4`}>
+                  <div className="mb-2">
+                    <SectionTitle>{group.label}</SectionTitle>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                    {groupPerms.map(perm => (
+                      <label key={perm} className={PERM_ROW}>
+                        <input
+                          type="checkbox"
+                          checked={customPermissions.includes(perm)}
+                          onChange={() => toggleCustomPermission(perm)}
+                          className={PERM_CHECK}
+                        />
+                        <span className="text-xs text-gray-300">
+                          {permissionLabels[perm] || perm}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        </div>
+        </Modal>
       )}
 
       <ConfirmDialog

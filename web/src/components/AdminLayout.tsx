@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -35,21 +35,42 @@ function Icon({ name, className }: { name: keyof typeof icons; className?: strin
   );
 }
 
-const allMenuItems: SidebarItem[] = [
-  { label: 'الرئيسية', path: '/admin', icon: 'home', permission: 'VIEW_DASHBOARD' },
-  { label: 'الفروع', path: '/admin/branches', icon: 'branches', permission: 'VIEW_BRANCHES' },
-  { label: 'العروض', path: '/admin/offers', icon: 'offers', permission: 'VIEW_BRANCHES' },
-  { label: 'المستخدمين', path: '/admin/users', icon: 'users', permission: 'VIEW_USERS' },
-  { label: 'الأعضاء', path: '/admin/members', icon: 'member', permission: 'VIEW_MEMBERS' },
-  { label: 'الاشتراكات', path: '/admin/subscriptions', icon: 'subscriptions', permission: 'VIEW_SUBSCRIPTIONS' },
-  { label: 'الحضور', path: '/admin/attendance', icon: 'attendance', permission: 'VIEW_ATTENDANCE' },
-  { label: 'الموظفين', path: '/admin/staff', icon: 'staff', permission: 'VIEW_ATTENDANCE' },
-  { label: 'المنتجات', path: '/admin/products', icon: 'products', permission: 'VIEW_PRODUCTS' },
-  { label: 'المبيعات', path: '/admin/sales', icon: 'sales', permission: 'VIEW_SALES' },
-  { label: 'المصروفات', path: '/admin/expenses', icon: 'expenses', permission: 'VIEW_EXPENSES' },
-  { label: 'التقارير', path: '/admin/reports', icon: 'reports', permission: 'VIEW_REPORTS' },
-  { label: 'رسائل واتساب', path: '/admin/whatsapp', icon: 'whatsapp', permission: 'VIEW_REPORTS' },
-  { label: 'الإعدادات', path: '/admin/settings', icon: 'settings', permission: 'MANAGE_SETTINGS' }
+// The menu is grouped by what the person at the desk is doing, not by database order.
+const menuGroups: { title: string; items: SidebarItem[] }[] = [
+  {
+    title: 'الرئيسية',
+    items: [
+      { label: 'الرئيسية', path: '/admin', icon: 'home', permission: 'VIEW_DASHBOARD' }
+    ]
+  },
+  {
+    title: 'الأعضاء',
+    items: [
+      { label: 'الأعضاء', path: '/admin/members', icon: 'member', permission: 'VIEW_MEMBERS' },
+      { label: 'الاشتراكات', path: '/admin/subscriptions', icon: 'subscriptions', permission: 'VIEW_SUBSCRIPTIONS' },
+      { label: 'العروض', path: '/admin/offers', icon: 'offers', permission: 'VIEW_BRANCHES' }
+    ]
+  },
+  {
+    title: 'الوردية اليومية',
+    items: [
+      { label: 'الحضور', path: '/admin/attendance', icon: 'attendance', permission: 'VIEW_ATTENDANCE' },
+      { label: 'الموظفين', path: '/admin/staff', icon: 'staff', permission: 'VIEW_ATTENDANCE' },
+      { label: 'المنتجات', path: '/admin/products', icon: 'products', permission: 'VIEW_PRODUCTS' },
+      { label: 'المبيعات', path: '/admin/sales', icon: 'sales', permission: 'VIEW_SALES' },
+      { label: 'المصروفات', path: '/admin/expenses', icon: 'expenses', permission: 'VIEW_EXPENSES' }
+    ]
+  },
+  {
+    title: 'الإدارة',
+    items: [
+      { label: 'التقارير', path: '/admin/reports', icon: 'reports', permission: 'VIEW_REPORTS' },
+      { label: 'رسائل واتساب', path: '/admin/whatsapp', icon: 'whatsapp', permission: 'VIEW_REPORTS' },
+      { label: 'الفروع', path: '/admin/branches', icon: 'branches', permission: 'VIEW_BRANCHES' },
+      { label: 'المستخدمين', path: '/admin/users', icon: 'users', permission: 'VIEW_USERS' },
+      { label: 'الإعدادات', path: '/admin/settings', icon: 'settings', permission: 'MANAGE_SETTINGS' }
+    ]
+  }
 ];
 
 const roleLabels: Record<string, string> = {
@@ -62,16 +83,42 @@ const roleLabels: Record<string, string> = {
 };
 
 const AR_MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+const AR_DAYS = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 
-function todayLabel(short: boolean) {
+function todayLabel(withWeekday: boolean) {
   const d = new Date();
-  const date = `${d.getDate()} ${AR_MONTHS[d.getMonth()]}`;
-  return short ? date : `${date} ${d.getFullYear()}`;
+  const date = `${d.getDate()} ${AR_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  return withWeekday ? `${AR_DAYS[d.getDay()]} ${date}` : date;
+}
+
+function clockLabel() {
+  return new Date().toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' });
+}
+
+function daysUntilExpiry(value: string | number | Date): string {
+  const target = new Date(value);
+  target.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = Math.round((target.getTime() - today.getTime()) / 86400000);
+  if (days <= 0) return 'ينتهي اليوم';
+  if (days === 1) return 'غداً';
+  return `بعد ${days} أيام`;
+}
+
+interface ExpiringItem {
+  id: string;
+  endDate: string;
+  member: { name: string; code: string };
 }
 
 function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [alerts, setAlerts] = useState<ExpiringItem[]>([]);
+  const [alertsOpen, setAlertsOpen] = useState(false);
+  const [clock, setClock] = useState(clockLabel);
+  const alertsRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const { user, hasPermission, logout } = useAuth();
@@ -90,14 +137,44 @@ function AdminLayout() {
 
   useEffect(() => {
     if (isMobile) setSidebarOpen(false);
+    setAlertsOpen(false);
   }, [location.pathname]);
 
-  const menuItems = allMenuItems.filter(item => {
-    if (!item.permission) return true;
-    return hasPermission(item.permission);
-  });
+  useEffect(() => {
+    const id = window.setInterval(() => setClock(clockLabel()), 30000);
+    return () => window.clearInterval(id);
+  }, []);
 
-  const currentPage = menuItems.find(item => location.pathname === item.path);
+  // The bell only ever carries something the owner has to act on today or tomorrow.
+  useEffect(() => {
+    if (!hasPermission('VIEW_SUBSCRIPTIONS')) return;
+    let active = true;
+    fetch('/api/subscriptions/expiring?days=2', { credentials: 'include' })
+      .then(res => (res.ok ? res.json() : []))
+      .then(data => { if (active) setAlerts(Array.isArray(data) ? data : []); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!alertsOpen) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (alertsRef.current && !alertsRef.current.contains(e.target as Node)) setAlertsOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setAlertsOpen(false); };
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [alertsOpen]);
+
+  const groups = menuGroups
+    .map(group => ({ ...group, items: group.items.filter(item => !item.permission || hasPermission(item.permission)) }))
+    .filter(group => group.items.length > 0);
+
+  const currentPage = menuGroups.flatMap(g => g.items).find(item => location.pathname === item.path);
 
   const handleLogout = async () => {
     try {
@@ -141,37 +218,48 @@ function AdminLayout() {
             <img src="/power-logo.jpg" alt="POWER 111" className="w-10 h-10 rounded-xl object-cover shrink-0 ring-1 ring-yellow-500/30" />
             {sidebarOpen && (
               <div className="min-w-0">
-                <h1 className="text-lg font-black text-white truncate">POWER <span style={{ background: 'linear-gradient(135deg, #FCD34D, #F59E0B)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>111</span></h1>
+                <h1 className="text-lg font-extrabold text-white truncate">POWER <span style={{ background: 'linear-gradient(135deg, #FCD34D, #F59E0B)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>111</span></h1>
                 <p className="text-[11px] text-gray-500 leading-tight">إدارة النادى</p>
               </div>
             )}
           </div>
         </div>
 
-        {/* Menu */}
-        <nav className="flex-1 min-h-0 p-3 space-y-1 overflow-y-auto">
-          {menuItems.map((item) => {
-            const active = location.pathname === item.path;
-            return (
-              <button
-                key={item.path}
-                onClick={() => handleNavigate(item.path)}
-                title={sidebarOpen ? undefined : item.label}
-                aria-current={active ? 'page' : undefined}
-                className={`w-full flex items-center gap-3 rounded-xl transition-colors text-sm ${
-                  sidebarOpen ? 'px-3 py-2.5' : 'justify-center px-0 py-2.5'
-                } ${
-                  active
-                    ? 'text-black font-bold shadow-lg shadow-black/20'
-                    : 'text-gray-400 hover:bg-white/5 hover:text-white'
-                }`}
-                style={active ? { background: 'linear-gradient(135deg, #FCD34D, #F59E0B)' } : undefined}
-              >
-                <Icon name={item.icon} className="w-5 h-5 shrink-0" />
-                {sidebarOpen && <span className="font-medium truncate">{item.label}</span>}
-              </button>
-            );
-          })}
+        {/* Menu, grouped by the work each screen is for */}
+        <nav className="flex-1 min-h-0 p-3 overflow-y-auto">
+          {groups.map((group, groupIdx) => (
+            <div key={group.title} className={groupIdx > 0 ? 'mt-4 pt-4 border-t border-white/5' : ''}>
+              {sidebarOpen ? (
+                <p className="px-3 mb-1.5 text-[10px] font-bold text-gray-600">{group.title}</p>
+              ) : (
+                <span className="block mx-3 mb-2 h-px bg-white/5" aria-hidden="true" />
+              )}
+              <div className="space-y-1">
+                {group.items.map((item) => {
+                  const active = location.pathname === item.path;
+                  return (
+                    <button
+                      key={item.path}
+                      onClick={() => handleNavigate(item.path)}
+                      title={sidebarOpen ? undefined : item.label}
+                      aria-current={active ? 'page' : undefined}
+                      className={`w-full flex items-center gap-3 rounded-xl transition-colors text-sm min-h-[44px] ${
+                        sidebarOpen ? 'px-3 py-2.5' : 'justify-center px-0 py-2.5'
+                      } ${
+                        active
+                          ? 'text-black font-bold shadow-lg shadow-black/20'
+                          : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                      }`}
+                      style={active ? { background: 'linear-gradient(135deg, #FCD34D, #F59E0B)' } : undefined}
+                    >
+                      <Icon name={item.icon} className="w-5 h-5 shrink-0" />
+                      {sidebarOpen && <span className="font-medium truncate">{item.label}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
 
         {/* User info */}
@@ -222,7 +310,7 @@ function AdminLayout() {
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
               aria-label={sidebarOpen ? 'تصغير القائمة' : 'تكبير القائمة'}
-              className="text-gray-400 hover:text-white hover:bg-white/5 transition-colors p-2 rounded-lg min-h-10 min-w-10 flex items-center justify-center shrink-0"
+              className="text-gray-400 hover:text-white hover:bg-white/5 transition-colors p-2 rounded-lg min-h-[44px] min-w-[44px] flex items-center justify-center shrink-0"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24" strokeLinecap="round">
                 <path d="M4 6h16M4 12h16M4 18h16" />
@@ -232,13 +320,90 @@ function AdminLayout() {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            {/* Clock */}
+            <span className="hidden md:flex items-center gap-1.5 text-[13px] text-gray-400 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 tabular-nums">
+              <svg className="w-4 h-4 text-primary/70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 7.5V12l3 2" />
+              </svg>
+              {clock}
+            </span>
+
+            {/* Date */}
             <span className="flex items-center gap-2 text-xs sm:text-[13px] text-gray-400 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5">
               <svg className="w-4 h-4 text-primary/70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round">
                 <path d="M4.5 6.5A1.5 1.5 0 0 1 6 5h12a1.5 1.5 0 0 1 1.5 1.5v11A1.5 1.5 0 0 1 18 19H6a1.5 1.5 0 0 1-1.5-1.5Z" />
                 <path d="M4.5 9.5h15M8 3.5v3M16 3.5v3" />
               </svg>
-              {todayLabel(isMobile)}
+              {todayLabel(!isMobile)}
             </span>
+
+            {/* What needs action today */}
+            {hasPermission('VIEW_SUBSCRIPTIONS') && (
+              <div className="relative" ref={alertsRef}>
+                <button
+                  onClick={() => setAlertsOpen(open => !open)}
+                  aria-label={alerts.length > 0 ? `${alerts.length} اشتراك يحتاج تجديد` : 'لا اشتراكات تحتاج تجديد'}
+                  aria-expanded={alertsOpen}
+                  className="relative text-gray-400 hover:text-white hover:bg-white/5 transition-colors p-2 rounded-lg min-h-[44px] min-w-[44px] flex items-center justify-center"
+                >
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M6 9a6 6 0 0 1 12 0c0 5 1.5 6.5 1.5 6.5h-15S6 14 6 9Z" />
+                    <path d="M10 19.5a2.2 2.2 0 0 0 4 0" />
+                  </svg>
+                  {alerts.length > 0 && (
+                    <span className="absolute top-1 right-0.5 min-w-[17px] h-[17px] px-1 rounded-full text-[10px] font-bold text-black flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #FCD34D, #F59E0B)' }}>
+                      {alerts.length}
+                    </span>
+                  )}
+                </button>
+
+                {alertsOpen && (
+                  <div className="absolute left-0 mt-2 w-[290px] max-w-[86vw] bg-dark-card border border-white/10 rounded-2xl shadow-2xl shadow-black/60 overflow-hidden z-40">
+                    <p className="px-4 py-3 text-[13px] font-bold text-white border-b border-white/10">يحتاج تجديد قريباً</p>
+                    {alerts.length > 0 ? (
+                      <>
+                        <ul className="max-h-[280px] overflow-y-auto divide-y divide-white/5">
+                          {alerts.slice(0, 8).map(item => (
+                            <li key={item.id}>
+                              <button
+                                onClick={() => navigate('/admin/subscriptions')}
+                                className="w-full text-right px-4 py-3 hover:bg-white/5 transition-colors"
+                              >
+                                <p className="text-[13px] font-semibold text-white truncate">{item.member.name}</p>
+                                <p className="text-[11px] text-amber-400 mt-0.5">{daysUntilExpiry(item.endDate)}</p>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                        <button
+                          onClick={() => navigate('/admin/subscriptions')}
+                          className="w-full px-4 py-3 text-[13px] font-bold text-primary hover:bg-primary/5 transition-colors border-t border-white/10"
+                        >
+                          كل الاشتراكات
+                        </button>
+                      </>
+                    ) : (
+                      <p className="px-4 py-6 text-[13px] text-gray-500 text-center">مفيش اشتراك محتاج تجديد دلوقتي</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Who is signed in */}
+            <div
+              title={user?.email}
+              className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg pl-3 pr-1.5 py-1.5 min-h-[40px]"
+            >
+              <div className="min-w-0 hidden sm:block text-right">
+                <p className="text-[13px] font-semibold text-white truncate max-w-[130px]">{user?.name || 'المستخدم'}</p>
+                <p className="text-[10px] text-gray-500 truncate">{user?.role ? roleLabels[user.role] : ''}</p>
+              </div>
+              <span className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-[13px] font-bold text-primary shrink-0">
+                {(user?.name || 'م').trim().charAt(0)}
+              </span>
+            </div>
           </div>
         </header>
 

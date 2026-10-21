@@ -2,6 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import NoticeBanner from '../components/NoticeBanner';
 import { localDate } from '../utils/dates';
+import {
+  PageHeader, SectionTitle, Field, Picker, Toggle, Btn, Loading, EmptyState,
+  CARD, FIELD, TONE
+} from '../components/ui';
 
 interface Branch {
   id: string;
@@ -23,68 +27,6 @@ interface BranchSettings {
   currency: string;
   timezone: string;
 }
-
-// SVG Icons
-const SettingsIcon = () => (
-  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-  </svg>
-);
-
-const TaxIcon = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
-  </svg>
-);
-
-const SnowflakeIcon = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-  </svg>
-);
-
-const ClockIcon = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-  </svg>
-);
-
-const BoxIcon = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-  </svg>
-);
-
-const GlobeIcon = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-  </svg>
-);
-
-const SaveIcon = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-  </svg>
-);
-
-const CheckIcon = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-  </svg>
-);
-
-const BackupIcon = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5-3 3m0 0l-3-3m3 3V9" />
-  </svg>
-);
-
-const RestoreIcon = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 4v8m0-8L8 8m4-4l4 4" />
-  </svg>
-);
 
 /** Arabic labels for the backup summary — tables the owner cares about. */
 const BACKUP_LABELS: Record<string, string> = {
@@ -311,181 +253,116 @@ export default function SettingsPage() {
     }
   };
 
-  // Toggle Switch Component
-  const ToggleSwitch = ({ checked, onChange }: { checked: boolean; onChange: (val: boolean) => void }) => (
-    <label className="relative inline-flex items-center min-h-11 cursor-pointer">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="sr-only peer"
-      />
-      <div className="relative w-12 h-6 shrink-0 bg-dark-hover peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-amber-500/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:right-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-amber-500 peer-checked:to-amber-600 transition-colors duration-200"></div>
-    </label>
-  );
-
-  // Section Card Component
-  const SectionCard = ({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) => (
-    <div className="relative overflow-hidden bg-gradient-to-br from-dark-card/80 via-dark-card/60 to-dark-card/80 backdrop-blur-sm rounded-2xl border border-dark-border/50 p-6">
-      <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-amber-500/20 to-transparent"></div>
-      <div className="flex items-center gap-3 mb-5">
-        <div className="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400">
-          {icon}
-        </div>
-        <h3 className="text-lg font-semibold text-white">{title}</h3>
-      </div>
-      {children}
-    </div>
-  );
-
   return (
-    <div className="space-y-6" dir="rtl">
+    <div className="space-y-5 sm:space-y-7" dir="rtl">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
-            <SettingsIcon />
-          </div>
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
-              الإعدادات
-            </h1>
-            <p className="text-sm text-gray-400 mt-0.5">إعدادات فروع المنشأة</p>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        icon="settings"
+        title="الإعدادات"
+        caption="إعدادات فروع المنشأة"
+      />
 
       {/* Branch Selector */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-dark-card/80 via-dark-card/60 to-dark-card/80 backdrop-blur-sm rounded-2xl border border-dark-border/50 p-5">
-        <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-amber-500/20 to-transparent"></div>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <label className="text-sm font-medium text-gray-400">اختر الفرع</label>
-          <select
+      <div className={`${CARD} p-4 sm:p-5`}>
+        <Field label="اختر الفرع">
+          <Picker
             value={selectedBranch}
-            onChange={(e) => setSelectedBranch(e.target.value)}
-            className="w-full sm:w-auto px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200 min-w-[200px]"
-          >
-            {branches.map((branch) => (
-              <option key={branch.id} value={branch.id}>
-                {branch.name}
-              </option>
-            ))}
-          </select>
-        </div>
+            onChange={(v) => setSelectedBranch(v)}
+            ariaLabel="اختر الفرع"
+            className="w-full sm:w-72"
+            options={branches.map((branch) => ({ value: branch.id, label: branch.name }))}
+          />
+        </Field>
       </div>
 
       {loading ? (
-        <div className="relative overflow-hidden bg-gradient-to-br from-dark-card/80 via-dark-card/60 to-dark-card/80 backdrop-blur-sm rounded-2xl border border-dark-border/50 p-12 text-center">
-          <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-amber-500/20 to-transparent"></div>
-          <div className="inline-flex items-center gap-3 text-gray-400">
-            <svg className="animate-spin w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            <span>جاري التحميل...</span>
-          </div>
-        </div>
+        <Loading />
       ) : settings ? (
-        <div className="space-y-6">
+        <div className="space-y-5 sm:space-y-6">
           {/* Tax Settings */}
-          <SectionCard icon={<TaxIcon />} title="الضرائب">
-            <div className="space-y-5">
-              <div className="flex items-center justify-between p-4 bg-dark-card/30 rounded-xl border border-dark-border/30">
-                <div>
-                  <p className="text-white font-medium">تفعيل الضريبة</p>
-                  <p className="text-sm text-gray-500 mt-0.5">تطبيق الضريبة على المبيعات</p>
-                </div>
-                <ToggleSwitch
-                  checked={settings.taxEnabled}
-                  onChange={(val) => updateSetting('taxEnabled', val)}
-                />
-              </div>
+          <div className={`${CARD} p-4 sm:p-6 space-y-4`}>
+            <SectionTitle tone={TONE.outstanding}>الضرائب</SectionTitle>
 
-              {settings.taxEnabled && (
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-dark-card/30 rounded-xl border border-dark-border/30">
-                  <label className="text-sm font-medium text-gray-400">
-                    نسبة الضريبة (%)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.01"
-                    value={settings.taxRatePercent / 100}
-                    onChange={(e) => updateSetting('taxRatePercent', Math.round(parseFloat(e.target.value) * 100))}
-                    className="w-full sm:w-48 px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
-                  />
-                </div>
-              )}
+            <div className="bg-dark border border-dark-border rounded-xl px-4 py-1.5">
+              <Toggle
+                label="تفعيل الضريبة"
+                hint="تطبيق الضريبة على المبيعات"
+                checked={settings.taxEnabled}
+                onChange={(val) => updateSetting('taxEnabled', val)}
+              />
             </div>
-          </SectionCard>
 
-          {/* Freeze Settings */}
-          <SectionCard icon={<SnowflakeIcon />} title="تجميد الاشتراكات">
-            <div className="space-y-5">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-dark-card/30 rounded-xl border border-dark-border/30">
-                <label className="text-sm font-medium text-gray-400">
-                  الحد الأقصى لأيام التجميد
-                </label>
+            {settings.taxEnabled && (
+              <Field label="نسبة الضريبة (%)">
                 <input
                   type="number"
                   min="0"
-                  value={settings.maxFreezeDays}
-                  onChange={(e) => updateSetting('maxFreezeDays', parseInt(e.target.value) || 0)}
-                  className="w-full sm:w-48 px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
+                  max="100"
+                  step="0.01"
+                  value={settings.taxRatePercent / 100}
+                  onChange={(e) => updateSetting('taxRatePercent', Math.round(parseFloat(e.target.value) * 100))}
+                  className={`${FIELD} sm:max-w-xs`}
                 />
-              </div>
+              </Field>
+            )}
+          </div>
 
-              <div className="flex items-center justify-between p-4 bg-dark-card/30 rounded-xl border border-dark-border/30">
-                <div>
-                  <p className="text-white font-medium">يتطلب موافقة المدير</p>
-                  <p className="text-sm text-gray-500 mt-0.5">تجميد الاشتراك يحتاج موافقة من المدير</p>
-                </div>
-                <ToggleSwitch
-                  checked={settings.freezeRequiresApproval}
-                  onChange={(val) => updateSetting('freezeRequiresApproval', val)}
-                />
-              </div>
+          {/* Freeze Settings */}
+          <div className={`${CARD} p-4 sm:p-6 space-y-4`}>
+            <SectionTitle tone={TONE.attendance}>تجميد الاشتراكات</SectionTitle>
+
+            <Field label="الحد الأقصى لأيام التجميد">
+              <input
+                type="number"
+                min="0"
+                value={settings.maxFreezeDays}
+                onChange={(e) => updateSetting('maxFreezeDays', parseInt(e.target.value) || 0)}
+                className={`${FIELD} sm:max-w-xs`}
+              />
+            </Field>
+
+            <div className="bg-dark border border-dark-border rounded-xl px-4 py-1.5">
+              <Toggle
+                label="يتطلب موافقة المدير"
+                hint="تجميد الاشتراك يحتاج موافقة من المدير"
+                checked={settings.freezeRequiresApproval}
+                onChange={(val) => updateSetting('freezeRequiresApproval', val)}
+              />
             </div>
-          </SectionCard>
+          </div>
 
           {/* Attendance Settings */}
-          <SectionCard icon={<ClockIcon />} title="الحضور">
-            <div className="space-y-5">
-              <div className="flex items-center justify-between gap-4 p-4 bg-dark-card/30 rounded-xl border border-dark-border/30">
-                <div className="min-w-0">
-                  <p className="text-white font-medium">الحضور في فرع آخر</p>
-                  <p className="text-sm text-gray-500 mt-0.5">
-                    {settings.allowCrossBranchCheckin
-                      ? 'مفتوح — العضو يقدر يسجل حضوره في الفرع ده حتى لو اشتراكه في فرع تاني، ويوصلك تنبيه.'
-                      : 'مقفول — العضو يسجل حضوره في فرعه بس. افتحه لو عايز تسمح بالحضور من فرع تاني.'}
-                  </p>
-                </div>
-                <ToggleSwitch
-                  checked={settings.allowCrossBranchCheckin}
-                  onChange={(val) => updateSetting('allowCrossBranchCheckin', val)}
-                />
-              </div>
+          <div className={`${CARD} p-4 sm:p-6 space-y-4`}>
+            <SectionTitle tone={TONE.members}>الحضور</SectionTitle>
 
-              <div className="flex items-center justify-between gap-4 p-4 bg-dark-card/30 rounded-xl border border-dark-border/30">
-                <div className="min-w-0">
-                  <p className="text-white font-medium">الانصراف التلقائي</p>
-                  <p className="text-sm text-gray-500 mt-0.5">
-                    {settings.autoCheckoutEnabled
-                      ? 'شغال — العضو ينصرف تلقائيًا بعد المدة المحددة من تسجيل الحضور.'
-                      : 'مقفول — العضو يفضل مسجل حضوره لحد ما تسجل انصرافه يدوي.'}
-                  </p>
-                </div>
-                <ToggleSwitch
-                  checked={settings.autoCheckoutEnabled}
-                  onChange={(val) => updateSetting('autoCheckoutEnabled', val)}
-                />
-              </div>
+            <div className="bg-dark border border-dark-border rounded-xl px-4 py-1.5">
+              <Toggle
+                label="الحضور في فرع آخر"
+                hint={
+                  settings.allowCrossBranchCheckin
+                    ? 'مفتوح — العضو يقدر يسجل حضوره في الفرع ده حتى لو اشتراكه في فرع تاني، ويوصلك تنبيه.'
+                    : 'مقفول — العضو يسجل حضوره في فرعه بس. افتحه لو عايز تسمح بالحضور من فرع تاني.'
+                }
+                checked={settings.allowCrossBranchCheckin}
+                onChange={(val) => updateSetting('allowCrossBranchCheckin', val)}
+              />
+            </div>
 
-              <div className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-dark-card/30 rounded-xl border border-dark-border/30 ${settings.autoCheckoutEnabled ? '' : 'opacity-50'}`}>
-                <label className="text-sm font-medium text-gray-400">
-                  مدة الانصراف التلقائي (بالدقائق)
-                </label>
+            <div className="bg-dark border border-dark-border rounded-xl px-4 py-1.5">
+              <Toggle
+                label="الانصراف التلقائي"
+                hint={
+                  settings.autoCheckoutEnabled
+                    ? 'شغال — العضو ينصرف تلقائيًا بعد المدة المحددة من تسجيل الحضور.'
+                    : 'مقفول — العضو يفضل مسجل حضوره لحد ما تسجل انصرافه يدوي.'
+                }
+                checked={settings.autoCheckoutEnabled}
+                onChange={(val) => updateSetting('autoCheckoutEnabled', val)}
+              />
+            </div>
+
+            <div className={settings.autoCheckoutEnabled ? '' : 'opacity-50'}>
+              <Field label="مدة الانصراف التلقائي (بالدقائق)">
                 <input
                   type="number"
                   min="1"
@@ -493,61 +370,56 @@ export default function SettingsPage() {
                   disabled={!settings.autoCheckoutEnabled}
                   value={settings.autoCheckoutMinutes ?? 90}
                   onChange={(e) => updateSetting('autoCheckoutMinutes', Math.min(Math.max(parseInt(e.target.value) || 0, 0), 1440))}
-                  className="w-full sm:w-48 px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200 disabled:cursor-not-allowed"
+                  className={`${FIELD} sm:max-w-xs disabled:cursor-not-allowed`}
                 />
-                {settings.autoCheckoutEnabled && (
-                  <p className="text-xs text-amber-400/70 mt-2">
-                    {`هيتم انصراف العضو بعد ${settings.autoCheckoutMinutes ?? 90} دقيقة (${Math.floor((settings.autoCheckoutMinutes ?? 90) / 60)} ساعة و ${(settings.autoCheckoutMinutes ?? 90) % 60} دقيقة)`}
-                  </p>
-                )}
-              </div>
+              </Field>
+              {settings.autoCheckoutEnabled && (
+                <p className="text-xs text-primary/70 mt-2">
+                  {`هيتم انصراف العضو بعد ${settings.autoCheckoutMinutes ?? 90} دقيقة (${Math.floor((settings.autoCheckoutMinutes ?? 90) / 60)} ساعة و ${(settings.autoCheckoutMinutes ?? 90) % 60} دقيقة)`}
+                </p>
+              )}
             </div>
-          </SectionCard>
+          </div>
 
           {/* Inventory Settings */}
-          <SectionCard icon={<BoxIcon />} title="المخزون">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-dark-card/30 rounded-xl border border-dark-border/30">
-              <label className="text-sm font-medium text-gray-400">
-                حد المخزون المنخفض الافتراضي
-              </label>
+          <div className={`${CARD} p-4 sm:p-6 space-y-4`}>
+            <SectionTitle tone={TONE.products}>المخزون</SectionTitle>
+
+            <Field label="حد المخزون المنخفض الافتراضي">
               <input
                 type="number"
                 min="1"
                 value={settings.lowStockThreshold}
                 onChange={(e) => updateSetting('lowStockThreshold', parseInt(e.target.value) || 5)}
-                className="w-full sm:w-48 px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
+                className={`${FIELD} sm:max-w-xs`}
               />
-            </div>
-          </SectionCard>
+            </Field>
+          </div>
 
           {/* General Settings */}
-          <SectionCard icon={<GlobeIcon />} title="عام">
+          <div className={`${CARD} p-4 sm:p-6 space-y-4`}>
+            <SectionTitle tone={TONE.staff}>عام</SectionTitle>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-dark-card/30 rounded-xl border border-dark-border/30">
-                <label className="text-sm font-medium text-gray-400">
-                  العملة
-                </label>
+              <Field label="العملة">
                 <input
                   type="text"
                   value={settings.currency}
                   onChange={(e) => updateSetting('currency', e.target.value)}
-                  className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
+                  className={FIELD}
                 />
-              </div>
+              </Field>
 
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-dark-card/30 rounded-xl border border-dark-border/30">
-                <label className="text-sm font-medium text-gray-400">
-                  المنطقة الزمنية
-                </label>
+              <Field label="المنطقة الزمنية">
                 <input
                   type="text"
                   value={settings.timezone}
                   onChange={(e) => updateSetting('timezone', e.target.value)}
-                  className="w-full px-4 py-2.5 bg-dark border border-dark-border rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all duration-200"
+                  className={FIELD}
                 />
-              </div>
+              </Field>
             </div>
-          </SectionCard>
+          </div>
 
           {/* Save Button */}
           <div className="space-y-3">
@@ -555,82 +427,54 @@ export default function SettingsPage() {
               <NoticeBanner kind={saveNotice.kind} text={saveNotice.text} onDismiss={() => setSaveNotice(null)} />
             )}
             <div className="flex justify-end">
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-xl font-medium transition-all duration-300 shadow-lg shadow-amber-500/20 hover:shadow-xl hover:shadow-amber-500/30 transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-            >
-              {saving ? (
-                <>
-                  <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  <span>جاري الحفظ...</span>
-                </>
-              ) : (
-                <>
-                  <SaveIcon />
-                  <span>حفظ الإعدادات</span>
-                </>
-              )}
-            </button>
+              <Btn
+                variant="primary"
+                icon="check"
+                onClick={handleSave}
+                disabled={saving}
+              >
+                {saving ? 'جاري الحفظ...' : 'حفظ الإعدادات'}
+              </Btn>
             </div>
           </div>
         </div>
       ) : (
-        <div className="relative overflow-hidden bg-gradient-to-br from-dark-card/80 via-dark-card/60 to-dark-card/80 backdrop-blur-sm rounded-2xl border border-dark-border/50 p-12 text-center">
-          <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-amber-500/20 to-transparent"></div>
-          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-dark-hover/30 flex items-center justify-center">
-            <SettingsIcon />
-          </div>
-          <p className="text-gray-400 text-lg font-medium">لا توجد إعدادات لهذا الفرع</p>
+        <div className={`${CARD} py-10 px-6 text-center`}>
+          <EmptyState icon="settings" title="لا توجد إعدادات لهذا الفرع" />
         </div>
       )}
 
       {isOwner && (
-        <SectionCard icon={<BackupIcon />} title="النسخة الاحتياطية">
-          <p className="text-sm text-gray-400 mb-5">
+        <div className={`${CARD} p-4 sm:p-6 space-y-4`}>
+          <SectionTitle tone={TONE.revenue}>النسخة الاحتياطية</SectionTitle>
+
+          <p className="text-sm text-gray-400 leading-relaxed">
             حمّل نسخة كاملة من كل بيانات النظام — العضويات والاشتراكات والحضور والمبيعات والمصروفات — واحفظها على جهازك.
             لو اتمسحت البيانات لا قدر الله، ارفع الملف ده ترجع كل حاجة.
           </p>
 
           {notice && (
-            <div className="mb-4">
-              <NoticeBanner kind={notice.kind} text={notice.text} onDismiss={() => setNotice(null)} />
-            </div>
+            <NoticeBanner kind={notice.kind} text={notice.text} onDismiss={() => setNotice(null)} />
           )}
 
           <div className="flex flex-col sm:flex-row gap-3">
-            <button
+            <Btn
+              variant="primary"
+              icon="download"
               onClick={downloadBackup}
               disabled={downloading}
-              className="inline-flex items-center justify-center gap-2 min-h-11 px-5 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-xl font-semibold transition-all duration-200 shadow-lg shadow-amber-500/20 disabled:opacity-50"
             >
-              {downloading ? (
-                <>
-                  <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  <span>جاري التحضير...</span>
-                </>
-              ) : (
-                <>
-                  <BackupIcon />
-                  <span>تحميل نسخة احتياطية</span>
-                </>
-              )}
-            </button>
+              {downloading ? 'جاري التحضير...' : 'تحميل نسخة احتياطية'}
+            </Btn>
 
-            <button
+            <Btn
+              variant="danger"
+              icon="refresh"
               onClick={() => fileInputRef.current?.click()}
               disabled={restoring}
-              className="inline-flex items-center justify-center gap-2 min-h-11 px-5 bg-dark-card/50 border border-dark-border/50 text-gray-200 rounded-xl font-semibold transition-colors duration-200 hover:border-rose-500/50 hover:text-white disabled:opacity-50"
             >
-              <RestoreIcon />
-              <span>استعادة من ملف</span>
-            </button>
+              استعادة من ملف
+            </Btn>
 
             <input
               ref={fileInputRef}
@@ -642,9 +486,9 @@ export default function SettingsPage() {
           </div>
 
           {pendingRestore && (
-            <div className="mt-5 p-4 bg-rose-500/5 border border-rose-500/30 rounded-xl">
-              <p className="text-white font-medium">الملف المختار</p>
-              <p className="text-sm text-gray-400 mt-1 break-all" dir="ltr">{pendingRestore.fileName}</p>
+            <div className="p-4 bg-rose-500/5 border border-rose-500/30 rounded-xl space-y-1">
+              <p className="text-white font-semibold">الملف المختار</p>
+              <p className="text-sm text-gray-400 break-all" dir="ltr">{pendingRestore.fileName}</p>
               {pendingRestore.createdAt && (
                 <p className="text-sm text-gray-500 mt-1">
                   تاريخ النسخة: {new Date(pendingRestore.createdAt).toLocaleString('ar-EG-u-nu-latn')}
@@ -653,7 +497,7 @@ export default function SettingsPage() {
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-4">
                 {BACKUP_SUMMARY_ORDER.filter((key) => key in pendingRestore.counts).map((key) => (
-                  <div key={key} className="px-3 py-2 bg-dark-card/40 rounded-lg border border-dark-border/30">
+                  <div key={key} className="px-3 py-2 bg-dark rounded-lg border border-dark-border">
                     <p className="text-xs text-gray-500">{BACKUP_LABELS[key]}</p>
                     <p className="text-white font-semibold">{pendingRestore.counts[key]}</p>
                   </div>
@@ -671,34 +515,31 @@ export default function SettingsPage() {
                 onChange={(e) => setRestoreConfirm(e.target.value)}
                 placeholder="RESTORE"
                 dir="ltr"
-                className="w-full sm:w-64 mt-3 px-4 py-3 bg-dark border border-dark-border rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-rose-500/50 focus:border-rose-500/50 transition-all duration-200"
+                className={`${FIELD} sm:w-64 mt-3`}
               />
 
               <div className="grid grid-cols-2 gap-3 mt-4">
-                <button
+                <Btn
+                  variant="ghost"
                   onClick={cancelRestore}
                   disabled={restoring}
-                  className="min-h-11 px-4 bg-dark-card/50 border border-dark-border/50 text-gray-300 hover:text-white rounded-xl font-semibold transition-colors disabled:opacity-50"
+                  className="w-full"
                 >
                   إلغاء
-                </button>
-                <button
+                </Btn>
+                <Btn
+                  variant="danger"
+                  icon="refresh"
                   onClick={confirmRestore}
                   disabled={restoring || restoreConfirm.trim() !== 'RESTORE'}
-                  className="inline-flex items-center justify-center gap-2 min-h-11 px-4 bg-rose-600 hover:bg-rose-500 text-white rounded-xl font-semibold transition-colors disabled:opacity-50"
+                  className="w-full"
                 >
-                  {restoring && (
-                    <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                  )}
-                  <span>{restoring ? 'جاري الاستعادة...' : 'استعادة البيانات'}</span>
-                </button>
+                  {restoring ? 'جاري الاستعادة...' : 'استعادة البيانات'}
+                </Btn>
               </div>
             </div>
           )}
-        </SectionCard>
+        </div>
       )}
     </div>
   );

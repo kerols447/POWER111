@@ -6,6 +6,10 @@ import { downloadWorkbook } from '../utils/downloadWorkbook';
 import { arDate, localDate, startOfMonth } from '../utils/dates';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import NoticeBanner from '../components/NoticeBanner';
+import {
+  PageHeader, SectionTitle, StatTile, Badge, Btn, Segmented, Picker, Field,
+  CARD, FIELD, GOLD, TONE, UiIcon, TableShell, Th, Td, Row, ListCard, EmptyState, Loading
+} from '../components/ui';
 
 interface Branch {
   id: string;
@@ -120,12 +124,12 @@ function activityFlow(kind: string): 'in' | 'out' | 'none' {
 
 function ActivityKindIcon({ kind, className }: { kind: ActivityItem['kind']; className?: string }) {
   switch (kind) {
-    case 'SALE': return <IconSales className={className} />;
-    case 'PAYMENT': return <IconReceipt className={className} />;
-    case 'EXPENSE': return <IconExpenses className={className} />;
-    case 'SALARY': return <IconFinancial className={className} />;
-    case 'MEMBER': return <IconUsers className={className} />;
-    default: return <IconClock className={className} />;
+    case 'SALE': return <UiIcon name="sales" className={className} />;
+    case 'PAYMENT': return <UiIcon name="subscriptions" className={className} />;
+    case 'EXPENSE': return <UiIcon name="expenses" className={className} />;
+    case 'SALARY': return <UiIcon name="wallet" className={className} />;
+    case 'MEMBER': return <UiIcon name="users" className={className} />;
+    default: return <UiIcon name="clock" className={className} />;
   }
 }
 
@@ -136,171 +140,20 @@ function formatPiasters(piasters: number): string {
 
 const COLORS = ['#F59E0B', '#D97706', '#FCD34D', '#B45309', '#92400E', '#78350F'];
 
+// The same chart theme the dashboard uses, so every series reads as one product.
+const chartTooltipStyle = {
+  backgroundColor: '#0A0A0A',
+  border: '1px solid #2A2A2A',
+  borderRadius: '12px',
+  fontSize: '12px',
+  boxShadow: '0 8px 32px rgba(0,0,0,0.4)'
+};
+
 type ReportTab = 'financial' | 'sales' | 'expenses' | 'activity' | 'branches';
-
-/* ------------------------------------------------------------------ */
-/*  SVG Icon Components                                                */
-/* ------------------------------------------------------------------ */
-
-function IconFinancial({ className = 'w-5 h-5' }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-    </svg>
-  );
-}
-
-function IconSales({ className = 'w-5 h-5' }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" />
-      <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
-    </svg>
-  );
-}
-
-function IconExpenses({ className = 'w-5 h-5' }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 15V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9" />
-      <path d="M3 15h18l-1.5 6H4.5L3 15Z" />
-      <path d="M9 10h6" />
-    </svg>
-  );
-}
-
-function IconBranch({ className = 'w-5 h-5', style }: { className?: string; style?: React.CSSProperties }) {
-  return (
-    <svg className={className} style={style} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-      <rect x="4" y="2" width="16" height="20" rx="2" />
-      <path d="M9 22v-4h6v4" /><path d="M8 6h.01M16 6h.01M12 6h.01M8 10h.01M16 10h.01M12 10h.01M8 14h.01M16 14h.01M12 14h.01" />
-    </svg>
-  );
-}
-
-function IconCalendar({ className = 'w-4 h-4' }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" />
-    </svg>
-  );
-}
-
-function IconTrendUp({ className = 'w-5 h-5' }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" /><polyline points="17 6 23 6 23 12" />
-    </svg>
-  );
-}
-
-function IconTrendDown({ className = 'w-5 h-5' }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="23 18 13.5 8.5 8.5 13.5 1 6" /><polyline points="17 18 23 18 23 12" />
-    </svg>
-  );
-}
-
-function IconWallet({ className = 'w-5 h-5' }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 12V7a2 2 0 0 0-2-2H5a2 2 0 0 0 0 4h16v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5" />
-      <circle cx="17" cy="12" r="1.5" />
-    </svg>
-  );
-}
-
-function IconChart({ className = 'w-5 h-5' }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M18 20V10M12 20V4M6 20v-6" />
-    </svg>
-  );
-}
-
-function IconReceipt({ className = 'w-5 h-5' }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 2v20l3-2 3 2 3-2 3 2 3-2 3 2V2l-3 2-3-2-3 2-3-2-3 2-3-2Z" />
-      <path d="M8 10h8M8 14h4" />
-    </svg>
-  );
-}
-
-function IconUsers({ className = 'w-5 h-5' }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
-      <path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
-    </svg>
-  );
-}
-
-function IconEmpty({ className = 'w-12 h-12' }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v3" />
-      <path d="M3 16s1.5 2 4.5 2 4.5-3 8-3 4.5 3 4.5 3" />
-      <path d="M3 8v11a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8" />
-      <path d="M12 2v4M8 2v4M16 2v4" />
-    </svg>
-  );
-}
-
-function IconClock({ className = 'w-4 h-4' }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-    </svg>
-  );
-}
-
-function IconFilter({ className = 'w-4 h-4' }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-      <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-    </svg>
-  );
-}
-
-function IconLoader({ className = 'w-8 h-8' }: { className?: string }) {
-  return (
-    <svg className={`${className} animate-spin`} viewBox="0 0 24 24" fill="none">
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-    </svg>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Decorative gradient orbs (background)                             */
-/* ------------------------------------------------------------------ */
-
-function BackgroundDecor() {
-  return (
-    <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none select-none" aria-hidden="true">
-      <div className="absolute -top-40 -right-40 w-[500px] h-[500px] rounded-full bg-primary/5 blur-3xl" />
-      <div className="absolute top-1/3 -left-32 w-[400px] h-[400px] rounded-full bg-amber-500/5 blur-3xl" />
-      <div className="absolute bottom-0 right-1/4 w-[350px] h-[350px] rounded-full bg-emerald-500/5 blur-3xl" />
-    </div>
-  );
-}
 
 /* ------------------------------------------------------------------ */
 /*  Main Component                                                     */
 /* ------------------------------------------------------------------ */
-
-function IconLog({ className = 'w-5 h-5' }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M8 6h12M8 12h12M8 18h12" />
-      <circle cx="3.5" cy="6" r="1.2" />
-      <circle cx="3.5" cy="12" r="1.2" />
-      <circle cx="3.5" cy="18" r="1.2" />
-    </svg>
-  );
-}
 
 export default function ReportsPage() {
   const { user, isOwner, hasPermission } = useAuth();
@@ -464,12 +317,12 @@ export default function ReportsPage() {
     }
   };
 
-  const tabs: { key: ReportTab; label: string; Icon: React.FC<{ className?: string }> }[] = [
-    { key: 'financial', label: 'مالي', Icon: IconFinancial },
-    { key: 'sales', label: 'المبيعات', Icon: IconSales },
-    { key: 'expenses', label: 'المصروفات', Icon: IconExpenses },
-    { key: 'activity', label: 'سجل عمليات', Icon: IconLog },
-    { key: 'branches', label: 'الفروع', Icon: IconBranch },
+  const tabs: { key: ReportTab; label: string }[] = [
+    { key: 'financial', label: 'مالي' },
+    { key: 'sales', label: 'المبيعات' },
+    { key: 'expenses', label: 'المصروفات' },
+    { key: 'activity', label: 'سجل عمليات' },
+    { key: 'branches', label: 'الفروع' },
   ];
 
   const branchComparisonData = branchStats.map((stat, idx) => ({
@@ -480,6 +333,11 @@ export default function ReportsPage() {
     members: stat.activeMembers,
     color: COLORS[idx % COLORS.length]
   }));
+
+  // Same guard the dashboard uses: an all-zero period shows a message, never fake zero bars.
+  const comparisonHasData = branchStats.some(s =>
+    (s.revenue || 0) > 0 || (s.expenses || 0) > 0 || (s.profit || 0) > 0
+  );
 
   const expenseCategoryData = expensesData?.byCategory
     ? Object.entries(expensesData.byCategory).map(([name, data], idx) => ({
@@ -526,350 +384,247 @@ export default function ReportsPage() {
   /* ---------------------------------------------------------------- */
 
   return (
-    <>
-      <BackgroundDecor />
-
-      <div className="space-y-4 sm:space-y-6 lg:space-y-8">
-        {/* ============================================================ */}
-        {/*  Header                                                      */}
-        {/* ============================================================ */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-dark-card via-dark-card to-amber-950/20 border border-dark-border p-5 sm:p-6 lg:p-8">
-          {/* decorative corner glow */}
-          <div className="absolute -top-16 -left-16 w-48 h-48 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
-          <div className="absolute -bottom-10 -right-10 w-36 h-36 rounded-full bg-amber-500/10 blur-2xl pointer-events-none" />
-
-          <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-3 mb-2">
-                <div className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-primary/20 to-amber-600/10 border border-primary/20">
-                  <IconChart className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
-                </div>
-                <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-white tracking-tight">
-                  التقارير
-                </h1>
-              </div>
-              <p className="text-xs sm:text-sm text-gray-400 mt-1 max-w-md">
-                تحليل شامل للأداء المالي والمبيعات
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2 self-start sm:self-auto">
-              {/* Live badge */}
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-                </span>
-                <span className="text-xs font-medium text-emerald-400">مباشر</span>
-              </div>
-
-              <button
-                onClick={handleExportExcel}
-                disabled={exporting}
-                className="inline-flex items-center gap-2 px-4 py-2.5 min-h-11 bg-dark border border-primary/30 hover:border-primary/70 text-primary rounded-xl font-semibold text-xs sm:text-sm transition-colors disabled:opacity-60"
-              >
-                {exporting ? (
-                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                  </svg>
-                ) : (
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5 7.5 12M12 16.5V3" />
-                  </svg>
-                )}
-                <span>{exporting ? 'جارٍ التحضير…' : 'تحميل Excel'}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {notice && <NoticeBanner kind={notice.kind} text={notice.text} onDismiss={() => setNotice(null)} />}
-
-        {/* ============================================================ */}
-        {/*  Tabs                                                        */}
-        {/* ============================================================ */}
-        <div className="grid grid-cols-4 gap-1.5 sm:flex sm:gap-2">
-          {tabs.map(({ key, label, Icon }) => (
-            <button
-              key={key}
-              onClick={() => setActiveTab(key)}
-              className={`group relative flex items-center justify-center gap-1.5 sm:gap-2 px-1.5 sm:px-5 py-2.5 sm:py-3 min-h-11 rounded-xl font-semibold text-[11px] sm:text-sm whitespace-nowrap transition-all duration-300 ${
-                activeTab === key
-                  ? 'bg-gradient-to-r from-primary to-amber-600 text-white shadow-lg shadow-primary/25 scale-[1.02]'
-                  : 'bg-dark-card border border-dark-border text-gray-400 hover:text-white hover:border-primary/30 hover:bg-dark-hover hover:shadow-md hover:shadow-primary/5'
-              }`}
-            >
-              <Icon className={`w-4 h-4 sm:w-5 sm:h-5 transition-colors ${activeTab === key ? 'text-white' : 'text-gray-500 group-hover:text-primary'}`} />
-              <span>{label}</span>
-              {activeTab === key && (
-                <span className="absolute inset-x-0 -bottom-px h-0.5 bg-gradient-to-r from-transparent via-white/40 to-transparent rounded-full" />
-              )}
-            </button>
-          ))}
-        </div>
-
-        {/* ============================================================ */}
-        {/*  WhatsApp messages shortcut                                  */}
-        {/* ============================================================ */}
-        <button
-          onClick={() => navigate('/admin/whatsapp')}
-          className="w-full flex items-center gap-4 p-4 sm:p-5 rounded-2xl bg-dark-card border border-dark-border hover:border-emerald-500/40 transition-all text-right group"
-        >
-          <div className="w-11 h-11 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center flex-shrink-0">
-            <svg className="w-6 h-6 text-emerald-400" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12.04 2a9.9 9.9 0 0 0-8.51 14.94L2 22l5.2-1.49A9.9 9.9 0 1 0 12.04 2z" />
-            </svg>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-white">رسائل واتساب</p>
-            <p className="text-xs text-gray-500 mt-0.5">ابعت تنبيهات التجديد والعروض والترحيب للأعضاء مرة واحدة</p>
-          </div>
-          <span className="text-gray-600 group-hover:text-emerald-400 transition-colors text-lg">←</span>
-        </button>
-
-        {/* ============================================================ */}
-        {/*  Filters                                                     */}
-        {/* ============================================================ */}
-        <div className="relative overflow-hidden rounded-2xl bg-dark-card border border-dark-border p-4 sm:p-5 lg:p-6">
-          {/* subtle top accent */}
-          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
-
-          <div className="flex items-center justify-between gap-3 mb-3 sm:mb-4">
-            <div className="flex items-center gap-2">
-              <IconFilter className="w-4 h-4 text-primary" />
-              <span className="text-xs sm:text-sm font-semibold text-gray-300">تصفية البيانات</span>
-            </div>
-            <span className="text-[11px] text-gray-500 whitespace-nowrap">
-              {fromDate && toDate ? `${arDate(fromDate)} — ${arDate(toDate)}` : 'كل الفترات'}
-            </span>
-          </div>
-
-          <div className="flex flex-col lg:flex-row lg:items-end gap-4">
-            {/* Quick Range Buttons */}
-            <div className="flex gap-1.5 sm:gap-2 flex-wrap">
-              {([
-                ['today', 'اليوم'],
-                ['week', 'أسبوع'],
-                ['month', 'شهر'],
-                ['year', 'سنة'],
-              ] as const).map(([range, label]) => (
-                <button
-                  key={range}
-                  onClick={() => setQuickRange(range)}
-                  className="group relative px-3 sm:px-4 py-2 min-h-10 bg-dark border border-dark-border text-gray-400 rounded-lg text-xs sm:text-sm font-medium hover:border-primary/40 hover:text-white hover:shadow-md hover:shadow-primary/5 transition-all duration-200"
-                >
-                  <span className="relative z-10">{label}</span>
-                  <div className="absolute inset-0 rounded-lg bg-gradient-to-t from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                </button>
-              ))}
-            </div>
-
-            <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {activeTab !== 'branches' && !singleBranchUser && (
-                <div>
-                  <label className="flex items-center gap-1.5 text-xs text-gray-400 mb-1.5 font-medium">
-                    <IconBranch className="w-3.5 h-3.5" />
-                    الفرع
-                  </label>
-                  <select
-                    value={selectedBranch}
-                    onChange={(e) => setSelectedBranch(e.target.value)}
-                    className="w-full bg-dark border border-dark-border text-white rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all"
-                  >
-                    {branches.map((branch) => (
-                      <option key={branch.id} value={branch.id}>{branch.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              <div>
-                <label className="flex items-center gap-1.5 text-xs text-gray-400 mb-1.5 font-medium">
-                  <IconCalendar className="w-3.5 h-3.5" />
-                  من
-                </label>
-                <input
-                  type="date"
-                  value={fromDate}
-                  onChange={(e) => setFromDate(e.target.value)}
-                  className="w-full bg-dark border border-dark-border text-white rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all"
-                />
-              </div>
-
-              <div>
-                <label className="flex items-center gap-1.5 text-xs text-gray-400 mb-1.5 font-medium">
-                  <IconCalendar className="w-3.5 h-3.5" />
-                  إلى
-                </label>
-                <input
-                  type="date"
-                  value={toDate}
-                  onChange={(e) => setToDate(e.target.value)}
-                  className="w-full bg-dark border border-dark-border text-white rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ============================================================ */}
-        {/*  Content                                                     */}
-        {/* ============================================================ */}
-        {loading ? (
-          <div className="relative overflow-hidden bg-dark-card border border-dark-border rounded-2xl p-16 sm:p-20 text-center">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-amber-500/5" />
-            <div className="relative flex flex-col items-center gap-3">
-              <IconLoader className="w-10 h-10 text-primary" />
-              <p className="text-sm text-gray-400 font-medium">جاري التحميل...</p>
-            </div>
-          </div>
-        ) : (
+    <div className="space-y-5 sm:space-y-7 lg:space-y-8">
+      {/* ============================================================ */}
+      {/*  Header                                                      */}
+      {/* ============================================================ */}
+      <PageHeader
+        icon="reports"
+        title="التقارير"
+        caption="تحليل شامل للأداء المالي والمبيعات"
+        actions={
           <>
-            {/* ======================================================== */}
-            {/*  Financial Tab                                           */}
-            {/* ======================================================== */}
-            {activeTab === 'financial' && financial && (
-              <div className="space-y-4 sm:space-y-6">
-                {/* Summary Cards */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                  {/* Revenue */}
-                  <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-dark-card to-emerald-950/15 border border-dark-border p-4 sm:p-5 hover:border-emerald-500/20 transition-all duration-300 hover:shadow-lg hover:shadow-emerald-500/5">
-                    <div className="absolute top-0 right-0 w-20 h-20 rounded-full bg-emerald-500/5 -translate-y-6 translate-x-6 group-hover:scale-150 transition-transform duration-500" />
-                    <div className="relative">
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-[11px] sm:text-xs text-gray-400 font-medium">الإيرادات</span>
-                        <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                          <IconTrendUp className="w-4 h-4 text-emerald-400" />
-                        </div>
-                      </div>
-                      <p className="text-base sm:text-lg lg:text-xl font-bold text-emerald-400">{formatPiasters(financial.revenue)}</p>
-                      <p className="text-[11px] text-gray-500 mt-2">
-                        {financial.salesCount + financial.paymentsCount > 0
-                          ? `${financial.salesCount} مبيعات + ${financial.paymentsCount} مدفوعات`
-                          : 'لا عمليات في الفترة'}
-                      </p>
-                    </div>
-                  </div>
+            <Badge tone="green">مباشر</Badge>
+            <Btn
+              icon="download"
+              variant="primary"
+              onClick={handleExportExcel}
+              disabled={exporting}
+            >
+              {exporting ? 'جارٍ التحضير…' : 'تحميل Excel'}
+            </Btn>
+          </>
+        }
+      />
 
-                  {/* Expenses */}
-                  <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-dark-card to-rose-950/15 border border-dark-border p-4 sm:p-5 hover:border-rose-500/20 transition-all duration-300 hover:shadow-lg hover:shadow-rose-500/5">
-                    <div className="absolute top-0 right-0 w-20 h-20 rounded-full bg-rose-500/5 -translate-y-6 translate-x-6 group-hover:scale-150 transition-transform duration-500" />
-                    <div className="relative">
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-[11px] sm:text-xs text-gray-400 font-medium">المصروفات</span>
-                        <div className="w-8 h-8 rounded-lg bg-rose-500/10 flex items-center justify-center">
-                          <IconTrendDown className="w-4 h-4 text-rose-400" />
-                        </div>
-                      </div>
-                      <p className="text-base sm:text-lg lg:text-xl font-bold text-rose-400">{formatPiasters(financial.expenses)}</p>
-                      <p className="text-[11px] text-gray-500 mt-2">
-                        {financial.expensesCount > 0 ? `${financial.expensesCount} مصروف` : 'لا مصروفات في الفترة'}
-                      </p>
-                    </div>
-                  </div>
+      {notice && <NoticeBanner kind={notice.kind} text={notice.text} onDismiss={() => setNotice(null)} />}
 
-                  {/* Profit */}
-                  <div className={`group relative overflow-hidden rounded-2xl bg-gradient-to-br ${financial.profit >= 0 ? 'from-dark-card to-emerald-950/15 border-emerald-500/10 hover:border-emerald-500/20 hover:shadow-emerald-500/5' : 'from-dark-card to-rose-950/15 border-rose-500/10 hover:border-rose-500/20 hover:shadow-rose-500/5'} border border-dark-border p-4 sm:p-5 transition-all duration-300 hover:shadow-lg`}>
-                    <div className={`absolute top-0 right-0 w-20 h-20 rounded-full ${financial.profit >= 0 ? 'bg-emerald-500/5' : 'bg-rose-500/5'} -translate-y-6 translate-x-6 group-hover:scale-150 transition-transform duration-500`} />
-                    <div className="relative">
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-[11px] sm:text-xs text-gray-400 font-medium">صافي الربح</span>
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${financial.profit >= 0 ? 'bg-emerald-500/10' : 'bg-rose-500/10'}`}>
-                          {financial.profit >= 0
-                            ? <IconTrendUp className="w-4 h-4 text-emerald-400" />
-                            : <IconTrendDown className="w-4 h-4 text-rose-400" />
-                          }
-                        </div>
-                      </div>
-                      <p className={`text-base sm:text-lg lg:text-xl font-bold ${financial.profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {formatPiasters(financial.profit)}
-                      </p>
-                      <p className="text-[11px] text-gray-500 mt-2">
-                        {financial.revenue > 0 ? `${Math.round((financial.profit / financial.revenue) * 100)}% هامش الربح` : 'لا إيرادات في الفترة'}
-                      </p>
-                    </div>
-                  </div>
+      {/* ============================================================ */}
+      {/*  Tabs                                                        */}
+      {/* ============================================================ */}
+      <div className="overflow-x-auto">
+        <Segmented<ReportTab>
+          value={activeTab}
+          onChange={setActiveTab}
+          options={tabs}
+          ariaLabel="أقسام التقارير"
+        />
+      </div>
 
-                  {/* Outstanding */}
-                  <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-dark-card to-amber-950/15 border border-dark-border p-4 sm:p-5 hover:border-amber-500/20 transition-all duration-300 hover:shadow-lg hover:shadow-amber-500/5">
-                    <div className="absolute top-0 right-0 w-20 h-20 rounded-full bg-amber-500/5 -translate-y-6 translate-x-6 group-hover:scale-150 transition-transform duration-500" />
-                    <div className="relative">
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-[11px] sm:text-xs text-gray-400 font-medium">مستحقات</span>
-                        <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                          <IconWallet className="w-4 h-4 text-amber-400" />
-                        </div>
-                      </div>
-                      <p className="text-base sm:text-lg lg:text-xl font-bold text-amber-400">{formatPiasters(financial.outstanding)}</p>
-                      <p className="text-[11px] text-gray-500 mt-2">
-                        {financial.outstanding > 0 ? 'مبالغ متبقية للمتابعة' : 'لا مبالغ متبقية'}
-                      </p>
-                    </div>
-                  </div>
+      {/* ============================================================ */}
+      {/*  WhatsApp messages shortcut                                  */}
+      {/* ============================================================ */}
+      <button
+        onClick={() => navigate('/admin/whatsapp')}
+        className={`${CARD} group w-full flex items-center gap-4 p-4 sm:p-5 text-right hover:border-primary/40 transition-colors min-h-[64px]`}
+      >
+        <span
+          className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
+          style={{ backgroundColor: `${TONE.revenue}14`, color: TONE.revenue }}
+        >
+          <UiIcon name="whatsapp" className="w-5 h-5" />
+        </span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-white">رسائل واتساب</p>
+          <p className="text-xs text-gray-500 mt-0.5">ابعت تنبيهات التجديد والعروض والترحيب للأعضاء مرة واحدة</p>
+        </div>
+        <span className="text-gray-600 group-hover:text-primary transition-colors text-lg">←</span>
+      </button>
+
+      {/* ============================================================ */}
+      {/*  Filters                                                     */}
+      {/* ============================================================ */}
+      <div className={`${CARD} p-4 sm:p-5`}>
+        <div className="mb-4">
+          <SectionTitle
+            right={
+              <span className="text-[11px] text-gray-500 whitespace-nowrap">
+                {fromDate && toDate ? `${arDate(fromDate)} — ${arDate(toDate)}` : 'كل الفترات'}
+              </span>
+            }
+          >
+            تصفية البيانات
+          </SectionTitle>
+        </div>
+
+        <div className="flex flex-col lg:flex-row lg:items-end gap-4">
+          {/* Quick Range Buttons */}
+          <div className="flex gap-1.5 sm:gap-2 flex-wrap">
+            {([
+              ['today', 'اليوم'],
+              ['week', 'أسبوع'],
+              ['month', 'شهر'],
+              ['year', 'سنة'],
+            ] as const).map(([range, label]) => (
+              <Btn key={range} variant="ghost" onClick={() => setQuickRange(range)}>
+                {label}
+              </Btn>
+            ))}
+          </div>
+
+          <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {activeTab !== 'branches' && !singleBranchUser && (
+              <Field label="الفرع">
+                <Picker
+                  value={selectedBranch}
+                  onChange={setSelectedBranch}
+                  options={branches.map(branch => ({ value: branch.id, label: branch.name }))}
+                  ariaLabel="الفرع"
+                  className="min-w-0"
+                />
+              </Field>
+            )}
+
+            <Field label="من">
+              <input
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className={FIELD}
+              />
+            </Field>
+
+            <Field label="إلى">
+              <input
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className={FIELD}
+              />
+            </Field>
+          </div>
+        </div>
+      </div>
+
+      {/* ============================================================ */}
+      {/*  Content                                                     */}
+      {/* ============================================================ */}
+      {loading ? (
+        <div className={`${CARD} overflow-hidden`}>
+          <Loading />
+        </div>
+      ) : (
+        <>
+          {/* ======================================================== */}
+          {/*  Financial Tab                                           */}
+          {/* ======================================================== */}
+          {activeTab === 'financial' && financial && (
+            <div className="space-y-4 sm:space-y-6">
+              {/* Summary Cards — whole-dataset totals from the API */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <StatTile
+                  icon="wallet"
+                  tone={TONE.revenue}
+                  label="الإيرادات"
+                  value={<span style={{ color: TONE.revenue }}>{formatPiasters(financial.revenue)}</span>}
+                  caption={
+                    financial.salesCount + financial.paymentsCount > 0
+                      ? `${financial.salesCount} مبيعات + ${financial.paymentsCount} مدفوعات`
+                      : 'لا عمليات في الفترة'
+                  }
+                />
+                <StatTile
+                  icon="expenses"
+                  tone={TONE.expenses}
+                  label="المصروفات"
+                  value={<span style={{ color: TONE.expenses }}>{formatPiasters(financial.expenses)}</span>}
+                  caption={
+                    financial.expensesCount > 0 ? `${financial.expensesCount} مصروف` : 'لا مصروفات في الفترة'
+                  }
+                />
+                <StatTile
+                  icon="reports"
+                  tone={financial.profit >= 0 ? TONE.profit : TONE.expenses}
+                  label="صافي الربح"
+                  value={
+                    <span style={{ color: financial.profit >= 0 ? TONE.profit : TONE.expenses }}>
+                      {formatPiasters(financial.profit)}
+                    </span>
+                  }
+                  caption={
+                    financial.revenue > 0 ? `${Math.round((financial.profit / financial.revenue) * 100)}% هامش الربح` : 'لا إيرادات في الفترة'
+                  }
+                />
+                <StatTile
+                  icon="subscriptions"
+                  tone={TONE.outstanding}
+                  label="مستحقات"
+                  value={<span style={{ color: TONE.outstanding }}>{formatPiasters(financial.outstanding)}</span>}
+                  caption={
+                    financial.outstanding > 0 ? 'مبالغ متبقية للمتابعة' : 'لا مبالغ متبقية'
+                  }
+                />
+              </div>
+
+              {/* Visual Breakdown */}
+              <div className={`${CARD} p-5 sm:p-6`}>
+                <div className="mb-5">
+                  <SectionTitle>ملخص الأداء</SectionTitle>
                 </div>
-
-                {/* Visual Breakdown */}
-                <div className="relative overflow-hidden rounded-2xl bg-dark-card border border-dark-border p-4 sm:p-6 lg:p-8">
-                  <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
-                  <div className="flex items-center gap-2 mb-5 sm:mb-6">
-                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <IconChart className="w-4 h-4 text-primary" />
-                    </div>
-                    <h3 className="text-sm sm:text-base font-bold text-white">ملخص الأداء</h3>
-                  </div>
-                  <div className="space-y-5">
-                    {[
-                      { label: 'الإيرادات', value: financial.revenue, max: financial.revenue, gradient: 'from-emerald-500 to-emerald-400', textColor: 'text-emerald-400' },
-                      { label: 'المصروفات', value: financial.expenses, max: financial.revenue, gradient: 'from-rose-500 to-rose-400', textColor: 'text-rose-400' },
-                      { label: 'صافي الربح', value: financial.profit, max: financial.revenue, gradient: financial.profit >= 0 ? 'from-primary to-amber-400' : 'from-rose-500 to-rose-400', textColor: financial.profit >= 0 ? 'text-primary' : 'text-rose-400' },
-                    ].map(item => (
-                      <div key={item.label}>
-                        <div className="flex justify-between text-sm mb-2">
-                          <span className="text-gray-400 font-medium">{item.label}</span>
-                          <span className={`font-semibold ${item.textColor}`}>{formatPiasters(item.value)}</span>
-                        </div>
-                        <div className="w-full bg-dark rounded-full h-3 overflow-hidden">
-                          <div
-                            className={`bg-gradient-to-r ${item.gradient} h-3 rounded-full transition-all duration-700 ease-out relative`}
-                            style={{ width: item.max > 0 ? `${Math.max(0, Math.min(100, (item.value / item.max) * 100))}%` : '0%' }}
-                          >
-                            <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent rounded-full" />
-                          </div>
-                        </div>
+                <div className="space-y-5">
+                  {[
+                    { label: 'الإيرادات', value: financial.revenue, max: financial.revenue, color: TONE.revenue },
+                    { label: 'المصروفات', value: financial.expenses, max: financial.revenue, color: TONE.expenses },
+                    { label: 'صافي الربح', value: financial.profit, max: financial.revenue, color: financial.profit >= 0 ? TONE.profit : TONE.expenses },
+                  ].map(item => (
+                    <div key={item.label}>
+                      <div className="flex justify-between text-sm mb-2">
+                        <span className="text-gray-400 font-medium">{item.label}</span>
+                        <span className="font-semibold" style={{ color: item.color }}>{formatPiasters(item.value)}</span>
                       </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Revenue vs Expenses Chart */}
-                <div className="relative overflow-hidden rounded-2xl bg-dark-card border border-dark-border p-4 sm:p-6 lg:p-8">
-                  <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
-                  <div className="flex items-center gap-2 mb-5 sm:mb-6">
-                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <IconChart className="w-4 h-4 text-primary" />
+                      <div className="w-full bg-dark rounded-full h-2 overflow-hidden">
+                        <div
+                          className="h-2 rounded-full transition-all duration-700"
+                          style={{
+                            width: item.max > 0 ? `${Math.max(0, Math.min(100, (item.value / item.max) * 100))}%` : '0%',
+                            backgroundColor: item.color
+                          }}
+                        />
+                      </div>
                     </div>
-                    <h3 className="text-sm sm:text-base font-bold text-white">الإيرادات مقابل المصروفات</h3>
-                  </div>
-                  <div className="w-full" style={{ height: 'clamp(180px, 25vw, 280px)' }}>
+                  ))}
+                </div>
+              </div>
+
+              {/* Revenue vs Expenses Chart */}
+              <div className={`${CARD} p-5 sm:p-6`}>
+                <div className="mb-5">
+                  <SectionTitle>الإيرادات مقابل المصروفات</SectionTitle>
+                </div>
+                {financial.revenue > 0 || financial.expenses > 0 ? (
+                  <div className="h-[190px] sm:h-[240px]">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={[
-                        { name: 'إيرادات', value: financial.revenue / 100, fill: '#F59E0B' },
-                        { name: 'مصروفات', value: financial.expenses / 100, fill: '#6B7280' },
-                        { name: 'ربح', value: Math.max(0, financial.profit / 100), fill: '#D97706' },
-                      ]}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#2A2A2A" vertical={false} />
-                        <XAxis dataKey="name" stroke="#6B7280" fontSize={12} tickLine={false} axisLine={false} />
-                        <YAxis stroke="#6B7280" fontSize={11} tickLine={false} axisLine={false} width={50} />
+                      <BarChart
+                        margin={{ top: 6, right: 8, left: 8, bottom: 0 }}
+                        data={[
+                          { name: 'إيرادات', value: financial.revenue / 100 },
+                          { name: 'مصروفات', value: financial.expenses / 100 },
+                          { name: 'ربح', value: Math.max(0, financial.profit / 100) },
+                        ]}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1A1A1A" vertical={false} />
+                        <XAxis dataKey="name" stroke="#4B5563" fontSize={11} tickLine={false} axisLine={false} />
+                        <YAxis stroke="#4B5563" fontSize={11} tickLine={false} axisLine={false} width={50} />
                         <Tooltip
                           cursor={{ fill: 'rgba(245,158,11,0.05)' }}
-                          contentStyle={{ backgroundColor: '#141414', border: '1px solid #2A2A2A', borderRadius: '12px', fontSize: '12px', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}
+                          contentStyle={chartTooltipStyle}
+                          labelStyle={{ color: '#fff', fontWeight: 600 }}
                           formatter={(value: number) => [`${value.toFixed(0)} ج.م`]}
                         />
                         <Bar dataKey="value" radius={[8, 8, 0, 0]} name="المبلغ" barSize={40}>
                           {[
-                            { fill: '#F59E0B' },
-                            { fill: '#6B7280' },
+                            { fill: GOLD },
+                            { fill: '#374151' },
                             { fill: '#D97706' },
                           ].map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={entry.fill} />
@@ -878,743 +633,677 @@ export default function ReportsPage() {
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
-                </div>
-              </div>
-            )}
-
-            {/* ======================================================== */}
-            {/*  Sales Tab                                               */}
-            {/* ======================================================== */}
-            {activeTab === 'sales' && (
-              <div className="space-y-4 sm:space-y-6">
-                {/* Sales Summary */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
-                  <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-dark-card to-primary/5 border border-dark-border p-4 sm:p-5 hover:border-primary/20 transition-all duration-300 hover:shadow-lg hover:shadow-primary/5">
-                    <div className="absolute top-0 right-0 w-16 h-16 rounded-full bg-primary/5 -translate-y-4 translate-x-4 group-hover:scale-150 transition-transform duration-500" />
-                    <div className="relative">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center">
-                          <IconReceipt className="w-3.5 h-3.5 text-primary" />
-                        </div>
-                        <span className="text-[11px] sm:text-xs text-gray-400 font-medium">عدد الفواتير</span>
-                      </div>
-                      <p className="text-xl sm:text-2xl font-bold text-white">{salesData.length}</p>
-                    </div>
-                  </div>
-
-                  <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-dark-card to-emerald-950/15 border border-dark-border p-4 sm:p-5 hover:border-emerald-500/20 transition-all duration-300 hover:shadow-lg hover:shadow-emerald-500/5">
-                    <div className="absolute top-0 right-0 w-16 h-16 rounded-full bg-emerald-500/5 -translate-y-4 translate-x-4 group-hover:scale-150 transition-transform duration-500" />
-                    <div className="relative">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-7 h-7 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                          <IconTrendUp className="w-3.5 h-3.5 text-emerald-400" />
-                        </div>
-                        <span className="text-[11px] sm:text-xs text-gray-400 font-medium">إجمالي المبيعات</span>
-                      </div>
-                      <p className="text-xl sm:text-2xl font-bold text-emerald-400">{formatPiasters(totalSalesAmount)}</p>
-                    </div>
-                  </div>
-
-                  <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-dark-card to-amber-950/15 border border-dark-border p-4 sm:p-5 col-span-2 sm:col-span-1 hover:border-amber-500/20 transition-all duration-300 hover:shadow-lg hover:shadow-amber-500/5">
-                    <div className="absolute top-0 right-0 w-16 h-16 rounded-full bg-amber-500/5 -translate-y-4 translate-x-4 group-hover:scale-150 transition-transform duration-500" />
-                    <div className="relative">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                          <IconFinancial className="w-3.5 h-3.5 text-amber-400" />
-                        </div>
-                        <span className="text-[11px] sm:text-xs text-gray-400 font-medium">متوسط الفاتورة</span>
-                      </div>
-                      <p className="text-xl sm:text-2xl font-bold text-primary">
-                        {salesData.length > 0 ? formatPiasters(totalSalesAmount / salesData.length) : '0 ج.م'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Sales List */}
-                <div className="relative overflow-hidden rounded-2xl bg-dark-card border border-dark-border">
-                  <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
-                  <div className="p-4 sm:p-5 border-b border-dark-border flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <IconSales className="w-4 h-4 text-primary" />
-                    </div>
-                    <h3 className="text-sm sm:text-base font-bold text-white">سجل المبيعات</h3>
-                    {salesData.length > 0 && (
-                      <span className="mr-auto px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-primary/10 text-primary border border-primary/20">
-                        {salesData.length}
-                      </span>
-                    )}
-                  </div>
-                  {salesData.length === 0 ? (
-                    <div className="p-10 sm:p-16 text-center">
-                      <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-dark border border-dark-border mb-4">
-                        <IconEmpty className="w-8 h-8 text-gray-600" />
-                      </div>
-                      <p className="text-gray-400 text-sm font-medium">لا توجد مبيعات في هذه الفترة</p>
-                    </div>
-                  ) : (
-                    <>
-                      {/* Mobile Cards */}
-                      <div className="sm:hidden divide-y divide-dark-border">
-                        {salesData.map(sale => (
-                          <div key={sale.id} className="p-4 hover:bg-dark-hover/50 transition-colors">
-                            <div className="flex items-start justify-between mb-3">
-                              <div className="flex items-center gap-2.5">
-                                <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                                  <IconReceipt className="w-4 h-4 text-primary" />
-                                </div>
-                                <div>
-                                  <p className="text-sm font-semibold text-white">{sale.invoiceNumber}</p>
-                                  <p className="text-xs text-gray-500">{sale.branch.name}</p>
-                                </div>
-                              </div>
-                              <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs font-bold text-emerald-400">
-                                {formatPiasters(sale.finalTotalPiasters)}
-                              </span>
-                            </div>
-                            <div className="flex flex-wrap gap-1.5 mb-2">
-                              {sale.items.slice(0, 3).map(item => (
-                                <span key={item.id} className="text-[11px] bg-dark px-2.5 py-1 rounded-lg text-gray-400 border border-dark-border">
-                                  {item.product.nameAr || item.product.name} ×{item.quantity}
-                                </span>
-                              ))}
-                              {sale.items.length > 3 && (
-                                <span className="text-[11px] text-gray-500 px-1">+{sale.items.length - 3} أخرى</span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-1.5 text-[11px] text-gray-500">
-                              <IconClock className="w-3 h-3" />
-                              {arDate(sale.createdAt)} {new Date(sale.createdAt).toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' })}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Desktop Table */}
-                      <div className="hidden sm:block overflow-x-auto">
-                        <table className="w-full">
-                          <thead className="bg-dark/60">
-                            <tr>
-                              <th className="text-right py-3.5 px-4 text-xs font-semibold text-gray-400">رقم الفاتورة</th>
-                              <th className="text-right py-3.5 px-4 text-xs font-semibold text-gray-400">الفرع</th>
-                              <th className="text-right py-3.5 px-4 text-xs font-semibold text-gray-400">المنتجات</th>
-                              <th className="text-right py-3.5 px-4 text-xs font-semibold text-gray-400">الإجمالي</th>
-                              <th className="text-right py-3.5 px-4 text-xs font-semibold text-gray-400">التاريخ</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {salesData.map(sale => (
-                              <tr key={sale.id} className="border-t border-dark-border/50 hover:bg-dark-hover/50 transition-colors">
-                                <td className="py-3.5 px-4">
-                                  <span className="text-sm font-mono font-semibold text-white bg-dark px-2.5 py-1 rounded-lg border border-dark-border">{sale.invoiceNumber}</span>
-                                </td>
-                                <td className="py-3.5 px-4">
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                                      <IconBranch className="w-3.5 h-3.5 text-primary/70" />
-                                    </div>
-                                    <span className="text-sm text-gray-300">{sale.branch.name}</span>
-                                  </div>
-                                </td>
-                                <td className="py-3.5 px-4">
-                                  <div className="flex flex-wrap gap-1.5">
-                                    {sale.items.slice(0, 2).map(item => (
-                                      <span key={item.id} className="text-xs bg-dark px-2.5 py-1 rounded-lg text-gray-400 border border-dark-border">
-                                        {item.product.nameAr || item.product.name} ×{item.quantity}
-                                      </span>
-                                    ))}
-                                    {sale.items.length > 2 && (
-                                      <span className="text-xs text-gray-500 px-1">+{sale.items.length - 2}</span>
-                                    )}
-                                  </div>
-                                </td>
-                                <td className="py-3.5 px-4">
-                                  <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-sm font-semibold text-emerald-400">{formatPiasters(sale.finalTotalPiasters)}</span>
-                                </td>
-                                <td className="py-3.5 px-4">
-                                  <div className="flex items-center gap-1.5">
-                                    <IconClock className="w-3.5 h-3.5 text-gray-500" />
-                                    <span className="text-sm text-gray-400">
-                                      {arDate(sale.createdAt)}
-                                    </span>
-                                    <span className="text-xs text-gray-500">
-                                      {new Date(sale.createdAt).toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' })}
-                                    </span>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* ======================================================== */}
-            {/*  Expenses Tab                                            */}
-            {/* ======================================================== */}
-            {activeTab === 'expenses' && expensesData && (
-              <div className="space-y-4 sm:space-y-6">
-                {/* Expense Summary */}
-                <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                  <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-dark-card to-rose-950/15 border border-dark-border p-4 sm:p-5 hover:border-rose-500/20 transition-all duration-300 hover:shadow-lg hover:shadow-rose-500/5">
-                    <div className="absolute top-0 right-0 w-20 h-20 rounded-full bg-rose-500/5 -translate-y-6 translate-x-6 group-hover:scale-150 transition-transform duration-500" />
-                    <div className="relative">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-8 h-8 rounded-lg bg-rose-500/10 flex items-center justify-center">
-                          <IconTrendDown className="w-4 h-4 text-rose-400" />
-                        </div>
-                        <span className="text-[11px] sm:text-xs text-gray-400 font-medium">إجمالي المصروفات</span>
-                      </div>
-                      <p className="text-xl sm:text-2xl font-bold text-rose-400">{formatPiasters(expensesData.total)}</p>
-                    </div>
-                  </div>
-
-                  <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-dark-card to-primary/5 border border-dark-border p-4 sm:p-5 hover:border-primary/20 transition-all duration-300 hover:shadow-lg hover:shadow-primary/5">
-                    <div className="absolute top-0 right-0 w-20 h-20 rounded-full bg-primary/5 -translate-y-6 translate-x-6 group-hover:scale-150 transition-transform duration-500" />
-                    <div className="relative">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                          <IconExpenses className="w-4 h-4 text-primary" />
-                        </div>
-                        <span className="text-[11px] sm:text-xs text-gray-400 font-medium">عدد المصروفات</span>
-                      </div>
-                      <p className="text-xl sm:text-2xl font-bold text-white">{expensesData.expenses.length}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Category Chart */}
-                {expenseCategoryData.length > 0 && (
-                  <div className="relative overflow-hidden rounded-2xl bg-dark-card border border-dark-border p-4 sm:p-6 lg:p-8">
-                    <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
-                    <div className="flex items-center gap-2 mb-5 sm:mb-6">
-                      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                        <IconChart className="w-4 h-4 text-primary" />
-                      </div>
-                      <h3 className="text-sm sm:text-base font-bold text-white">المصروفات حسب الفئة</h3>
-                    </div>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 items-center">
-                      <div style={{ height: 'clamp(180px, 25vw, 260px)' }}>
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={expenseCategoryData}
-                              cx="50%"
-                              cy="50%"
-                              innerRadius="45%"
-                              outerRadius="75%"
-                              paddingAngle={4}
-                              dataKey="value"
-                              strokeWidth={0}
-                            >
-                              {expenseCategoryData.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.color} />
-                              ))}
-                            </Pie>
-                            <Tooltip
-                              contentStyle={{ backgroundColor: '#141414', border: '1px solid #2A2A2A', borderRadius: '12px', fontSize: '12px', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}
-                              formatter={(value: number) => [`${value.toFixed(0)} ج.م`]}
-                            />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </div>
-                      <div className="space-y-2">
-                        {expenseCategoryData.map((cat, idx) => {
-                          const percentage = expensesData.total > 0 ? Math.round((cat.value * 100 / (expensesData.total / 100)) * 100) / 100 : 0;
-                          return (
-                            <div key={idx} className="group flex items-center justify-between p-3 bg-dark rounded-xl border border-dark-border/50 hover:border-primary/20 transition-all duration-200">
-                              <div className="flex items-center gap-3">
-                                <div className="w-3.5 h-3.5 rounded-full ring-2 ring-offset-2 ring-offset-dark-card" style={{ backgroundColor: cat.color, boxShadow: `0 0 0 2px ${cat.color}` }} />
-                                <span className="text-sm text-gray-300 font-medium">{cat.name}</span>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                <span className="text-[11px] text-gray-500 font-medium">{percentage}%</span>
-                                <span className="text-sm font-semibold text-white">{formatPiasters(cat.value * 100)}</span>
-                                <span className="text-[11px] text-gray-500 bg-dark-card px-2 py-0.5 rounded-md border border-dark-border">({cat.count})</span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
+                ) : (
+                  <p className="h-[190px] sm:h-[240px] flex items-center justify-center text-sm text-gray-500">لا عمليات في الفترة</p>
                 )}
+              </div>
+            </div>
+          )}
 
-                {/* Expenses List */}
-                <div className="relative overflow-hidden rounded-2xl bg-dark-card border border-dark-border">
-                  <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
-                  <div className="p-4 sm:p-5 border-b border-dark-border flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-rose-500/10 flex items-center justify-center">
-                      <IconExpenses className="w-4 h-4 text-rose-400" />
-                    </div>
-                    <h3 className="text-sm sm:text-base font-bold text-white">سجل المصروفات</h3>
-                    {expensesData.expenses.length > 0 && (
-                      <span className="mr-auto px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                        {expensesData.expenses.length}
-                      </span>
-                    )}
-                  </div>
-                  {expensesData.expenses.length === 0 ? (
-                    <div className="p-10 sm:p-16 text-center">
-                      <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-dark border border-dark-border mb-4">
-                        <IconEmpty className="w-8 h-8 text-gray-600" />
-                      </div>
-                      <p className="text-gray-400 text-sm font-medium">لا توجد مصروفات في هذه الفترة</p>
-                    </div>
-                  ) : (
-                    <>
-                      {/* Mobile Cards */}
-                      <div className="sm:hidden divide-y divide-dark-border">
-                        {expensesData.expenses.map(expense => (
-                          <div key={expense.id} className="p-4 hover:bg-dark-hover/50 transition-colors">
-                            <div className="flex items-start justify-between mb-2">
-                              <div className="flex items-center gap-2.5">
-                                <div className="w-9 h-9 rounded-lg bg-rose-500/10 flex items-center justify-center flex-shrink-0">
-                                  <IconExpenses className="w-4 h-4 text-rose-400" />
-                                </div>
-                                <div>
-                                  <p className="text-sm font-semibold text-white">{expense.description}</p>
-                                  <p className="text-xs text-gray-500">{expense.branch.name}</p>
-                                </div>
-                              </div>
-                              <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/20 text-xs font-bold text-rose-400">
-                                {formatPiasters(expense.amountPiasters)}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between mt-2">
-                              <span className="text-[11px] bg-dark px-2.5 py-1 rounded-lg text-gray-400 border border-dark-border">{expense.category}</span>
-                              <div className="flex items-center gap-1.5 text-[11px] text-gray-500">
-                                <IconClock className="w-3 h-3" />
-                                {arDate(expense.createdAt)}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Desktop Table */}
-                      <div className="hidden sm:block overflow-x-auto">
-                        <table className="w-full">
-                          <thead className="bg-dark/60">
-                            <tr>
-                              <th className="text-right py-3.5 px-4 text-xs font-semibold text-gray-400">الوصف</th>
-                              <th className="text-right py-3.5 px-4 text-xs font-semibold text-gray-400">الفئة</th>
-                              <th className="text-right py-3.5 px-4 text-xs font-semibold text-gray-400">الفرع</th>
-                              <th className="text-right py-3.5 px-4 text-xs font-semibold text-gray-400">المبلغ</th>
-                              <th className="text-right py-3.5 px-4 text-xs font-semibold text-gray-400">التاريخ</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {expensesData.expenses.map(expense => (
-                              <tr key={expense.id} className="border-t border-dark-border/50 hover:bg-dark-hover/50 transition-colors">
-                                <td className="py-3.5 px-4">
-                                  <span className="text-sm text-white font-medium">{expense.description}</span>
-                                </td>
-                                <td className="py-3.5 px-4">
-                                  <span className="text-xs bg-dark px-2.5 py-1 rounded-lg text-gray-400 border border-dark-border font-medium">{expense.category}</span>
-                                </td>
-                                <td className="py-3.5 px-4">
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                                      <IconBranch className="w-3.5 h-3.5 text-primary/70" />
-                                    </div>
-                                    <span className="text-sm text-gray-300">{expense.branch.name}</span>
-                                  </div>
-                                </td>
-                                <td className="py-3.5 px-4">
-                                  <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/20 text-sm font-semibold text-rose-400">{formatPiasters(expense.amountPiasters)}</span>
-                                </td>
-                                <td className="py-3.5 px-4">
-                                  <div className="flex items-center gap-1.5">
-                                    <IconClock className="w-3.5 h-3.5 text-gray-500" />
-                                    <span className="text-sm text-gray-400">
-                                      {arDate(expense.createdAt)}
-                                    </span>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </>
-                  )}
+          {/* ======================================================== */}
+          {/*  Sales Tab                                               */}
+          {/* ======================================================== */}
+          {activeTab === 'sales' && (
+            <div className="space-y-4 sm:space-y-6">
+              {/* Sales Summary */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
+                <StatTile
+                  icon="subscriptions"
+                  label="عدد الفواتير"
+                  value={salesData.length}
+                />
+                <StatTile
+                  icon="sales"
+                  tone={TONE.revenue}
+                  label="إجمالي المبيعات"
+                  value={<span style={{ color: TONE.revenue }}>{formatPiasters(totalSalesAmount)}</span>}
+                />
+                <div className="col-span-2 sm:col-span-1">
+                  <StatTile
+                    icon="wallet"
+                    label="متوسط الفاتورة"
+                    value={
+                      salesData.length > 0 ? formatPiasters(totalSalesAmount / salesData.length) : '0 ج.م'
+                    }
+                  />
                 </div>
               </div>
-            )}
 
-            {/* ======================================================== */}
-            {/*  Activity Log Tab                                        */}
-            {/* ======================================================== */}
-            {activeTab === 'activity' && (
-              <div className="space-y-4 sm:space-y-6">
-                {/* Range totals — counted over every row, not just what is on screen */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div className="relative overflow-hidden rounded-2xl bg-dark-card border border-dark-border p-4 hover:border-emerald-500/20 transition-colors">
-                    <p className="text-[11px] text-gray-500 font-medium mb-1.5">الوارد في الفترة</p>
-                    <p className="text-lg sm:text-2xl font-bold text-emerald-400">{formatPiasters(activity?.summary.incomePiasters ?? 0)}</p>
-                    <p className="text-[11px] text-gray-500 mt-1.5">
-                      {activity?.summary.counts.SALE ?? 0} بيع • {activity?.summary.counts.PAYMENT ?? 0} اشتراك
-                    </p>
-                  </div>
-                  <div className="relative overflow-hidden rounded-2xl bg-dark-card border border-dark-border p-4 hover:border-rose-500/20 transition-colors">
-                    <p className="text-[11px] text-gray-500 font-medium mb-1.5">الخارج في الفترة</p>
-                    <p className="text-lg sm:text-2xl font-bold text-rose-400">{formatPiasters(activity?.summary.outflowPiasters ?? 0)}</p>
-                    <p className="text-[11px] text-gray-500 mt-1.5">
-                      {activity?.summary.counts.EXPENSE ?? 0} مصروف • {activity?.summary.counts.SALARY ?? 0} مرتّب
-                    </p>
-                  </div>
-                  <div className="relative overflow-hidden rounded-2xl bg-dark-card border border-dark-border p-4 hover:border-primary/20 transition-colors">
-                    <p className="text-[11px] text-gray-500 font-medium mb-1.5">الصافي</p>
-                    <p className={`text-lg sm:text-2xl font-bold ${(activity?.summary.netPiasters ?? 0) >= 0 ? 'text-primary' : 'text-rose-400'}`}>
-                      {formatPiasters(activity?.summary.netPiasters ?? 0)}
-                    </p>
-                  </div>
-                  <div className="relative overflow-hidden rounded-2xl bg-dark-card border border-dark-border p-4 hover:border-amber-500/20 transition-colors">
-                    <p className="text-[11px] text-gray-500 font-medium mb-1.5">كل العمليات</p>
-                    <p className="text-lg sm:text-2xl font-bold text-white">
-                      {Object.values(activity?.summary.counts ?? {}).reduce((s: number, n: number) => s + n, 0)}
-                    </p>
-                    <p className="text-[11px] text-gray-500 mt-1.5">
-                      {activity?.summary.counts.MEMBER ?? 0} عضو جديد • {activity?.summary.counts.CHECKIN ?? 0} دخول
-                    </p>
-                  </div>
-                </div>
-
-                {/* Kind filter */}
-                <div className="flex gap-1.5 sm:gap-2 flex-wrap">
-                  <button
-                    onClick={() => setActivityKind('ALL')}
-                    className={`px-3 py-2 min-h-10 rounded-lg text-xs sm:text-sm font-medium border transition-colors ${
-                      activityKind === 'ALL'
-                        ? 'bg-primary/15 border-primary/40 text-white'
-                        : 'bg-dark border-dark-border text-gray-400 hover:text-white'
-                    }`}
+              {/* Sales List */}
+              <div className={`${CARD} overflow-hidden`}>
+                <div className="p-4 sm:p-5 border-b border-dark-border">
+                  <SectionTitle
+                    right={
+                      salesData.length > 0 ? <Badge tone="gold">{salesData.length}</Badge> : undefined
+                    }
                   >
-                    الكل
-                  </button>
-                  {ACTIVITY_KINDS.map(kind => (
-                    <button
-                      key={kind.key}
-                      onClick={() => setActivityKind(activityKind === kind.key ? 'ALL' : kind.key)}
-                      className={`inline-flex items-center gap-1.5 px-3 py-2 min-h-10 rounded-lg text-xs sm:text-sm font-medium border transition-colors ${
-                        activityKind === kind.key
-                          ? 'bg-primary/15 border-primary/40 text-white'
-                          : 'bg-dark border-dark-border text-gray-400 hover:text-white'
-                      }`}
-                    >
-                      <span>{kind.label}</span>
-                      <span className="text-[11px] opacity-70">{activity?.summary.counts[kind.key] ?? 0}</span>
-                    </button>
-                  ))}
+                    سجل المبيعات
+                  </SectionTitle>
                 </div>
-
-                {/* The journal */}
-                <div className="relative overflow-hidden rounded-2xl bg-dark-card border border-dark-border">
-                  <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
-                  <div className="p-4 sm:p-5 border-b border-dark-border flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <IconLog className="w-4 h-4 text-primary" />
-                    </div>
-                    <h3 className="text-sm sm:text-base font-bold text-white">سجل العمليات</h3>
-                    <span className="mr-auto px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-primary/10 text-primary border border-primary/20">
-                      {activityDays.shown}
-                    </span>
-                  </div>
-
-                  {activityDays.days.length === 0 ? (
-                    <div className="p-10 sm:p-16 text-center">
-                      <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-dark border border-dark-border mb-4">
-                        <IconEmpty className="w-8 h-8 text-gray-600" />
-                      </div>
-                      <p className="text-gray-400 text-sm font-medium">مفيش عمليات في الفترة دي</p>
-                      <p className="text-gray-600 text-xs mt-1">غيّر التاريخ أو اختار فرع تاني</p>
-                    </div>
-                  ) : (
-                    <div className="divide-y divide-dark-border">
-                      {activityDays.days.map(day => (
-                        <div key={day.date}>
-                          {/* Day header with that day's money */}
-                          <div className="flex flex-wrap items-center gap-2 bg-dark/60 px-4 py-2.5">
-                            <span className="text-xs sm:text-sm font-bold text-white">{arDate(day.date)}</span>
-                            {day.income > 0 && (
-                              <span className="text-[11px] px-2 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                                +{formatPiasters(day.income)}
-                              </span>
-                            )}
-                            {day.outflow > 0 && (
-                              <span className="text-[11px] px-2 py-0.5 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                                -{formatPiasters(day.outflow)}
-                              </span>
-                            )}
-                            <span className="mr-auto text-[11px] text-gray-500">
-                              {day.total} عملية
-                              {day.income || day.outflow ? ` • الصافي ${formatPiasters(day.net)}` : ''}
-                            </span>
-                          </div>
-
-                          {day.items.map(item => (
-                            <div key={item.id} className="flex items-center gap-3 px-4 py-3 hover:bg-dark-hover/50 transition-colors">
-                              <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 border ${
-                                activityFlow(item.kind) === 'in'
-                                  ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-                                  : activityFlow(item.kind) === 'out'
-                                    ? 'bg-rose-500/10 border-rose-500/20 text-rose-400'
-                                    : 'bg-dark border-dark-border text-gray-400'
-                              }`}>
-                                <ActivityKindIcon kind={item.kind} className="w-4 h-4" />
-                              </div>
-
-                              <div className="min-w-0 flex-1">
-                                <p className="text-sm font-semibold text-white truncate">
-                                  {item.title}
-                                  {item.flagged && (
-                                    <span className="mr-1.5 text-[11px] font-normal text-rose-400">— بدون اشتراك</span>
-                                  )}
-                                </p>
-                                <p className="text-[11px] sm:text-xs text-gray-500 truncate">{item.subtitle}</p>
-                                <p className="text-[11px] text-gray-600 truncate">
-                                  {new Date(item.at).toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' })}
-                                  {' • '}{item.branchName}
-                                  {item.method ? ` • ${ACTIVITY_METHODS[item.method] || item.method}` : ''}
-                                </p>
-                              </div>
-
-                              {item.amountPiasters !== null ? (
-                                <span className={`text-sm sm:text-base font-bold flex-shrink-0 ${
-                                  activityFlow(item.kind) === 'in' ? 'text-emerald-400' : 'text-rose-400'
-                                }`} dir="rtl">
-                                  {activityFlow(item.kind) === 'in' ? '+' : '-'}{formatPiasters(item.amountPiasters)}
-                                </span>
-                              ) : (
-                                <span className="text-[11px] text-gray-600 flex-shrink-0">
-                                  {ACTIVITY_KINDS.find(k => k.key === item.kind)?.label}
-                                </span>
-                              )}
-                            </div>
-                          ))}
-
-                          {day.folded.map(fold => (
-                            <div key={fold.kind} className="px-4 pb-3 pt-1 text-[11px] text-gray-500 border-t border-white/[0.04]">
-                              {fold.hidden} {ACTIVITY_KINDS.find(k => k.key === fold.kind)?.label} تانية في اليوم ده — دوس على «{ACTIVITY_KINDS.find(k => k.key === fold.kind)?.label}» فوق عشان تعدّهم كلهم
-                            </div>
-                          ))}
-                        </div>
-                      ))}
-
-                      {activity?.truncated && (
-                        <div className="p-4 text-center bg-dark/40">
-                          <p className="text-xs text-gray-500">
-                            دي آخر {activity.limit} عملية في الفترة — عشان تشوف الباقي اختار نوع أو ضيّق التاريخ.
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* ======================================================== */}
-            {/*  Branches Tab                                            */}
-            {/* ======================================================== */}
-            {activeTab === 'branches' && (
-              <div className="space-y-4 sm:space-y-6">
-                {branchStats.length === 0 ? (
-                  <div className="relative overflow-hidden bg-dark-card border border-dark-border rounded-2xl p-12 sm:p-16 text-center">
-                    <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-amber-500/5" />
-                    <div className="relative">
-                      <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-dark border border-dark-border mb-4">
-                        <IconEmpty className="w-8 h-8 text-gray-600" />
-                      </div>
-                      <p className="text-gray-400 text-sm font-medium">لا توجد بيانات للفروع</p>
-                    </div>
-                  </div>
+                {salesData.length === 0 ? (
+                  <EmptyState title="لا توجد مبيعات في هذه الفترة" />
                 ) : (
                   <>
-                    {/* Branch Comparison Chart */}
-                    <div className="relative overflow-hidden rounded-2xl bg-dark-card border border-dark-border p-4 sm:p-6 lg:p-8">
-                      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
-                      <div className="flex items-center gap-2 mb-5 sm:mb-6">
-                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                          <IconBranch className="w-4 h-4 text-primary" />
-                        </div>
-                        <h3 className="text-sm sm:text-base font-bold text-white">مقارنة أداء الفروع</h3>
-                      </div>
-                      <div className="w-full" style={{ height: 'clamp(200px, 28vw, 300px)' }}>
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={branchComparisonData} barGap={2}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#2A2A2A" vertical={false} />
-                            <XAxis dataKey="name" stroke="#6B7280" fontSize={11} tickLine={false} axisLine={false} />
-                            <YAxis stroke="#6B7280" fontSize={11} tickLine={false} axisLine={false} width={50} />
-                            <Tooltip
-                              cursor={{ fill: 'rgba(245,158,11,0.05)' }}
-                              contentStyle={{ backgroundColor: '#141414', border: '1px solid #2A2A2A', borderRadius: '12px', fontSize: '12px', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}
-                              formatter={(value: number) => [`${value.toFixed(0)} ج.م`]}
-                            />
-                            <Bar dataKey="revenue" fill="#F59E0B" radius={[6, 6, 0, 0]} name="إيرادات" />
-                            <Bar dataKey="expenses" fill="#6B7280" radius={[6, 6, 0, 0]} name="مصروفات" />
-                            <Bar dataKey="profit" fill="#D97706" radius={[6, 6, 0, 0]} name="ربح" />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
-                      <div className="flex justify-center gap-4 sm:gap-6 mt-4 flex-wrap">
-                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-dark border border-dark-border">
-                          <div className="w-3 h-3 rounded-full bg-primary" />
-                          <span className="text-xs text-gray-400 font-medium">إيرادات</span>
-                        </div>
-                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-dark border border-dark-border">
-                          <div className="w-3 h-3 rounded-full bg-gray-500" />
-                          <span className="text-xs text-gray-400 font-medium">مصروفات</span>
-                        </div>
-                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-dark border border-dark-border">
-                          <div className="w-3 h-3 rounded-full bg-amber-700" />
-                          <span className="text-xs text-gray-400 font-medium">ربح</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Branch Cards - Mobile */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:hidden">
-                      {branchStats.map((stat, idx) => (
-                        <div key={stat.branch.id} className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-dark-card to-primary/5 border border-dark-border p-4 hover:border-primary/20 transition-all duration-300 hover:shadow-lg hover:shadow-primary/5">
-                          <div className="absolute top-0 right-0 w-16 h-16 rounded-full bg-primary/5 -translate-y-4 translate-x-4 group-hover:scale-150 transition-transform duration-500" />
-                          <div className="relative">
-                            <div className="flex items-center gap-3 mb-4">
-                              <div className="w-10 h-10 rounded-xl flex items-center justify-center border" style={{ backgroundColor: COLORS[idx % COLORS.length] + '15', borderColor: COLORS[idx % COLORS.length] + '30' }}>
-                                <IconBranch className="w-5 h-5" style={{ color: COLORS[idx % COLORS.length] }} />
-                              </div>
-                              <div>
-                                <p className="text-sm font-bold text-white">{stat.branch.name}</p>
-                                <p className="text-[11px] text-gray-500 font-mono">{stat.branch.code}</p>
+                    {/* Phone: same fields as the table, stacked */}
+                    <div className="sm:hidden p-4 space-y-3">
+                      {salesData.map(sale => (
+                        <ListCard key={sale.id}>
+                          <div className="flex items-start justify-between gap-2 mb-3">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${GOLD}14`, color: GOLD }}>
+                                <UiIcon name="subscriptions" className="w-4 h-4" />
+                              </span>
+                              <div className="min-w-0">
+                                <p className="text-sm font-semibold text-white">{sale.invoiceNumber}</p>
+                                <p className="text-xs text-gray-500">{sale.branch.name}</p>
                               </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-2.5">
-                              {hasPermission('VIEW_DASHBOARD_REVENUE') && (
-                                <div className="bg-dark/50 rounded-xl p-2.5 border border-dark-border/50">
-                                  <p className="text-[11px] text-gray-500 mb-0.5">الإيرادات</p>
-                                  <p className="text-xs sm:text-sm font-bold text-emerald-400">{formatPiasters(stat.revenue || 0)}</p>
-                                </div>
-                              )}
-                              {hasPermission('VIEW_DASHBOARD_EXPENSES') && (
-                                <div className="bg-dark/50 rounded-xl p-2.5 border border-dark-border/50">
-                                  <p className="text-[11px] text-gray-500 mb-0.5">المصروفات</p>
-                                  <p className="text-xs sm:text-sm font-bold text-rose-400">{formatPiasters(stat.expenses || 0)}</p>
-                                </div>
-                              )}
-                              {hasPermission('VIEW_DASHBOARD_PROFIT') && (
-                                <div className="bg-dark/50 rounded-xl p-2.5 border border-dark-border/50">
-                                  <p className="text-[11px] text-gray-500 mb-0.5">الربح</p>
-                                  <p className={`text-xs sm:text-sm font-bold ${stat.profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                    {formatPiasters(stat.profit || 0)}
-                                  </p>
-                                </div>
-                              )}
-                              <div className="bg-dark/50 rounded-xl p-2.5 border border-dark-border/50">
-                                <p className="text-[11px] text-gray-500 mb-0.5">الأعضاء</p>
-                                <div className="flex items-center gap-1.5">
-                                  <IconUsers className="w-3 h-3 text-gray-500" />
-                                  <p className="text-xs sm:text-sm font-bold text-white">{stat.activeMembers}</p>
-                                </div>
-                              </div>
-                              <div className="bg-dark/50 rounded-xl p-2.5 border border-dark-border/50 col-span-2">
-                                <p className="text-[11px] text-gray-500 mb-0.5">الاشتراكات</p>
-                                <p className="text-xs sm:text-sm font-bold text-white">{stat.activeSubscriptions}</p>
-                              </div>
-                            </div>
+                            <Badge tone="green">{formatPiasters(sale.finalTotalPiasters)}</Badge>
                           </div>
-                        </div>
+                          <div className="flex flex-wrap gap-1.5 mb-2">
+                            {sale.items.slice(0, 3).map(item => (
+                              <span key={item.id} className="text-[11px] bg-dark px-2 py-0.5 rounded-md text-gray-400">
+                                {item.product.nameAr || item.product.name} ×{item.quantity}
+                              </span>
+                            ))}
+                            {sale.items.length > 3 && (
+                              <span className="text-[11px] text-gray-500 px-1">+{sale.items.length - 3} أخرى</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 text-[11px] text-gray-500">
+                            <UiIcon name="clock" className="w-3.5 h-3.5" />
+                            {arDate(sale.createdAt)} {new Date(sale.createdAt).toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        </ListCard>
                       ))}
                     </div>
 
-                    {/* Branch Table - Desktop */}
-                    <div className="hidden sm:block relative overflow-hidden rounded-2xl bg-dark-card border border-dark-border">
-                      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
-                      <div className="overflow-x-auto">
-                        <table className="w-full">
-                          <thead className="bg-dark/60">
-                            <tr>
-                              <th className="px-4 py-3.5 text-right text-xs font-semibold text-gray-400">الفرع</th>
-                              {hasPermission('VIEW_DASHBOARD_REVENUE') && (
-                                <th className="px-4 py-3.5 text-right text-xs font-semibold text-gray-400">الإيرادات</th>
-                              )}
-                              {hasPermission('VIEW_DASHBOARD_EXPENSES') && (
-                                <th className="px-4 py-3.5 text-right text-xs font-semibold text-gray-400">المصروفات</th>
-                              )}
-                              {hasPermission('VIEW_DASHBOARD_PROFIT') && (
-                                <th className="px-4 py-3.5 text-right text-xs font-semibold text-gray-400">الربح</th>
-                              )}
-                              {hasPermission('VIEW_DASHBOARD_OUTSTANDING') && (
-                                <th className="px-4 py-3.5 text-right text-xs font-semibold text-gray-400">مستحقات</th>
-                              )}
-                              <th className="px-4 py-3.5 text-right text-xs font-semibold text-gray-400">الأعضاء</th>
-                              <th className="px-4 py-3.5 text-right text-xs font-semibold text-gray-400">الاشتراكات</th>
-                              <th className="px-4 py-3.5 text-right text-xs font-semibold text-gray-400">المبيعات</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {branchStats.map((stat, idx) => (
-                              <tr key={stat.branch.id} className="border-t border-dark-border/50 hover:bg-dark-hover/50 transition-colors">
-                                <td className="px-4 py-3.5">
-                                  <div className="flex items-center gap-2.5">
-                                    <div className="w-9 h-9 rounded-xl flex items-center justify-center border" style={{ backgroundColor: COLORS[idx % COLORS.length] + '15', borderColor: COLORS[idx % COLORS.length] + '30' }}>
-                                      <IconBranch className="w-4 h-4" style={{ color: COLORS[idx % COLORS.length] }} />
-                                    </div>
-                                    <div>
-                                      <p className="text-sm font-semibold text-white">{stat.branch.name}</p>
-                                      <p className="text-[11px] text-gray-500 font-mono">{stat.branch.code}</p>
-                                    </div>
-                                  </div>
-                                </td>
-                                {hasPermission('VIEW_DASHBOARD_REVENUE') && (
-                                  <td className="px-4 py-3.5">
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-emerald-500/10 text-sm font-semibold text-emerald-400">{formatPiasters(stat.revenue || 0)}</span>
-                                  </td>
+                    {/* Desktop Table */}
+                    <div className="hidden sm:block">
+                      <TableShell
+                        head={
+                          <>
+                            <Th>رقم الفاتورة</Th>
+                            <Th>الفرع</Th>
+                            <Th>المنتجات</Th>
+                            <Th>الإجمالي</Th>
+                            <Th>التاريخ</Th>
+                          </>
+                        }
+                      >
+                        {salesData.map(sale => (
+                          <Row key={sale.id} className="hover:bg-white/[0.02]">
+                            <Td>
+                              <span className="text-sm font-mono font-semibold text-white bg-dark px-2 py-0.5 rounded-md">{sale.invoiceNumber}</span>
+                            </Td>
+                            <Td>
+                              <div className="flex items-center gap-2">
+                                <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: `${GOLD}14`, color: GOLD }}>
+                                  <UiIcon name="branches" className="w-3.5 h-3.5" />
+                                </span>
+                                <span className="text-sm text-gray-300">{sale.branch.name}</span>
+                              </div>
+                            </Td>
+                            <Td>
+                              <div className="flex flex-wrap gap-1.5">
+                                {sale.items.slice(0, 2).map(item => (
+                                  <span key={item.id} className="text-xs bg-dark px-2 py-0.5 rounded-md text-gray-400">
+                                    {item.product.nameAr || item.product.name} ×{item.quantity}
+                                  </span>
+                                ))}
+                                {sale.items.length > 2 && (
+                                  <span className="text-xs text-gray-500 px-1">+{sale.items.length - 2}</span>
                                 )}
-                                {hasPermission('VIEW_DASHBOARD_EXPENSES') && (
-                                  <td className="px-4 py-3.5">
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-rose-500/10 text-sm font-semibold text-rose-400">{formatPiasters(stat.expenses || 0)}</span>
-                                  </td>
-                                )}
-                                {hasPermission('VIEW_DASHBOARD_PROFIT') && (
-                                  <td className="px-4 py-3.5">
-                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-sm font-semibold ${stat.profit >= 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
-                                      {formatPiasters(stat.profit || 0)}
-                                    </span>
-                                  </td>
-                                )}
-                                {hasPermission('VIEW_DASHBOARD_OUTSTANDING') && (
-                                  <td className="px-4 py-3.5">
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-amber-500/10 text-sm font-semibold text-amber-400">{formatPiasters(stat.outstanding || 0)}</span>
-                                  </td>
-                                )}
-                                <td className="px-4 py-3.5">
-                                  <div className="flex items-center gap-1.5">
-                                    <IconUsers className="w-3.5 h-3.5 text-gray-500" />
-                                    <span className="text-sm font-medium text-white">{stat.activeMembers}</span>
-                                  </div>
-                                </td>
-                                <td className="px-4 py-3.5 text-sm font-medium text-white">{stat.activeSubscriptions}</td>
-                                <td className="px-4 py-3.5">
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-dark border border-dark-border text-sm text-gray-300 font-medium">{stat.salesCount}</span>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                              </div>
+                            </Td>
+                            <Td>
+                              <Badge tone="green">{formatPiasters(sale.finalTotalPiasters)}</Badge>
+                            </Td>
+                            <Td>
+                              <div className="flex items-center gap-1.5">
+                                <UiIcon name="clock" className="w-3.5 h-3.5 text-gray-500" />
+                                <span className="text-sm text-gray-400">{arDate(sale.createdAt)}</span>
+                                <span className="text-xs text-gray-500">
+                                  {new Date(sale.createdAt).toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              </div>
+                            </Td>
+                          </Row>
+                        ))}
+                      </TableShell>
                     </div>
                   </>
                 )}
               </div>
-            )}
-          </>
-        )}
-      </div>
-    </>
+            </div>
+          )}
+
+          {/* ======================================================== */}
+          {/*  Expenses Tab                                            */}
+          {/* ======================================================== */}
+          {activeTab === 'expenses' && expensesData && (
+            <div className="space-y-4 sm:space-y-6">
+              {/* Expense Summary */}
+              <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                <StatTile
+                  icon="expenses"
+                  tone={TONE.expenses}
+                  label="إجمالي المصروفات"
+                  value={<span style={{ color: TONE.expenses }}>{formatPiasters(expensesData.total)}</span>}
+                />
+                <StatTile
+                  icon="wallet"
+                  label="عدد المصروفات"
+                  value={expensesData.expenses.length}
+                />
+              </div>
+
+              {/* Category Chart */}
+              {expenseCategoryData.length > 0 && (
+                <div className={`${CARD} p-5 sm:p-6`}>
+                  <div className="mb-5">
+                    <SectionTitle>المصروفات حسب الفئة</SectionTitle>
+                  </div>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 items-center">
+                    <div className="h-[190px] sm:h-[240px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={expenseCategoryData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius="45%"
+                            outerRadius="75%"
+                            paddingAngle={4}
+                            dataKey="value"
+                            strokeWidth={0}
+                          >
+                            {expenseCategoryData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            contentStyle={chartTooltipStyle}
+                            labelStyle={{ color: '#fff', fontWeight: 600 }}
+                            formatter={(value: number) => [`${value.toFixed(0)} ج.م`]}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="space-y-2">
+                      {expenseCategoryData.map((cat, idx) => {
+                        const percentage = expensesData.total > 0 ? Math.round((cat.value * 100 / (expensesData.total / 100)) * 100) / 100 : 0;
+                        return (
+                          <div key={idx} className="flex items-center justify-between gap-3 p-3 bg-dark rounded-xl border border-dark-border">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                              <span className="text-sm text-gray-300 font-medium truncate">{cat.name}</span>
+                            </div>
+                            <div className="flex items-center gap-3 shrink-0">
+                              <span className="text-[11px] text-gray-500 font-medium">{percentage}%</span>
+                              <span className="text-sm font-semibold text-white">{formatPiasters(cat.value * 100)}</span>
+                              <span className="text-[11px] text-gray-500 bg-dark-card px-2 py-0.5 rounded-md">({cat.count})</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Expenses List */}
+              <div className={`${CARD} overflow-hidden`}>
+                <div className="p-4 sm:p-5 border-b border-dark-border">
+                  <SectionTitle
+                    tone={TONE.expenses}
+                    right={
+                      expensesData.expenses.length > 0 ? <Badge tone="red">{expensesData.expenses.length}</Badge> : undefined
+                    }
+                  >
+                    سجل المصروفات
+                  </SectionTitle>
+                </div>
+                {expensesData.expenses.length === 0 ? (
+                  <EmptyState title="لا توجد مصروفات في هذه الفترة" />
+                ) : (
+                  <>
+                    {/* Phone: same fields as the table, stacked */}
+                    <div className="sm:hidden p-4 space-y-3">
+                      {expensesData.expenses.map(expense => (
+                        <ListCard key={expense.id}>
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${TONE.expenses}14`, color: TONE.expenses }}>
+                                <UiIcon name="expenses" className="w-4 h-4" />
+                              </span>
+                              <div className="min-w-0">
+                                <p className="text-sm font-semibold text-white">{expense.description}</p>
+                                <p className="text-xs text-gray-500">{expense.branch.name}</p>
+                              </div>
+                            </div>
+                            <Badge tone="red">{formatPiasters(expense.amountPiasters)}</Badge>
+                          </div>
+                          <div className="flex items-center justify-between gap-2 mt-2">
+                            <span className="text-[11px] bg-dark px-2 py-0.5 rounded-md text-gray-400">{expense.category}</span>
+                            <div className="flex items-center gap-1.5 text-[11px] text-gray-500">
+                              <UiIcon name="clock" className="w-3.5 h-3.5" />
+                              {arDate(expense.createdAt)}
+                            </div>
+                          </div>
+                        </ListCard>
+                      ))}
+                    </div>
+
+                    {/* Desktop Table */}
+                    <div className="hidden sm:block">
+                      <TableShell
+                        head={
+                          <>
+                            <Th>الوصف</Th>
+                            <Th>الفئة</Th>
+                            <Th>الفرع</Th>
+                            <Th>المبلغ</Th>
+                            <Th>التاريخ</Th>
+                          </>
+                        }
+                      >
+                        {expensesData.expenses.map(expense => (
+                          <Row key={expense.id} className="hover:bg-white/[0.02]">
+                            <Td>
+                              <span className="text-sm text-white font-medium">{expense.description}</span>
+                            </Td>
+                            <Td>
+                              <span className="text-xs bg-dark px-2 py-0.5 rounded-md text-gray-400 font-medium">{expense.category}</span>
+                            </Td>
+                            <Td>
+                              <div className="flex items-center gap-2">
+                                <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: `${GOLD}14`, color: GOLD }}>
+                                  <UiIcon name="branches" className="w-3.5 h-3.5" />
+                                </span>
+                                <span className="text-sm text-gray-300">{expense.branch.name}</span>
+                              </div>
+                            </Td>
+                            <Td>
+                              <Badge tone="red">{formatPiasters(expense.amountPiasters)}</Badge>
+                            </Td>
+                            <Td>
+                              <div className="flex items-center gap-1.5">
+                                <UiIcon name="clock" className="w-3.5 h-3.5 text-gray-500" />
+                                <span className="text-sm text-gray-400">{arDate(expense.createdAt)}</span>
+                              </div>
+                            </Td>
+                          </Row>
+                        ))}
+                      </TableShell>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ======================================================== */}
+          {/*  Activity Log Tab                                        */}
+          {/* ======================================================== */}
+          {activeTab === 'activity' && (
+            <div className="space-y-4 sm:space-y-6">
+              {/* Range totals — counted over every row, not just what is on screen */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+                <StatTile
+                  icon="wallet"
+                  tone={TONE.revenue}
+                  label="الوارد في الفترة"
+                  value={<span style={{ color: TONE.revenue }}>{formatPiasters(activity?.summary.incomePiasters ?? 0)}</span>}
+                  caption={
+                    <span>
+                      {activity?.summary.counts.SALE ?? 0} بيع • {activity?.summary.counts.PAYMENT ?? 0} اشتراك
+                    </span>
+                  }
+                />
+                <StatTile
+                  icon="expenses"
+                  tone={TONE.expenses}
+                  label="الخارج في الفترة"
+                  value={<span style={{ color: TONE.expenses }}>{formatPiasters(activity?.summary.outflowPiasters ?? 0)}</span>}
+                  caption={
+                    <span>
+                      {activity?.summary.counts.EXPENSE ?? 0} مصروف • {activity?.summary.counts.SALARY ?? 0} مرتّب
+                    </span>
+                  }
+                />
+                <StatTile
+                  icon="reports"
+                  tone={(activity?.summary.netPiasters ?? 0) >= 0 ? TONE.profit : TONE.expenses}
+                  label="الصافي"
+                  value={
+                    <span style={{ color: (activity?.summary.netPiasters ?? 0) >= 0 ? TONE.profit : TONE.expenses }}>
+                      {formatPiasters(activity?.summary.netPiasters ?? 0)}
+                    </span>
+                  }
+                />
+                <StatTile
+                  icon="member"
+                  label="كل العمليات"
+                  value={
+                    Object.values(activity?.summary.counts ?? {}).reduce((s: number, n: number) => s + n, 0)
+                  }
+                  caption={
+                    <span>
+                      {activity?.summary.counts.MEMBER ?? 0} عضو جديد • {activity?.summary.counts.CHECKIN ?? 0} دخول
+                    </span>
+                  }
+                />
+              </div>
+
+              {/* Kind filter */}
+              <div className="flex gap-1.5 sm:gap-2 flex-wrap">
+                <Btn
+                  variant={activityKind === 'ALL' ? 'primary' : 'ghost'}
+                  onClick={() => setActivityKind('ALL')}
+                >
+                  الكل
+                </Btn>
+                {ACTIVITY_KINDS.map(kind => (
+                  <Btn
+                    key={kind.key}
+                    variant={activityKind === kind.key ? 'primary' : 'ghost'}
+                    onClick={() => setActivityKind(activityKind === kind.key ? 'ALL' : kind.key)}
+                  >
+                    <span>{kind.label}</span>
+                    <span className="text-[11px] opacity-70">{activity?.summary.counts[kind.key] ?? 0}</span>
+                  </Btn>
+                ))}
+              </div>
+
+              {/* The journal */}
+              <div className={`${CARD} overflow-hidden`}>
+                <div className="p-4 sm:p-5 border-b border-dark-border">
+                  <SectionTitle right={<Badge tone="gold">{activityDays.shown}</Badge>}>
+                    سجل العمليات
+                  </SectionTitle>
+                </div>
+
+                {activityDays.days.length === 0 ? (
+                  <EmptyState title="مفيش عمليات في الفترة دي" hint="غيّر التاريخ أو اختار فرع تاني" />
+                ) : (
+                  <div className="divide-y divide-dark-border">
+                    {activityDays.days.map(day => (
+                      <div key={day.date}>
+                        {/* Day header with that day's money */}
+                        <div className="flex flex-wrap items-center gap-2 bg-dark/40 px-4 py-2.5">
+                          <span className="text-xs sm:text-sm font-bold text-white">{arDate(day.date)}</span>
+                          {day.income > 0 && (
+                            <Badge tone="green">+{formatPiasters(day.income)}</Badge>
+                          )}
+                          {day.outflow > 0 && (
+                            <Badge tone="red">-{formatPiasters(day.outflow)}</Badge>
+                          )}
+                          <span className="mr-auto text-[11px] text-gray-500">
+                            {day.total} عملية
+                            {day.income || day.outflow ? ` • الصافي ${formatPiasters(day.net)}` : ''}
+                          </span>
+                        </div>
+
+                        {day.items.map(item => (
+                          <div key={item.id} className="flex items-center gap-3 px-4 py-3 hover:bg-white/[0.02] transition-colors">
+                            <div
+                              className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                              style={
+                                activityFlow(item.kind) === 'in'
+                                  ? { backgroundColor: `${TONE.revenue}14`, color: TONE.revenue }
+                                  : activityFlow(item.kind) === 'out'
+                                    ? { backgroundColor: `${TONE.expenses}14`, color: TONE.expenses }
+                                    : { backgroundColor: '#141414', color: '#9CA3AF' }
+                              }
+                            >
+                              <ActivityKindIcon kind={item.kind} className="w-4 h-4" />
+                            </div>
+
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-semibold text-white truncate">
+                                {item.title}
+                                {item.flagged && (
+                                  <span className="mr-1.5 text-[11px] font-normal text-rose-400">— بدون اشتراك</span>
+                                )}
+                              </p>
+                              <p className="text-[11px] sm:text-xs text-gray-500 truncate">{item.subtitle}</p>
+                              <p className="text-[11px] text-gray-600 truncate">
+                                {new Date(item.at).toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' })}
+                                {' • '}{item.branchName}
+                                {item.method ? ` • ${ACTIVITY_METHODS[item.method] || item.method}` : ''}
+                              </p>
+                            </div>
+
+                            {item.amountPiasters !== null ? (
+                              <span
+                                className="text-sm sm:text-base font-bold shrink-0"
+                                dir="rtl"
+                                style={{ color: activityFlow(item.kind) === 'in' ? TONE.revenue : TONE.expenses }}
+                              >
+                                {activityFlow(item.kind) === 'in' ? '+' : '-'}{formatPiasters(item.amountPiasters)}
+                              </span>
+                            ) : (
+                              <span className="text-[11px] text-gray-600 shrink-0">
+                                {ACTIVITY_KINDS.find(k => k.key === item.kind)?.label}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+
+                        {day.folded.map(fold => (
+                          <div key={fold.kind} className="px-4 pb-3 pt-1 text-[11px] text-gray-500 border-t border-white/[0.04]">
+                            {fold.hidden} {ACTIVITY_KINDS.find(k => k.key === fold.kind)?.label} تانية في اليوم ده — دوس على «{ACTIVITY_KINDS.find(k => k.key === fold.kind)?.label}» فوق عشان تعدّهم كلهم
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+
+                    {activity?.truncated && (
+                      <div className="p-4 text-center bg-dark/40">
+                        <p className="text-xs text-gray-500">
+                          دي آخر {activity.limit} عملية في الفترة — عشان تشوف الباقي اختار نوع أو ضيّق التاريخ.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ======================================================== */}
+          {/*  Branches Tab                                            */}
+          {/* ======================================================== */}
+          {activeTab === 'branches' && (
+            <div className="space-y-4 sm:space-y-6">
+              {branchStats.length === 0 ? (
+                <div className={`${CARD}`}>
+                  <EmptyState title="لا توجد بيانات للفروع" />
+                </div>
+              ) : (
+                <>
+                  {/* Branch Comparison Chart */}
+                  <div className={`${CARD} p-5 sm:p-6`}>
+                    <div className="mb-5">
+                      <SectionTitle>مقارنة أداء الفروع</SectionTitle>
+                    </div>
+                    {comparisonHasData ? (
+                      <>
+                    <div className="h-[190px] sm:h-[240px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={branchComparisonData} barGap={2} margin={{ top: 6, right: 8, left: 8, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#1A1A1A" vertical={false} />
+                          <XAxis dataKey="name" stroke="#4B5563" fontSize={11} tickLine={false} axisLine={false} />
+                          <YAxis stroke="#4B5563" fontSize={11} tickLine={false} axisLine={false} width={50} />
+                          <Tooltip
+                            cursor={{ fill: 'rgba(245,158,11,0.05)' }}
+                            contentStyle={chartTooltipStyle}
+                            labelStyle={{ color: '#fff', fontWeight: 600 }}
+                            formatter={(value: number) => [`${value.toFixed(0)} ج.م`]}
+                          />
+                          <Bar dataKey="revenue" fill={GOLD} radius={[6, 6, 0, 0]} name="إيرادات" />
+                          <Bar dataKey="expenses" fill="#374151" radius={[6, 6, 0, 0]} name="مصروفات" />
+                          <Bar dataKey="profit" fill="#D97706" radius={[6, 6, 0, 0]} name="ربح" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="flex justify-center gap-4 sm:gap-6 mt-4 flex-wrap">
+                      <span className="flex items-center gap-2 text-xs text-gray-400">
+                        <span className="w-3 h-3 rounded-sm" style={{ background: GOLD }} /> إيرادات
+                      </span>
+                      <span className="flex items-center gap-2 text-xs text-gray-400">
+                        <span className="w-3 h-3 rounded-sm" style={{ background: '#374151' }} /> مصروفات
+                      </span>
+                      <span className="flex items-center gap-2 text-xs text-gray-400">
+                        <span className="w-3 h-3 rounded-sm" style={{ background: '#D97706' }} /> ربح
+                      </span>
+                    </div>
+                      </>
+                    ) : (
+                      <p className="h-[190px] sm:h-[240px] flex items-center justify-center text-sm text-gray-500">لا توجد حركة مالية خلال الفترة</p>
+                    )}
+                  </div>
+
+                  {/* Branch Cards - Phone */}
+                  <div className="grid grid-cols-1 gap-3 sm:hidden">
+                    {branchStats.map((stat, idx) => {
+                      const color = COLORS[idx % COLORS.length];
+                      return (
+                        <div key={stat.branch.id} className={`${CARD} p-4`}>
+                          <div className="flex items-center gap-3 mb-4">
+                            <div
+                              className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                              style={{ backgroundColor: `${color}14`, color }}
+                            >
+                              <UiIcon name="branches" className="w-5 h-5" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-bold text-white">{stat.branch.name}</p>
+                              <p className="text-[11px] text-gray-500 font-mono">{stat.branch.code}</p>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2.5">
+                            {hasPermission('VIEW_DASHBOARD_REVENUE') && (
+                              <div className="bg-dark rounded-xl p-2.5">
+                                <p className="text-[11px] text-gray-500 mb-0.5">الإيرادات</p>
+                                <p className="text-xs sm:text-sm font-bold" style={{ color: TONE.revenue }}>{formatPiasters(stat.revenue || 0)}</p>
+                              </div>
+                            )}
+                            {hasPermission('VIEW_DASHBOARD_EXPENSES') && (
+                              <div className="bg-dark rounded-xl p-2.5">
+                                <p className="text-[11px] text-gray-500 mb-0.5">المصروفات</p>
+                                <p className="text-xs sm:text-sm font-bold" style={{ color: TONE.expenses }}>{formatPiasters(stat.expenses || 0)}</p>
+                              </div>
+                            )}
+                            {hasPermission('VIEW_DASHBOARD_PROFIT') && (
+                              <div className="bg-dark rounded-xl p-2.5">
+                                <p className="text-[11px] text-gray-500 mb-0.5">الربح</p>
+                                <p className="text-xs sm:text-sm font-bold" style={{ color: stat.profit >= 0 ? TONE.revenue : TONE.expenses }}>
+                                  {formatPiasters(stat.profit || 0)}
+                                </p>
+                              </div>
+                            )}
+                            <div className="bg-dark rounded-xl p-2.5">
+                              <p className="text-[11px] text-gray-500 mb-0.5">الأعضاء</p>
+                              <div className="flex items-center gap-1.5">
+                                <UiIcon name="users" className="w-3.5 h-3.5 text-gray-500" />
+                                <p className="text-xs sm:text-sm font-bold text-white">{stat.activeMembers}</p>
+                              </div>
+                            </div>
+                            <div className="bg-dark rounded-xl p-2.5 col-span-2">
+                              <p className="text-[11px] text-gray-500 mb-0.5">الاشتراكات</p>
+                              <p className="text-xs sm:text-sm font-bold text-white">{stat.activeSubscriptions}</p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Branch Table - Desktop */}
+                  <div className="hidden sm:block">
+                    <div className={`${CARD} overflow-hidden`}>
+                      <div className="p-5 sm:p-6">
+                        <SectionTitle>أداء الفروع</SectionTitle>
+                      </div>
+                      <TableShell
+                        minWidth="min-w-[760px]"
+                        head={
+                          <>
+                            <Th>الفرع</Th>
+                            {hasPermission('VIEW_DASHBOARD_REVENUE') && <Th>الإيرادات</Th>}
+                            {hasPermission('VIEW_DASHBOARD_EXPENSES') && <Th>المصروفات</Th>}
+                            {hasPermission('VIEW_DASHBOARD_PROFIT') && <Th>الربح</Th>}
+                            {hasPermission('VIEW_DASHBOARD_OUTSTANDING') && <Th>مستحقات</Th>}
+                            <Th>الأعضاء</Th>
+                            <Th>الاشتراكات</Th>
+                            <Th>المبيعات</Th>
+                          </>
+                        }
+                      >
+                        {branchStats.map((stat, idx) => {
+                          const color = COLORS[idx % COLORS.length];
+                          return (
+                            <Row key={stat.branch.id} className="hover:bg-white/[0.02]">
+                              <Td>
+                                <div className="flex items-center gap-2.5">
+                                  <div
+                                    className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                                    style={{ backgroundColor: `${color}14`, color }}
+                                  >
+                                    <UiIcon name="branches" className="w-4 h-4" />
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-semibold text-white">{stat.branch.name}</p>
+                                    <p className="text-[11px] text-gray-500 font-mono">{stat.branch.code}</p>
+                                  </div>
+                                </div>
+                              </Td>
+                              {hasPermission('VIEW_DASHBOARD_REVENUE') && (
+                                <Td>
+                                  <Badge tone="green">{formatPiasters(stat.revenue || 0)}</Badge>
+                                </Td>
+                              )}
+                              {hasPermission('VIEW_DASHBOARD_EXPENSES') && (
+                                <Td>
+                                  <Badge tone="red">{formatPiasters(stat.expenses || 0)}</Badge>
+                                </Td>
+                              )}
+                              {hasPermission('VIEW_DASHBOARD_PROFIT') && (
+                                <Td>
+                                  <Badge tone={stat.profit >= 0 ? 'green' : 'red'}>{formatPiasters(stat.profit || 0)}</Badge>
+                                </Td>
+                              )}
+                              {hasPermission('VIEW_DASHBOARD_OUTSTANDING') && (
+                                <Td>
+                                  <Badge tone="amber">{formatPiasters(stat.outstanding || 0)}</Badge>
+                                </Td>
+                              )}
+                              <Td>
+                                <div className="flex items-center gap-1.5">
+                                  <UiIcon name="users" className="w-3.5 h-3.5 text-gray-500" />
+                                  <span className="text-sm font-medium text-white">{stat.activeMembers}</span>
+                                </div>
+                              </Td>
+                              <Td>
+                                <span className="text-sm font-medium text-white">{stat.activeSubscriptions}</span>
+                              </Td>
+                              <Td>
+                                <Badge tone="gray">{stat.salesCount}</Badge>
+                              </Td>
+                            </Row>
+                          );
+                        })}
+                      </TableShell>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </div>
   );
 }
