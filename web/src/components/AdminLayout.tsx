@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import AssistantWidget from './AssistantWidget';
 
 interface SidebarItem {
   label: string;
@@ -112,13 +113,28 @@ interface ExpiringItem {
   member: { name: string; code: string };
 }
 
+// The bell is read per device, and what makes it light up again is a subscription he has
+// not looked at yet — not the same list coming back on every page change.
+const ALERTS_SEEN_KEY = 'power111AlertsSeen';
+
+function readSeenAlerts(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(ALERTS_SEEN_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
+
 function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [alerts, setAlerts] = useState<ExpiringItem[]>([]);
+  const [unseenAlerts, setUnseenAlerts] = useState(0);
   const [alertsOpen, setAlertsOpen] = useState(false);
   const [clock, setClock] = useState(clockLabel);
   const alertsRef = useRef<HTMLDivElement>(null);
+  const seenAlertsRef = useRef<Record<string, string>>(readSeenAlerts());
   const navigate = useNavigate();
   const location = useLocation();
   const { user, hasPermission, logout } = useAuth();
@@ -151,10 +167,33 @@ function AdminLayout() {
     let active = true;
     fetch('/api/subscriptions/expiring?days=2', { credentials: 'include' })
       .then(res => (res.ok ? res.json() : []))
-      .then(data => { if (active) setAlerts(Array.isArray(data) ? data : []); })
+      .then(data => {
+        if (!active) return;
+        const list = Array.isArray(data) ? data : [];
+        setAlerts(list);
+        setUnseenAlerts(list.filter((item: ExpiringItem) => seenAlertsRef.current[item.id] !== item.endDate).length);
+      })
       .catch(() => {});
     return () => { active = false; };
   }, [location.pathname]);
+
+  // Opening the list once reads everything in it; a renewal that pushes a date back, or a
+  // new member entering the window, is what lights it up again.
+  const toggleAlerts = () => {
+    const next = !alertsOpen;
+    if (next) {
+      const seen: Record<string, string> = {};
+      alerts.forEach(item => { seen[item.id] = item.endDate; });
+      seenAlertsRef.current = seen;
+      try {
+        localStorage.setItem(ALERTS_SEEN_KEY, JSON.stringify(seen));
+      } catch {
+        // A private-mode browser keeps the read state for this session only.
+      }
+      setUnseenAlerts(0);
+    }
+    setAlertsOpen(next);
+  };
 
   useEffect(() => {
     if (!alertsOpen) return;
@@ -342,18 +381,20 @@ function AdminLayout() {
             {hasPermission('VIEW_SUBSCRIPTIONS') && (
               <div className="relative" ref={alertsRef}>
                 <button
-                  onClick={() => setAlertsOpen(open => !open)}
-                  aria-label={alerts.length > 0 ? `${alerts.length} اشتراك يحتاج تجديد` : 'لا اشتراكات تحتاج تجديد'}
+                  onClick={toggleAlerts}
+                  aria-label={unseenAlerts > 0 ? `${unseenAlerts} اشتراك جديد يحتاج تجديد` : 'التنبيهات مقروءة'}
                   aria-expanded={alertsOpen}
-                  className="relative text-gray-400 hover:text-white hover:bg-white/5 transition-colors p-2 rounded-lg min-h-[44px] min-w-[44px] flex items-center justify-center"
+                  className={`relative hover:text-white hover:bg-white/5 transition-colors p-2 rounded-lg min-h-[44px] min-w-[44px] flex items-center justify-center ${
+                    unseenAlerts > 0 ? 'text-primary' : 'text-gray-400'
+                  }`}
                 >
                   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <path d="M6 9a6 6 0 0 1 12 0c0 5 1.5 6.5 1.5 6.5h-15S6 14 6 9Z" />
                     <path d="M10 19.5a2.2 2.2 0 0 0 4 0" />
                   </svg>
-                  {alerts.length > 0 && (
+                  {unseenAlerts > 0 && (
                     <span className="absolute top-1 right-0.5 min-w-[17px] h-[17px] px-1 rounded-full text-[10px] font-bold text-black flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #FCD34D, #F59E0B)' }}>
-                      {alerts.length}
+                      {unseenAlerts}
                     </span>
                   )}
                 </button>
@@ -412,6 +453,9 @@ function AdminLayout() {
           <Outlet />
         </main>
       </div>
+
+      {/* The floating assistant stays out of the way while the phone menu is open */}
+      <AssistantWidget hidden={isMobile && sidebarOpen} />
     </div>
   );
 }
