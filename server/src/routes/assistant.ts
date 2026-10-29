@@ -6,16 +6,19 @@ import { prisma } from '../index.js';
 
 const router = Router();
 
-// flash-latest answers in a few seconds and calls the right report tool. The lite tier
-// is the one Google sheds with 503 for long stretches, so it waits as the backup instead
-// of burning three retries in front of every question the owner asks.
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-flash-latest';
-const SECONDARY_MODEL = process.env.GEMINI_SECONDARY_MODEL || 'gemini-flash-lite-latest';
-const FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL || 'gemini-3.1-flash-lite';
+// Measured on this key: the lite tier reads the right report and answers in ~2 seconds,
+// while flash-latest took 11s just to pick the tool and over 70s to write the answer, on
+// top of 503 "high demand" spells. So lite carries every question and flash only steps in
+// when both lite tiers fail.
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-flash-lite-latest';
+const SECONDARY_MODEL = process.env.GEMINI_SECONDARY_MODEL || 'gemini-3.1-flash-lite';
+const QUALITY_MODEL = process.env.GEMINI_QUALITY_MODEL || 'gemini-flash-latest';
 const GEMINI_API = 'https://generativelanguage.googleapis.com/v1beta/models';
 const RETRYABLE = [408, 429, 500, 502, 503, 504];
 // A hung provider call is worse than a missing answer — the chat looks frozen the whole time.
-const CALL_TIMEOUT_MS = 25000;
+const CALL_TIMEOUT_MS = 12000;
+// The heavy tier is slow by nature, so it gets longer but still can't hang the chat open.
+const QUALITY_TIMEOUT_MS = 20000;
 // One question can need two reads (this month, last month) before it can answer.
 const MAX_TOOL_ROUNDS = 3;
 const SELF_BASE_URL = `http://127.0.0.1:${process.env.PORT || 3000}`;
@@ -51,10 +54,12 @@ function wait(ms: number) {
 // tool loop only ever sees an answer or a final failure.
 async function callGemini(apiKey: string, payload: Record<string, any>) {
   const plans = [
-    // Only the lite tiers accept thinkingLevel; asking the heaviest one for it is a 400.
-    { model: GEMINI_MODEL, attempts: 2, minimalThinking: false },
-    { model: SECONDARY_MODEL, attempts: 1, minimalThinking: false },
-    { model: FALLBACK_MODEL, attempts: 1, minimalThinking: true }
+    { model: GEMINI_MODEL, attempts: 2, thinking: { thinkingLevel: 'MINIMAL' }, timeoutMs: CALL_TIMEOUT_MS },
+    // A tier that rejects thinkingLevel is worth one plain try before moving down the list.
+    { model: GEMINI_MODEL, attempts: 1, timeoutMs: CALL_TIMEOUT_MS },
+    { model: SECONDARY_MODEL, attempts: 1, thinking: { thinkingLevel: 'MINIMAL' }, timeoutMs: CALL_TIMEOUT_MS },
+    // flash accepts LOW but answers 400 to MINIMAL, which is the lite tier's knob.
+    { model: QUALITY_MODEL, attempts: 1, thinking: { thinkingLevel: 'LOW' }, timeoutMs: QUALITY_TIMEOUT_MS }
   ];
   let lastStatus: number | string = 0;
   let lastDetail = '';
@@ -69,10 +74,13 @@ async function callGemini(apiKey: string, payload: Record<string, any>) {
             ...payload,
             generationConfig: {
               temperature: 0,
-              ...(plan.minimalThinking && { thinkingConfig: { thinkingLevel: 'MINIMAL' } })
+              // An answer is two or three spoken sentences; a ceiling stops a rambling run
+              // from keeping the chat spinner turning for nothing.
+              maxOutputTokens: 1200,
+              ...(plan.thinking && { thinkingConfig: plan.thinking })
             }
           }),
-          signal: AbortSignal.timeout(CALL_TIMEOUT_MS)
+          signal: AbortSignal.timeout(plan.timeoutMs)
         });
         if (call.ok) return { json: await call.json(), model: plan.model };
         lastStatus = call.status;
@@ -112,6 +120,163 @@ function pickPounds(source: any, ...keys: string[]) {
     if (typeof source?.[key] === 'number') out[key.replace('Piasters', '')] = toPounds(source[key]);
   });
   return out;
+}
+
+/* ── Arithmetic the server does itself ─────────────────────────────────────────
+   He wants the assistant to answer ordinary questions too, including جمع وطرح, so
+   a calculation never depends on the model's mental maths. This is a small recursive
+   descent parser over a filtered character set — no eval, no Function(), nothing the
+   caller can steer. */
+
+function toLatinDigits(text: string) {
+  return text
+    .replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, d => String(d.charCodeAt(0) - 0x06f0));
+}
+
+// Words he types instead of keyboard signs. Only ever read on text that has already been
+// checked for being a calculation, so an ordinary «في» inside a sentence can't become ×.
+function withOperatorWords(text: string) {
+  return text
+    .replace(/[٫]/g, '.')
+    .replace(/[×✕✖]/g, '*')
+    .replace(/÷/g, '/')
+    .replace(/(?:زائد|موجب|زيادة)/g, '+')
+    .replace(/(?:ناقص|طرح|خصم)/g, '-')
+    .replace(/(?:مضروبة في|ضرب|في)/g, '*')
+    .replace(/(?:مقسوم على|قسمة على|على)/g, '/')
+    .replace(/(?:يساوي|تساوي)/g, '=')
+    .replace(/(\d)\s*%/g, '$1/100')
+    .replace(/(?:من)/g, '*');
+}
+
+function parseExpression(raw: string): { expression: string; value: number } | null {
+  const src = withOperatorWords(toLatinDigits(String(raw ?? ''))).split('=')[0]?.trim() || '';
+  if (!src || src.length > 160 || !/\d/.test(src)) return null;
+
+  let i = 0;
+  const skipSpaces = () => {
+    while (i < src.length && (src[i] === ' ' || src[i] === '\n' || src[i] === '\t')) i++;
+  };
+
+  function readNumber(): number | null {
+    const match = /^\d[\d,]*(?:\.\d+)?/u.exec(src.slice(i));
+    if (!match) return null;
+    i += match[0].length;
+    return Number(match[0].replace(/,/g, ''));
+  }
+
+  function factor(): number | null {
+    skipSpaces();
+    const char = src[i];
+    if (char === '(') {
+      i++;
+      const inner = sum();
+      if (inner === null) return null;
+      skipSpaces();
+      if (src[i] !== ')') return null;
+      i++;
+      return inner;
+    }
+    if (char === '-') {
+      i++;
+      const value = factor();
+      return value === null ? null : -value;
+    }
+    if (char === '+') {
+      i++;
+      return factor();
+    }
+    return readNumber();
+  }
+
+  function product(): number | null {
+    let left = factor();
+    if (left === null) return null;
+    for (;;) {
+      skipSpaces();
+      const char = src[i];
+      if (char !== '*' && char !== '/') return left;
+      i++;
+      const right = factor();
+      if (right === null) return null;
+      if (char === '/' && right === 0) return null;
+      left = char === '*' ? left * right : left / right;
+    }
+  }
+
+  function sum(): number | null {
+    let left = product();
+    if (left === null) return null;
+    for (;;) {
+      skipSpaces();
+      const char = src[i];
+      if (char !== '+' && char !== '-') return left;
+      i++;
+      const right = product();
+      if (right === null) return null;
+      left = char === '+' ? left + right : left - right;
+    }
+  }
+
+  const value = sum();
+  skipSpaces();
+  if (value === null || i !== src.length || !Number.isFinite(value) || Math.abs(value) > 1e15) return null;
+  return { expression: src, value: Math.round(value * 1e6) / 1e6 };
+}
+
+// True only when the whole message is the calculation, so it can be answered on the spot
+// without spending a model round trip or a report read. Polite filler words are dropped
+// first; anything left that isn't a digit or a sign means it is a sentence, not a sum.
+const CALC_FILLER = /(?:كام|كم|احسبلي|احسب|حسبلي|حسب|حساب|نسبة|النسبة|المية|مئوية|منها|منه|قد إيه|قد ايه|قولي|عايز|هات|يساوي|ساوي|الناتج|يعني|جنيهات|جنيه|فضلا|لو سمحت|بس|ليا|لي|الـ|ال)/g;
+
+function arithmeticOnly(text: string) {
+  const stripped = toLatinDigits(text)
+    .replace(CALC_FILLER, ' ')
+    .replace(/[؟?!]/g, ' ')
+    .trim();
+  if (!stripped || stripped.length > 120) return null;
+  const parsed = parseExpression(stripped);
+  if (!parsed) return null;
+  if (!/^[\d+\-*/().,\s]+$/u.test(parsed.expression)) return null;
+  if (!/[+\-*/]/u.test(parsed.expression)) return null;
+  // A leading sign means a word became an operator inside a sentence («خصم ١٥٪ من ٤٨٠»),
+  // which is not the sum the calculator can answer honestly — leave it to the model.
+  if (/^[+\-*/]/u.test(parsed.expression.trim())) return null;
+  return parsed;
+}
+
+const numberFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
+const showNumber = (value: number) => numberFormatter.format(value);
+
+// True when every digit written in an answer is a number this server's own calculator
+// produced for the same question — arithmetic we did, not a report figure invented.
+function everyFigureCalculated(text: string, facts: string[]) {
+  if (!facts.length) return false;
+  const known = new Set(facts.map(fact => fact.replace(/,/g, '').replace(/\.0+$/u, '').replace(/\.+$/u, '')));
+  const runs = text.match(/\d[\d.,]*/gu) || [];
+  if (!runs.length) return true;
+  return runs.every(run => {
+    const clean = run.replace(/,/g, '').replace(/\.0+$/u, '').replace(/\.+$/u, '');
+    return known.has(clean) || Array.from(known).some(fact => fact.split('.')[0] === clean);
+  });
+}
+
+// Anything that talks about the club's own records reads them through the report tools.
+// Words alone are not enough — «كام» on its own is how everybody asks for arithmetic too —
+// so the list is subjects and time windows, not question words.
+const CLUB_DATA_WORDS = [
+  'عدد', 'إجمالي', 'اجمالي', 'إيراد', 'ايراد', 'يراد', 'مصروف', 'مصاريف', 'ربح', 'خسار',
+  'متأخر', 'مستحق', 'حضور', 'حاضر', 'غياب', 'عضو', 'أعضاء', 'اعضاء', 'اشتراك', 'تجديد', 'باقة',
+  'بيع', 'مبيعات', 'فاتورة', 'مخزون', 'بضاعة', 'صنف', 'موظف', 'موظفين', 'مدرب', 'شفت', 'ساعات',
+  'جلسة', 'جلسات', 'علاج', 'فرع', 'فروع', 'تقرير', 'تقارير', 'نهارده', 'نهاردة', 'اليوم',
+  'امبارح', 'أمبارح', 'الشهر', 'شهر', 'جيم', 'نادي', 'دخول', 'خروج', 'مسجل',
+  'تسجيل', 'حالة', 'حالته', 'فلوس', 'جنيه', 'راتب', 'كسبنا', 'كسب', 'خسرنا', 'حصّلنا', 'حصلا'
+];
+
+function mentionsClubData(text: string) {
+  const flat = text.replace(/\s+/g, ' ');
+  return CLUB_DATA_WORDS.some(word => flat.includes(word));
 }
 
 type ToolResult = { ok: boolean; data?: any; message?: string };
@@ -203,11 +368,16 @@ const tools: {
     async run(req, args) {
       const r = await callOwnApi(req, '/api/members', { branchId: args.branchId, pageSize: 1 });
       if (r.denied || r.error) return { ok: false, message: r.message || r.error };
+      // Accounts without the census permission get the rows but no totals, so say plainly
+      // that this number isn't theirs instead of answering with an empty object.
+      if (!r.json?.statusCounts && r.json?.pagination?.total === null) {
+        return { ok: false, message: 'عدد الأعضاء ده للمالك والمحاسب، ومش مسموح للحسابات التانية' };
+      }
       return {
         ok: true,
         data: {
-          byStatus: r.json?.statusCounts,
-          total: r.json?.pagination?.total,
+          membersByStatus: r.json?.statusCounts,
+          totalMembers: r.json?.pagination?.total,
           branch: args.branchId || 'كل الفروع'
         }
       };
@@ -225,17 +395,24 @@ const tools: {
       required: ['from', 'to']
     },
     async run(req, args) {
-      const history = await callOwnApi(req, '/api/attendance/history', {
-        startDate: args.from, endDate: endOfDay(args.to), branchId: args.branchId, pageSize: 1
-      });
+      // Two different reports, no dependency between them, so they run at the same time —
+      // one after the other just doubled the wait for the same answer.
+      const [history, today] = await Promise.all([
+        callOwnApi(req, '/api/attendance/history', {
+          startDate: args.from, endDate: endOfDay(args.to), branchId: args.branchId, pageSize: 1
+        }),
+        callOwnApi(req, '/api/attendance/today', { branchId: args.branchId })
+      ]);
       if (history.denied || history.error) return { ok: false, message: history.message || history.error };
-      const today = await callOwnApi(req, '/api/attendance/today', { branchId: args.branchId });
       return {
         ok: true,
         data: {
           period: `${args.from} ← ${args.to}`,
           visitsInPeriod: history.json?.pagination?.total,
-          today: today.json?.summary
+          todayVisits: today.json?.summary?.total ?? 0,
+          insideNow: today.json?.summary?.checkedIn ?? 0,
+          checkedOutToday: today.json?.summary?.checkedOut ?? 0,
+          flaggedToday: today.json?.summary?.flagged ?? 0
         }
       };
     }
@@ -260,11 +437,11 @@ const tools: {
         data: {
           period: `${args.from} ← ${args.to}`,
           currency: 'EGP',
-          total: toPounds(r.json?.total),
+          expensesTotalEgp: toPounds(r.json?.total),
           categories: Object.entries(byCategory).map(([category, v]: [string, any]) => ({
             category,
-            total: toPounds(v.total),
-            count: v.count
+            totalEgp: toPounds(v.total),
+            operationsCount: v.count
           }))
         }
       };
@@ -313,7 +490,7 @@ const tools: {
         ok: true,
         data: {
           withinDays: args.days || 7,
-          count: list.length,
+          expiringCount: list.length,
           items: list.slice(0, 25).map((s: any) => ({
             member: s.member?.name,
             memberCode: s.member?.code,
@@ -390,8 +567,8 @@ const tools: {
         data: {
           period: `${args.from} ← ${args.to}`,
           currency: 'EGP',
-          invoices: list.length,
-          total: toPounds(list.reduce((sum: number, s: any) => sum + (s.finalTotalPiasters || 0), 0)),
+          invoicesCount: list.length,
+          revenueEgp: toPounds(list.reduce((sum: number, s: any) => sum + (s.finalTotalPiasters || 0), 0)),
           topProducts: Object.entries(perProduct)
             .sort((a, b) => b[1].quantity - a[1].quantity)
             .slice(0, 8)
@@ -466,6 +643,66 @@ const tools: {
         }
       };
     }
+  },
+  {
+    name: 'physio_sessions',
+    description:
+      'جلسات العلاج الطبيعي اللي الأعضاء طلبوها: كام طلب مستني المراجعة، مين اتقبل وسعره كام، مين اترض وسبب الرفض إيه، ومواعيد الجلسات. أي سؤال عن علاج طبيعي أو جلسة أو طلب حجز أو سبب رفض ده تقريره.',
+    parameters: {
+      properties: {
+        status: { type: 'STRING', description: 'PENDING أو APPROVED أو DECLINED، وسيبه فاضي لكل الطلبات' },
+        branchId: { type: 'STRING', description: 'id الفرع، وسيبه فاضي لكل الفروع' }
+      },
+      required: []
+    },
+    async run(req, args) {
+      const r = await callOwnApi(req, '/api/physio', { status: args.status || 'ALL', branchId: args.branchId });
+      if (r.denied || r.error) return { ok: false, message: r.message || r.error };
+      const list = Array.isArray(r.json) ? r.json : [];
+      const byStatus = (s: string) => list.filter((b: any) => b.status === s);
+      const row = (b: any) => ({
+        member: b.member?.person?.name,
+        memberCode: b.member?.memberCode,
+        branch: b.branch?.name,
+        sessionDate: b.requestedDate,
+        note: b.note || null
+      });
+      return {
+        ok: true,
+        data: {
+          totalRequests: list.length,
+          pendingCount: byStatus('PENDING').length,
+          approvedCount: byStatus('APPROVED').length,
+          declinedCount: byStatus('DECLINED').length,
+          pending: byStatus('PENDING').slice(0, 25).map((b: any) => row(b)),
+          approved: byStatus('APPROVED').slice(0, 25).map((b: any) => ({
+            ...row(b),
+            priceEgp: b.pricePiasters === null ? null : b.pricePiasters / 100,
+            decidedBy: b.decidedBy?.name || null
+          })),
+          declined: byStatus('DECLINED').slice(0, 25).map((b: any) => ({
+            ...row(b),
+            declineReason: b.declineReason || null
+          }))
+        }
+      };
+    }
+  },
+  {
+    name: 'calculate',
+    description:
+      'بتحسب عملية حسابية واحدة وترجّع الناتج صح: جمع (+)، طرح (-)، ضرب (*)، قسمة (/)، نسبة (%). استخدمها قبل أي جمع أو طرح أو قسمة أو نسبة بدل ما تحسبها في دماغك، خصوصاً لو بتقارن رقمين من التقارير أو طلّعت فرق أو نسبة زيادة. اكتب expression فيها أرقام وعلامات بس زي "50000-32000" أو "(480-390)÷390×100".',
+    parameters: {
+      properties: {
+        expression: { type: 'STRING', description: 'العملية نفسها: أرقام و+ - * / و% وأقواس' }
+      },
+      required: ['expression']
+    },
+    async run(_req, args) {
+      const parsed = parseExpression(String(args?.expression ?? ''));
+      if (!parsed) return { ok: false, message: 'الشكل ده مش عملية حسابية أفهمها' };
+      return { ok: true, data: { expression: parsed.expression, result: parsed.value, currencyNote: 'نتج حسابي عادي، مش رقم من تقرير' } };
+    }
   }
 ];
 
@@ -491,19 +728,38 @@ function systemInstruction(userName: string) {
     `انت مساعد ذكي لمدير جيم POWER 111، واللي بيسألك هو: ${userName} — ناديّه بالاسم ده في الرد بطريقة طبيعية، مرة واحدة كفاية.`,
     `بتتكلم عربي مصري بسيط ومختصر، وفرفوش خفيف الظل: تحية أو تعليق لطيف في أول الرد أو آخره بكلمتين، ومتطولش ومتزودش حشو — الأرقام هي اللي يهمه.`,
     `من غير إيموجي خالص، ومتكترش علامات التعجب.`,
-    `القاعدة الأولى وأهم قاعدة: أي سؤال فيه «كام» أو «قد إيه» أو عدد أو فلوس أو مقارنة أو حالة — لازم تنادي أداة قبل ما تكتب أي كلام. ممنوع تطلب من المستخدم توضيح قبل ما تنادي أداة، وممنوع تخمّن أو تحسب أي رقم من عندك.`,
-    `لو مافيش أداة بتديده المطلوب، قول «مافيش تقرير بيغطي ده» وبس.`,
+    `القاعدة الأولى وأهم قاعدة: أي رقم عن الجيم نفسه — عدد أعضاء أو حضور أو فلوس أو مقارنة أو حالة اشتراك — لازم تنادي أداة التقارير قبل ما تكتبه. ممنوع تطلب من المستخدم توضيح قبل ما تنادي أداة، وممنوع تخمّن أو تحسب أي رقم عن الجيم من عندك.`,
+    `أي عملية حساب (جمع أو طرح أو ضرب أو قسمة أو نسبة أو فرق أو زيادة نصفة) نادى عليها calculate ومتحسبش في دماغك — حتى لو الأرقام جاتك من التقارير.`,
+    `لو السؤال مالوش دعوة بداتا الجيم (تحية، معلومة عامة، نصايح، صياغة رسالة، حساب عددي عادي)، رد عليه على طول من غير ما تنادي أي تقرير، ومتقولش «مافيش تقرير بيغطي ده» — هو مش مطلوب من التقارير أصلاً.`,
+    `لو السؤال عن حاجة المفروض تكون في النظام ومافيش أداة بتديدها، قول «مافيش تقرير بيغطي ده» وبس.`,
     `لو المستخدم نطق اسم فرع، ناديه على list_branches الأول خد الـ id الصحيح، ومتخمنش id خالص.`,
     `أي سؤال عن مدرب أو موظف أو شفت أو مين موجود في الجيم دلوقتي أو ساعات العمل → أداة staff_shifts (هي تقرير الموظفين)، ومتستعملش attendance_counts اللي هو حضور الأعضاء.`,
+    `أي سؤال عن علاج طبيعي أو جلسة أو طلب حجز أو مين مستني رد أو سبب رفض أو سعر الجلسة → أداة physio_sessions، ومتستعملش تقارير الأعضاء بدلها.`,
     `لو السؤال عام زي «إيه حالة الجيم النهارده» أو «قولي ملخص»، نادى كل الأدوات اللي تلزم (أعضاء + حضور + اشتراكات + بيع + مصروفات) مرة واحدة في نفس الرد، وبعدين اعمل ملخص من الأرقام كلها.`,
     `لو قال «الشهر دا» أو «الشهر اللي فات» أو «النهارده»، احسب من وتاريخ بنفسك ونادي الأداة. اليوم الحالي ${new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' })}.`,
     `مقارنة شهرين أو فرعين: ناديه على نفس الأداة مرتين (مرة لكل ناحية) في نفس الرد، وبعدين قارن بالأرقام اللي جاتلك وقول أنهي واحد أحسن وليه من الأرقام نفسها.`,
-    `كل الفلوس اللي ترجع من financial_summary أو branch_comparison أو expenses_breakdown أو sales_check أو daily_journal هي بالجنيه المصري بالظبط (currency: EGP) — متقسمش في 100 ولا تضرب في أي حاجة.`,
+    `كل الفلوس اللي ترجع من financial_summary أو branch_comparison أو expenses_breakdown أو sales_check أو daily_journal أو physio_sessions هي بالجنيه المصري بالظبط (currency: EGP) — متقسمش في 100 ولا تضرب في أي حاجة.`,
     `لو الأداة رجعت denied، قول بصراحة «الحساب ده ماعندوش صلاحية للبيانات دي» ومتخمنش قيمتها.`,
+    `لو السؤال عن فترة مالشهاش سجلات في النظام، متقلش «مافيش تقرير بيغطي ده» — قوله «النظام ماسجلش أي عمليات للفترة دي» وعدّي لغيرها من غير ما تخترع رقم.`,
     `متكتبش سطر «المصدر» بنفسك — الواجهة عرضة تحت الرد، واكتب الرد من غير أي اسم أداة أو اسم متغير إنجليزي.`,
     `اكتب كلام عادي بس: متحطش نجوم ولا markdown ولا بينات إنجليزية، والسطر القصير كفاية.`,
-    `ممنوع تكتب أي رقم — عدد أو فلوس أو نسبة أو تاريخ حركة — إلا لو جاي حرفياً من رد أداة في السؤال ده. الرقم اللي مجاش من أداة امحي الجملة اللي فيه خالص.`,
+    `ممنوع تكتب أي رقم عن الجيم — عدد أو فلوس أو نسبة أو تاريخ حركة — إلا لو جاي حرفياً من رد أداة في السؤال ده. الرقم اللي مجاش من أداة امحي الجملة اللي فيه خالص.`,
+    `خلي كل رقم بالأرقام (389) مش بالحروف، وخد كل رقم من التقرير اللي بيتكلم عنه بالظبط: عدد الأعضاء من members_census بس، والفلوس من التقارير المالية بس — متنقلش رقم من تقرير وتحطه في تقرير تاني.`,
     `لو السؤال تحية أو كلام عام مالوش دعوة بالداتا، رد بتحية دافية قصيرة على ${userName} من غير أداة — ومتخلطش التحية بحالة الجيم أو أرقام النهاردة، التحية كلام بس.`
+  ].join('\n');
+}
+
+// Ordinary questions never touch the reports, so they go without any function declarations:
+// fewer tokens in, no tool round, and the answer comes back in one call.
+function generalInstruction(userName: string) {
+  return [
+    `انت مساعد ذكي لمدير جيم POWER 111، واللي بيسألك هو: ${userName} — ناديّه بالاسم ده بطريقة طبيعية، مرة واحدة كفاية.`,
+    `السؤال ده مالوش دعوة بتقارير النظام، فمفيش أدوات متاحة دلوقتي — رد عليه من معلوماتك عادي كأنك زميل شاطر: معلومة، نصايح، صياغة رسالة أو إعلان، شرح حاجة، أو حساب عددي.`,
+    `لو الحساب العددي محتاج جمع أو طرح أو ضرب أو قسمة أو نسبة، احسب صح واتأكد من الناتج، واورّي السطر اللي وصلت بيه لو السؤال طلب كده.`,
+    `لو طلع السؤال في الحقيقة عايز أرقام من جيم POWER 111 (عدد أعضاء، حضور، فلوس، اشتراكات…)، متختَرعش أي رقم ومتقولش رقم قاله تقرير — اعتذر بكلمتين وقوله يسألك عن التقارير مباشرة.`,
+    `بتتكلم عربي مصري بسيط ومختصر، وفرفوش خفيف الظل: كلمة لطيفة في الأول أو الآخر، ومتطولش.`,
+    `من غير إيموجي خالص، ومن غير نجوم ولا markdown ولا بينات إنجليزية — كلام عادي بس، والسطر القصير كفاية.`,
+    `لو الرد فيه أرقام، خليها بالأرقام (389) مش بالحروف.`
   ].join('\n');
 }
 
@@ -519,12 +775,14 @@ function toHistoryEntries(history: any[]) {
     }));
 }
 
-router.get('/status', requireAuth, (_req: Request, res: Response) => {
+// Every assistant endpoint is behind its own permission, so an account that was not given
+// the reader cannot reach it by typing the URL either.
+router.get('/status', requireAuth, requirePermission('USE_ASSISTANT'), (_req: Request, res: Response) => {
   res.json({ success: true, enabled: Boolean(process.env.GEMINI_API_KEY), model: GEMINI_MODEL });
 });
 
 // The journal of what this account asked and what the reports answered.
-router.get('/history', requireAuth, async (req: Request, res: Response) => {
+router.get('/history', requireAuth, requirePermission('USE_ASSISTANT'), async (req: Request, res: Response) => {
   try {
     const sessionUser = (req.session as any).user;
     const logs = await prisma.auditLog.findMany({
@@ -551,7 +809,7 @@ router.get('/history', requireAuth, async (req: Request, res: Response) => {
 
 // The thread he sees is this journal, so clearing it is a real delete: nothing comes back
 // on the next login or the next phone until he asks again.
-router.delete('/history', requireAuth, requirePermission('VIEW_DASHBOARD'), async (req: Request, res: Response) => {
+router.delete('/history', requireAuth, requirePermission('USE_ASSISTANT'), async (req: Request, res: Response) => {
   try {
     const sessionUser = (req.session as any).user;
     const { count } = await prisma.auditLog.deleteMany({
@@ -564,7 +822,7 @@ router.delete('/history', requireAuth, requirePermission('VIEW_DASHBOARD'), asyn
   }
 });
 
-router.post('/ask', requireAuth, requirePermission('VIEW_DASHBOARD'), async (req: Request, res: Response) => {
+router.post('/ask', requireAuth, requirePermission('USE_ASSISTANT'), async (req: Request, res: Response) => {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return res.status(503).json({
@@ -590,8 +848,21 @@ router.post('/ask', requireAuth, requirePermission('VIEW_DASHBOARD'), async (req
   // Reports that actually handed back data on this question. A figure with none of them
   // behind it is a figure the model made up, and he banned made-up numbers outright.
   let readReports = 0;
+  // Every number the server-side calculator produced on this question. A figure that is
+  // one of these is arithmetic we did ourselves, not a report the model imagined.
+  const calculatedNumbers: string[] = [];
   let forceToolsNextRound = false;
+  // Report tools only ride along when the question could be about the club's own records.
+  // Ordinary talk answers in a single round trip with no declarations in the prompt at all.
+  const useTools = mentionsClubData(question);
   const unverifiedAnswerLine = `معلش يا ${address}، معرفتش أقرأ الأرقام دي من التقارير دلوقتي — ومش هقول رقم النظام ماطلعوش. اسألني عن حضور النهاردة أو البيع أو الاشتراكات وهجيبهولك من التقارير نفسها.`;
+
+  // The invented-number rule in one place: a figure about the club needs a report behind
+  // it, unless it is only arithmetic the calculator itself just did. Questions the words
+  // alone put outside the club's records answer in one round with no gate — whether a digit
+  // is a club figure is settled by the question, and the model has no report to fake here.
+  const figuresUnverified = (text: string) => useTools
+    && /\d/.test(text) && readReports === 0 && !everyFigureCalculated(text, calculatedNumbers);
 
   // The UI renders the source badges itself, and the model likes to repeat them in
   // plain text with the raw tool names, so the trailing line is dropped here.
@@ -602,22 +873,38 @@ router.post('/ask', requireAuth, requirePermission('VIEW_DASHBOARD'), async (req
     .replace(/\n*المصدر:.*$/u, '')
     .trim();
 
+  // The lite model keeps answering "مافيش تقرير بيغطي ده" — the exact phrasing he told me to
+  // drop — whenever a question has no records behind it. The fact is right, the line isn't,
+  // so it is replaced on the way out with one that says what actually happened.
+  const noRecordsLine = `النظام ماسجلش أي عمليات للفترة اللي سألت عنها، فمفيش رقم أقدر قولهولك. اسألني عن النهاردة أو الشهر دا وهقراه من التقارير نفسها.`;
+  const saysNoRecords = (text: string) => /تقر/.test(text) && /(فيش|متغطي|موجودش|لا يوجد|مش متاح)/.test(text);
+
   const reply = (answer: string) => {
+    const clean = saysNoRecords(answer) ? noRecordsLine : answer;
     createAuditLog(sessionUser.id, 'assistant.ask', 'Assistant', undefined, sessionUser.branchIds?.[0], {
       question,
-      answer: answer.slice(0, 1200),
+      answer: clean.slice(0, 1200),
       tools: usedTools.map(t => t.name)
     }).catch(() => {});
-    res.json({ success: true, answer, tools: usedTools });
+    res.json({ success: true, answer: clean, tools: usedTools });
   };
+
+  // A message that is nothing but a calculation answers on the spot: no model call, so it
+  // is instant, and the number is one this server counted rather than one it guessed.
+  const calc = arithmeticOnly(question);
+  if (calc) {
+    return reply(`اتفضل يا ${address}، الناتج ${showNumber(calc.value)} — دي حاسبة من النظام حسبت «${calc.expression}».`);
+  }
 
   try {
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
       const out = await callGemini(apiKey, {
         contents,
-        systemInstruction: { parts: [{ text: systemInstruction(address) }] },
-        tools: [{ functionDeclarations: declarations }],
-        toolConfig: { functionCallingConfig: { mode: forceToolsNextRound ? 'ANY' : 'AUTO' } }
+        systemInstruction: { parts: [{ text: useTools ? systemInstruction(address) : generalInstruction(address) }] },
+        ...(useTools && {
+          tools: [{ functionDeclarations: declarations }],
+          toolConfig: { functionCallingConfig: { mode: forceToolsNextRound ? 'ANY' : 'AUTO' } }
+        })
       });
 
       if (out.error) {
@@ -638,13 +925,14 @@ router.post('/ask', requireAuth, requirePermission('VIEW_DASHBOARD'), async (req
       const calls = parts.filter(p => p.functionCall).map(p => p.functionCall);
       if (!calls.length) {
         const text = spokenText(parts);
-        // It answered with numbers but never read a report — that text is invented. Send
-        // the same question back with tool use forced, and if even that comes up empty,
-        // say so plainly instead of shipping figures he'd act on.
-        if (/\d/.test(text) && readReports === 0) {
+        // It answered with system figures but never read a report — that text is invented.
+        // Send the same question back with the tools forced on, and if even that comes up
+        // empty, say so plainly instead of shipping figures he'd act on. Numbers that are
+        // only the calculator's own arithmetic are fine, that is what he asked for.
+        if (figuresUnverified(text)) {
           if (!forceToolsNextRound && round + 1 < MAX_TOOL_ROUNDS) {
             forceToolsNextRound = true;
-            contents.push({ role: 'user', parts: [{ text: 'كتبت أرقام من غير ما تنادي أي أداة تقارير، وده ممنوع. نادي الأدوات اللي تجيب الكلام ده، وارّد من اللي يرجعلك بس.' }] });
+            contents.push({ role: 'user', parts: [{ text: 'كتبت أرقام عن الجيم من غير ما تنادي أي أداة تقارير، وده ممنوع. نادي الأدوات اللي تجيب الكلام ده، وارّد من اللي يرجعلك بس.' }] });
             continue;
           }
           return reply(unverifiedAnswerLine);
@@ -667,7 +955,16 @@ router.post('/ask', requireAuth, requirePermission('VIEW_DASHBOARD'), async (req
             result = { ok: false, message: 'التقرير ماعرفش يطلّع البيانات دي' };
           }
         }
-        if (result.ok) readReports++;
+        // The calculator is arithmetic, not a report, so it never clears the invented-number
+        // gate by itself — only the figures it actually printed can do that.
+        if (result.ok && fc.name === 'calculate') {
+          calculatedNumbers.push(String(result.data?.result), showNumber(result.data?.result));
+          String(result.data?.expression || '').split(/[^\d.]+/u).forEach(token => {
+            if (token) calculatedNumbers.push(token);
+          });
+        } else if (result.ok) {
+          readReports++;
+        }
         return {
           functionResponse: {
             name: fc.name,
@@ -682,14 +979,16 @@ router.post('/ask', requireAuth, requirePermission('VIEW_DASHBOARD'), async (req
     // make it answer from that instead of bouncing the question back at the owner.
     const forced = await callGemini(apiKey, {
       contents,
-      systemInstruction: { parts: [{ text: systemInstruction(address) }] },
-      tools: [{ functionDeclarations: declarations }],
-      toolConfig: { functionCallingConfig: { mode: 'NONE' } }
+      systemInstruction: { parts: [{ text: useTools ? systemInstruction(address) : generalInstruction(address) }] },
+      ...(useTools && {
+        tools: [{ functionDeclarations: declarations }],
+        toolConfig: { functionCallingConfig: { mode: 'NONE' } }
+      })
     });
     const forcedAnswer = forced.error ? '' : spokenText(forced.json?.candidates?.[0]?.content?.parts || []);
-    if (forcedAnswer && !(/\d/.test(forcedAnswer) && readReports === 0)) return reply(forcedAnswer);
+    if (forcedAnswer && !figuresUnverified(forcedAnswer)) return reply(forcedAnswer);
 
-    if (/\d/.test(forcedAnswer) && readReports === 0) return reply(unverifiedAnswerLine);
+    if (forcedAnswer && figuresUnverified(forcedAnswer)) return reply(unverifiedAnswerLine);
 
     return res.status(504).json({
       error: 'Assistant ran out of tool rounds',

@@ -11,6 +11,15 @@ build/
 .env.local
 .env.*.local
 
+# Local secrets and member data — never commit
+.session-secret
+local-data-export.sql
+uploads/
+vibe_images/
+.scratch/
+local-test/
+.qoder/
+
 # Logs
 *.log
 npm-debug.log*

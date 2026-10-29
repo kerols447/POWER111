@@ -1,15 +1,40 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../index.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
+import { notifyBranchMembers } from '../utils/push.js';
 
 const router = Router();
 
-// List offers
+const AR_MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+
+function arabicDay(value: Date): string {
+  const d = new Date(value);
+  return `${d.getDate()} ${AR_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+// Members who installed the app hear about an offer the moment it goes live.
+async function announceOffer(offer: { title: string; titleAr: string | null; discountPercent: number | null; endDate: Date; branchId: string | null }) {
+  const title = offer.titleAr || offer.title;
+  await notifyBranchMembers(offer.branchId, {
+    kind: 'NEW_OFFER',
+    title: `عرض جديد: ${title}`,
+    body: offer.discountPercent
+      ? `خصم ${offer.discountPercent}٪ — آخر يوم ${arabicDay(offer.endDate)}`
+      : `سارعي — العرض لحد ${arabicDay(offer.endDate)}`,
+    link: '/portal'
+  });
+}
+
+// List offers — a manager or employee only sees the global ones plus their own branch
 router.get('/', requireAuth, async (req: Request, res: Response) => {
   try {
     const user = (req.session as any).user;
     const offers = await prisma.offer.findMany({
-      orderBy: { createdAt: 'desc' }
+      where: user.role === 'OWNER'
+        ? {}
+        : { OR: [{ branchId: null }, { branchId: { in: user.branchIds } }] },
+      orderBy: { createdAt: 'desc' },
+      take: 200
     });
     res.json(offers);
   } catch (error) {
@@ -50,6 +75,8 @@ router.post('/', requireAuth, requireRole('OWNER'), async (req: Request, res: Re
         isPublished: isPublished || false
       }
     });
+
+    if (offer.isPublished) await announceOffer(offer);
 
     res.status(201).json(offer);
   } catch (error) {
@@ -93,6 +120,10 @@ router.put('/:id', requireAuth, requireRole('OWNER'), async (req: Request, res: 
         isPublished
       }
     });
+
+    // Going from hidden to published is what tells the members about it.
+    const nowPublished = isPublished === undefined ? existing.isPublished : Boolean(isPublished);
+    if (nowPublished && !existing.isPublished) await announceOffer(offer);
 
     res.json(offer);
   } catch (error) {

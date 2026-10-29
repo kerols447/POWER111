@@ -40,6 +40,22 @@ const upload = multer({
   }
 });
 
+// The image column used to be joined onto the working directory and unlinked, so a stored
+// value of "../../../../.env" deleted a file nobody asked about. Only what this route wrote
+// under uploads/products can ever be resolved or removed.
+function safeImageValue(image: unknown): string | null {
+  if (typeof image !== 'string') return null;
+  const trimmed = image.trim();
+  return /^\/uploads\/products\/[A-Za-z0-9._-]+$/.test(trimmed) ? trimmed : null;
+}
+
+function deleteStoredImage(image: string | null | undefined) {
+  if (!image || !image.startsWith('/uploads/products/')) return;
+  const file = path.join(uploadDir, path.basename(image));
+  if (!file.startsWith(uploadDir) || !fs.existsSync(file)) return;
+  fs.unlinkSync(file);
+}
+
 // List products with filters
 router.get('/', requireAuth, requirePermission('VIEW_PRODUCTS'), async (req: Request, res: Response) => {
   try {
@@ -197,7 +213,7 @@ router.post('/', requireAuth, requirePermission('CREATE_PRODUCTS'), async (req: 
         nameAr,
         sku,
         barcode: finalBarcode,
-        image,
+        image: safeImageValue(image),
         pricePiasters,
         costPiasters: costPiasters || null,
         quantity: quantity || 0,
@@ -279,7 +295,7 @@ router.put('/:id', requireAuth, requirePermission('EDIT_PRODUCTS'), async (req: 
         nameAr,
         sku,
         barcode,
-        image,
+        image: image === undefined ? undefined : safeImageValue(image),
         pricePiasters,
         costPiasters,
         lowStockThreshold,
@@ -426,13 +442,7 @@ router.delete('/:id', requireAuth, requirePermission('DELETE_PRODUCTS'), async (
       });
     }
 
-    // Delete image file if exists
-    if (product.image) {
-      const imagePath = path.join(process.cwd(), product.image);
-      if (fs.existsSync(imagePath)) {
-        fs.unlinkSync(imagePath);
-      }
-    }
+    deleteStoredImage(product.image);
 
     await prisma.product.delete({
       where: { id }
@@ -467,13 +477,7 @@ router.post('/:id/image', requireAuth, requirePermission('EDIT_PRODUCTS'), uploa
       return res.status(400).json({ error: 'لم يتم رفع صورة' });
     }
 
-    // Delete old image if exists
-    if (product.image) {
-      const oldImagePath = path.join(process.cwd(), product.image);
-      if (fs.existsSync(oldImagePath)) {
-        fs.unlinkSync(oldImagePath);
-      }
-    }
+    deleteStoredImage(product.image);
 
     const imagePath = `/uploads/products/${req.file.filename}`;
 

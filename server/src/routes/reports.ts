@@ -3,8 +3,38 @@ import { prisma } from '../index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/permissions.js';
 import { userHasPermission } from '../utils/permissions.js';
+import { parseDate } from '../utils/money.js';
 
 const router = Router();
+
+// A report with no dates used to read every row the club has ever written, and one request
+// could outgrow the server's memory. The lists are capped and say so; the money totals keep
+// coming from aggregate queries, so a capped list never reports a smaller number than the truth.
+const REPORT_ROWS_LIMIT = 5000;
+// Outstanding balances are read row by row because "what is left" is not something SQL can
+// sum; a club this size stays far under the ceiling.
+const SUBSCRIPTION_SCAN_LIMIT = 50000;
+
+// Both dates are optional and come from the browser, so a bad value is ignored rather than
+// handed to Prisma (which would throw and turn the report into a 500).
+function rangeFilter(from: unknown, to: unknown): any {
+  const filter: any = {};
+  const start = parseDate(from);
+  if (start) filter.gte = start;
+  const end = parseDate(to);
+  if (end) {
+    end.setUTCDate(end.getUTCDate() + 1);
+    end.setUTCMilliseconds(end.getUTCMilliseconds() - 1);
+    filter.lt = end;
+  }
+  return filter;
+}
+
+// An employee only ever reports on the branches they belong to; the owner may narrow to one.
+function scopeBranch(sessionUser: any, branchId: unknown): any {
+  if (sessionUser.role !== 'OWNER') return { id: { in: sessionUser.branchIds } };
+  return typeof branchId === 'string' && branchId ? { id: branchId } : {};
+}
 
 // Financial summary
 router.get('/financial', requireAuth, requirePermission('VIEW_FINANCIAL_REPORTS'), async (req: Request, res: Response) => {
@@ -12,21 +42,9 @@ router.get('/financial', requireAuth, requirePermission('VIEW_FINANCIAL_REPORTS'
     const sessionUser = (req.session as any).user;
     const { branchId, from, to } = req.query;
 
-    let branchFilter: any = {};
-    if (sessionUser.role !== 'OWNER') {
-      branchFilter = { id: { in: sessionUser.branchIds } };
-    } else if (branchId) {
-      branchFilter = { id: branchId as string };
-    }
+    const branchFilter = scopeBranch(sessionUser, branchId);
 
-    const dateFilter: any = {};
-    if (from) dateFilter.gte = new Date(from as string);
-    if (to) {
-      const toDate = new Date(to as string);
-      toDate.setUTCDate(toDate.getUTCDate() + 1);
-      toDate.setUTCMilliseconds(toDate.getUTCMilliseconds() - 1);
-      dateFilter.lt = toDate;
-    }
+    const dateFilter = rangeFilter(from, to);
 
     // Sales revenue
     const salesWhere: any = {};
@@ -70,7 +88,8 @@ router.get('/financial', requireAuth, requirePermission('VIEW_FINANCIAL_REPORTS'
     if (Object.keys(branchFilter).length > 0) outstandingWhere.branch = branchFilter;
     const subscriptions = await prisma.subscription.findMany({
       where: outstandingWhere,
-      select: { pricePiasters: true, paidPiasters: true }
+      select: { pricePiasters: true, paidPiasters: true },
+      take: SUBSCRIPTION_SCAN_LIMIT
     });
     const outstanding = subscriptions.reduce((sum, s) => sum + Math.max(0, s.pricePiasters - s.paidPiasters), 0);
 
@@ -95,40 +114,42 @@ router.get('/sales', requireAuth, requirePermission('VIEW_REPORTS'), async (req:
     const sessionUser = (req.session as any).user;
     const { branchId, from, to } = req.query;
 
-    let branchFilter: any = {};
-    if (sessionUser.role !== 'OWNER') {
-      branchFilter = { id: { in: sessionUser.branchIds } };
-    } else if (branchId) {
-      branchFilter = { id: branchId as string };
-    }
+    const branchFilter = scopeBranch(sessionUser, branchId);
 
     const where: any = {};
     if (Object.keys(branchFilter).length > 0) where.branch = branchFilter;
-    if (from || to) {
-      where.createdAt = {};
-      if (from) where.createdAt.gte = new Date(from as string);
-      if (to) {
-        const toDate = new Date(to as string);
-        toDate.setUTCDate(toDate.getUTCDate() + 1);
-        toDate.setUTCMilliseconds(toDate.getUTCMilliseconds() - 1);
-        where.createdAt.lte = toDate;
-      }
-    }
+    const dateFilter = rangeFilter(from, to);
+    if (Object.keys(dateFilter).length > 0) where.createdAt = dateFilter;
 
-    const sales = await prisma.sale.findMany({
-      where,
-      include: {
-        branch: { select: { id: true, name: true } },
-        items: {
-          include: {
-            product: { select: { name: true, nameAr: true } }
+    const [found, aggregate] = await Promise.all([
+      prisma.sale.findMany({
+        where,
+        include: {
+          branch: { select: { id: true, name: true } },
+          items: {
+            include: {
+              product: { select: { name: true, nameAr: true } }
+            }
           }
-        }
-      },
-      orderBy: { createdAt: 'desc' }
-    });
+        },
+        orderBy: { createdAt: 'desc' },
+        take: REPORT_ROWS_LIMIT + 1
+      }),
+      prisma.sale.aggregate({
+        where,
+        _count: true,
+        _sum: { finalTotalPiasters: true }
+      })
+    ]);
 
-    res.json(sales);
+    const truncated = found.length > REPORT_ROWS_LIMIT;
+    res.json({
+      sales: truncated ? found.slice(0, REPORT_ROWS_LIMIT) : found,
+      count: aggregate._count,
+      totalPiasters: aggregate._sum.finalTotalPiasters || 0,
+      truncated,
+      limit: REPORT_ROWS_LIMIT
+    });
   } catch (error) {
     console.error('Error fetching sales report:', error);
     res.status(500).json({ error: 'Failed to fetch sales report' });
@@ -141,51 +162,53 @@ router.get('/expenses', requireAuth, requirePermission('VIEW_REPORTS'), async (r
     const sessionUser = (req.session as any).user;
     const { branchId, from, to, category } = req.query;
 
-    let branchFilter: any = {};
-    if (sessionUser.role !== 'OWNER') {
-      branchFilter = { id: { in: sessionUser.branchIds } };
-    } else if (branchId) {
-      branchFilter = { id: branchId as string };
-    }
+    const branchFilter = scopeBranch(sessionUser, branchId);
 
     const where: any = {};
     if (Object.keys(branchFilter).length > 0) where.branch = branchFilter;
-    if (from || to) {
-      where.date = {};
-      if (from) where.date.gte = new Date(from as string);
-      if (to) {
-        const toDate = new Date(to as string);
-        toDate.setUTCDate(toDate.getUTCDate() + 1);
-        toDate.setUTCMilliseconds(toDate.getUTCMilliseconds() - 1);
-        where.date.lte = toDate;
-      }
-    }
-    if (category) {
-      where.category = category as string;
+    const dateFilter = rangeFilter(from, to);
+    if (Object.keys(dateFilter).length > 0) where.date = dateFilter;
+    if (typeof category === 'string' && category) {
+      where.category = category;
     }
 
-    const expenses = await prisma.expense.findMany({
-      where,
-      include: {
-        branch: { select: { id: true, name: true } }
-      },
-      orderBy: { date: 'desc' }
-    });
+    const [found, grouped] = await Promise.all([
+      prisma.expense.findMany({
+        where,
+        include: {
+          branch: { select: { id: true, name: true } }
+        },
+        orderBy: { date: 'desc' },
+        take: REPORT_ROWS_LIMIT + 1
+      }),
+      prisma.expense.groupBy({
+        by: ['category'],
+        where,
+        _count: true,
+        _sum: { amountPiasters: true }
+      })
+    ]);
 
-    // Group by category
-    const byCategory: any = {};
-    expenses.forEach(e => {
-      if (!byCategory[e.category]) {
-        byCategory[e.category] = { count: 0, total: 0 };
-      }
-      byCategory[e.category].count++;
-      byCategory[e.category].total += e.amountPiasters;
-    });
+    const truncated = found.length > REPORT_ROWS_LIMIT;
+    const expenses = truncated ? found.slice(0, REPORT_ROWS_LIMIT) : found;
+
+    // The category totals come from the database over every row in the range, so a long
+    // period still adds up correctly even when the list below it stops at the limit.
+    const byCategory: Record<string, { count: number; total: number }> = {};
+    let total = 0;
+    for (const row of grouped) {
+      const sum = row._sum.amountPiasters || 0;
+      byCategory[row.category] = { count: row._count, total: sum };
+      total += sum;
+    }
 
     res.json({
       expenses,
       byCategory,
-      total: expenses.reduce((sum, e) => sum + e.amountPiasters, 0)
+      total,
+      count: grouped.reduce((sum, row) => sum + row._count, 0),
+      truncated,
+      limit: REPORT_ROWS_LIMIT
     });
   } catch (error) {
     console.error('Error fetching expenses report:', error);
@@ -204,14 +227,7 @@ router.get('/branches', requireAuth, requirePermission('VIEW_DASHBOARD'), async 
       branchFilter = { id: { in: sessionUser.branchIds } };
     }
 
-    const dateFilter: any = {};
-    if (from) dateFilter.gte = new Date(from as string);
-    if (to) {
-      const toDate = new Date(to as string);
-      toDate.setUTCDate(toDate.getUTCDate() + 1);
-      toDate.setUTCMilliseconds(toDate.getUTCMilliseconds() - 1);
-      dateFilter.lt = toDate;
-    }
+    const dateFilter = rangeFilter(from, to);
 
     const branches = await prisma.branch.findMany({
       where: Object.keys(branchFilter).length > 0 ? branchFilter : {},
@@ -222,11 +238,12 @@ router.get('/branches', requireAuth, requirePermission('VIEW_DASHBOARD'), async 
       }
     });
 
-    const [canRevenue, canExpenses, canProfit, canOutstanding] = await Promise.all([
+    const [canRevenue, canExpenses, canProfit, canOutstanding, canMemberStats] = await Promise.all([
       userHasPermission(sessionUser.id, 'VIEW_DASHBOARD_REVENUE'),
       userHasPermission(sessionUser.id, 'VIEW_DASHBOARD_EXPENSES'),
       userHasPermission(sessionUser.id, 'VIEW_DASHBOARD_PROFIT'),
-      userHasPermission(sessionUser.id, 'VIEW_DASHBOARD_OUTSTANDING')
+      userHasPermission(sessionUser.id, 'VIEW_DASHBOARD_OUTSTANDING'),
+      userHasPermission(sessionUser.id, 'VIEW_MEMBER_STATS')
     ]);
 
     const branchStats = await Promise.all(branches.map(async (branch) => {
@@ -256,20 +273,30 @@ router.get('/branches', requireAuth, requirePermission('VIEW_DASHBOARD'), async 
           _sum: { amountPiasters: true },
           _count: true
         }),
-        prisma.member.count({
-          where: { branchId: branch.id, status: 'ACTIVE' }
-        }),
-        prisma.subscription.count({
-          where: {
-            branchId: branch.id,
-            status: 'ACTIVE',
-            endDate: { gte: new Date() }
-          }
-        }),
-        prisma.subscription.findMany({
-          where: { branchId: branch.id, status: 'ACTIVE' },
-          select: { pricePiasters: true, paidPiasters: true }
-        })
+        // No census permission → the count query never runs, so it can't leak in a response
+        // or cost the page time. How many subscriptions are live is the same kind of club
+        // total as how many members are, so it follows the same permission.
+        canMemberStats
+          ? prisma.member.count({ where: { branchId: branch.id, status: 'ACTIVE' } })
+          : Promise.resolve(null),
+        canMemberStats
+          ? prisma.subscription.count({
+              where: {
+                branchId: branch.id,
+                status: 'ACTIVE',
+                endDate: { gte: new Date() }
+              }
+            })
+          : Promise.resolve(null),
+        // The live balance is read row by row, and only the outstanding card uses it, so
+        // an account that cannot see it does not pay for reading every subscription.
+        canOutstanding
+          ? prisma.subscription.findMany({
+              where: { branchId: branch.id, status: 'ACTIVE' },
+              select: { pricePiasters: true, paidPiasters: true },
+              take: SUBSCRIPTION_SCAN_LIMIT
+            })
+          : Promise.resolve([] as { pricePiasters: number; paidPiasters: number }[])
       ]);
 
       const revenue = (sales._sum.finalTotalPiasters || 0) + (payments._sum.amountPiasters || 0);
@@ -285,8 +312,8 @@ router.get('/branches', requireAuth, requirePermission('VIEW_DASHBOARD'), async 
         salesCount: sales._count,
         expensesCount: expenses._count,
         paymentsCount: payments._count,
-        activeMembers: members,
-        activeSubscriptions
+        ...(canMemberStats ? { activeSubscriptions } : {}),
+        ...(canMemberStats ? { activeMembers: members } : {})
       };
     }));
 
@@ -327,22 +354,10 @@ router.get('/activity', requireAuth, requirePermission('VIEW_REPORTS'), async (r
     const sessionUser = (req.session as any).user;
     const { branchId, from, to } = req.query;
 
-    const branchFilter: any = {};
-    if (sessionUser.role !== 'OWNER') {
-      branchFilter.id = { in: sessionUser.branchIds };
-    } else if (branchId) {
-      branchFilter.id = branchId as string;
-    }
+    const branchFilter = scopeBranch(sessionUser, branchId);
     const scoped = Object.keys(branchFilter).length > 0;
 
-    const dateFilter: any = {};
-    if (from) dateFilter.gte = new Date(from as string);
-    if (to) {
-      const toDate = new Date(to as string);
-      toDate.setUTCDate(toDate.getUTCDate() + 1);
-      toDate.setUTCMilliseconds(toDate.getUTCMilliseconds() - 1);
-      dateFilter.lt = toDate;
-    }
+    const dateFilter = rangeFilter(from, to);
     const dated = Object.keys(dateFilter).length > 0;
 
     const branchWhere = scoped ? { branch: branchFilter } : {};
@@ -586,6 +601,97 @@ router.get('/activity', requireAuth, requirePermission('VIEW_REPORTS'), async (r
   } catch (error) {
     console.error('Error fetching activity report:', error);
     res.status(500).json({ error: 'Failed to fetch activity report' });
+  }
+});
+
+// Member growth per month (real registrations, cumulative) plus the live plan mix,
+// so the dashboard's growth bars and plan donut never show an invented curve.
+const GROWTH_MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+
+router.get('/growth', requireAuth, requirePermission('VIEW_DASHBOARD'), async (req: Request, res: Response) => {
+  try {
+    const sessionUser = (req.session as any).user;
+    const { branchId } = req.query;
+
+    let branchFilter: any = {};
+    if (sessionUser.role !== 'OWNER') {
+      branchFilter = { id: { in: sessionUser.branchIds } };
+    } else if (branchId) {
+      branchFilter = { id: branchId as string };
+    }
+    const memberWhere: any = Object.keys(branchFilter).length > 0 ? { branch: branchFilter } : {};
+    const subscriptionWhere: any = Object.keys(branchFilter).length > 0 ? { branch: branchFilter } : {};
+
+    const monthsBack = 10;
+    const now = new Date();
+    const buckets: { key: string; label: string; newMembers: number; cumulative: number }[] = [];
+    for (let i = monthsBack - 1; i >= 0; i--) {
+      const start = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      buckets.push({
+        key: `${start.getFullYear()}-${start.getMonth()}`,
+        label: GROWTH_MONTHS[start.getMonth()],
+        newMembers: 0,
+        cumulative: 0
+      });
+    }
+    const firstBucketStart = new Date(now.getFullYear(), now.getMonth() - (monthsBack - 1), 1);
+
+    // The cumulative column of this report is the club's member total, so the whole member
+    // table is only read for accounts allowed to see it.
+    const canMemberStats = await userHasPermission(sessionUser.id, 'VIEW_MEMBER_STATS');
+
+    const [registrations, planGroups] = await Promise.all([
+      canMemberStats
+        ? prisma.member.findMany({ where: memberWhere, select: { createdAt: true } })
+        : Promise.resolve([] as { createdAt: Date }[]),
+      // How the live subscriptions split across the plans is a member-scale figure too,
+      // so the desk that cannot count them does not read them either.
+      canMemberStats
+        ? prisma.subscription.groupBy({
+            by: ['planId'],
+            where: { ...subscriptionWhere, status: 'ACTIVE', endDate: { gte: new Date() } },
+            _count: { _all: true }
+          })
+        : Promise.resolve([] as { planId: string; _count: { _all: number } }[])
+    ]);
+
+    let beforeWindow = 0;
+    const perMonth = new Map<string, number>();
+    for (const row of registrations) {
+      const at = new Date(row.createdAt);
+      if (at < firstBucketStart) { beforeWindow++; continue; }
+      const key = `${at.getFullYear()}-${at.getMonth()}`;
+      perMonth.set(key, (perMonth.get(key) || 0) + 1);
+    }
+    let running = beforeWindow;
+    for (const bucket of buckets) {
+      bucket.newMembers = perMonth.get(bucket.key) || 0;
+      running += bucket.newMembers;
+      bucket.cumulative = running;
+    }
+
+    const planIds = planGroups.map(g => g.planId);
+    const plans = planIds.length
+      ? await prisma.plan.findMany({ where: { id: { in: planIds } }, select: { id: true, name: true, nameAr: true } })
+      : [];
+    const planNames = new Map(plans.map(p => [p.id, p.nameAr || p.name]));
+
+    res.json({
+      success: true,
+      // Without the census permission the member columns are absent rather than zero, so no
+      // screen can draw a fake flat line.
+      months: buckets.map(({ key, label, newMembers, cumulative }) => ({
+        key,
+        label,
+        ...(canMemberStats ? { newMembers, cumulative } : {})
+      })),
+      plans: planGroups
+        .map(g => ({ name: planNames.get(g.planId) || 'باقة', count: g._count._all }))
+        .sort((a, b) => b.count - a.count)
+    });
+  } catch (error) {
+    console.error('Error fetching growth report:', error);
+    res.status(500).json({ error: 'Failed to fetch growth report' });
   }
 });
 

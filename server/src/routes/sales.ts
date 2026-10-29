@@ -1,9 +1,20 @@
 import { Router, Request, Response } from 'express';
+import { PaymentMethod } from '@prisma/client';
 import { prisma } from '../index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/permissions.js';
 
 const router = Router();
+
+const MAX_SALE_LINES = 100;
+const MAX_SALE_QUANTITY = 10000;
+
+function paymentMethodOf(value: unknown): PaymentMethod {
+  const method = String(value ?? 'CASH').toUpperCase();
+  return (Object.values(PaymentMethod) as string[]).includes(method)
+    ? (method as PaymentMethod)
+    : PaymentMethod.CASH;
+}
 
 function generateInvoiceNumber(): string {
   const timestamp = Date.now().toString(36).toUpperCase();
@@ -21,6 +32,10 @@ router.post('/', requireAuth, requirePermission('CREATE_SALES'), async (req: Req
       return res.status(400).json({ error: 'الحقول المطلوبة مفقودة' });
     }
 
+    if (items.length > MAX_SALE_LINES) {
+      return res.status(400).json({ error: 'عدد الأصناف كبير جداً' });
+    }
+
     if (user.role !== 'OWNER' && !user.branchIds.includes(branchId)) {
       return res.status(403).json({ error: 'لا تملك صلاحية لهذا الفرع' });
     }
@@ -29,8 +44,13 @@ router.post('/', requireAuth, requirePermission('CREATE_SALES'), async (req: Req
     const saleItems: { productId: string; quantity: number; unitPricePiasters: number; totalPiasters: number }[] = [];
 
     for (const item of items) {
+      const quantity = Math.floor(Number(item?.quantity));
+      if (!Number.isFinite(quantity) || quantity < 1 || quantity > MAX_SALE_QUANTITY) {
+        return res.status(400).json({ error: 'الكمية غير صحيحة' });
+      }
+
       const product = await prisma.product.findUnique({
-        where: { id: item.productId }
+        where: { id: String(item?.productId ?? '') }
       });
 
       if (!product) {
@@ -41,23 +61,25 @@ router.post('/', requireAuth, requirePermission('CREATE_SALES'), async (req: Req
         return res.status(400).json({ error: `المنتج لا ينتمي لهذا الفرع` });
       }
 
-      if (product.quantity < item.quantity) {
+      if (product.quantity < quantity) {
         return res.status(400).json({ error: `الكمية غير كافية للمنتج: ${product.name}` });
       }
 
-      const unitPrice = item.pricePiasters || product.pricePiasters;
-      const totalPiasters = unitPrice * item.quantity;
+      // The price on the shelf is the price on the ticket: a browser tab cannot set its own.
+      const unitPrice = product.pricePiasters;
+      const totalPiasters = unitPrice * quantity;
       subtotalPiasters += totalPiasters;
 
       saleItems.push({
-        productId: item.productId,
-        quantity: item.quantity,
+        productId: product.id,
+        quantity,
         unitPricePiasters: unitPrice,
         totalPiasters
       });
     }
 
-    const discount = discountPiasters || 0;
+    const rawDiscount = Math.floor(Number(discountPiasters)) || 0;
+    const discount = rawDiscount > 0 ? Math.min(rawDiscount, subtotalPiasters) : 0;
     const finalTotal = subtotalPiasters - discount;
 
     const sale = await prisma.$transaction(async (tx) => {
@@ -69,8 +91,8 @@ router.post('/', requireAuth, requirePermission('CREATE_SALES'), async (req: Req
           discountPiasters: discount,
           taxPiasters: 0,
           finalTotalPiasters: finalTotal,
-          paymentMethod,
-          notes,
+          paymentMethod: paymentMethodOf(paymentMethod),
+          notes: typeof notes === 'string' ? notes.slice(0, 500) : null,
           createdBy: user.id
         }
       });

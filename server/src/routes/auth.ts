@@ -2,9 +2,13 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { prisma } from '../index.js';
-import { ROLE_PERMISSIONS } from '../utils/permissions.js';
+import { createLoginThrottle } from '../utils/throttle.js';
 
 const router = Router();
+
+// Same shape as the portal limiter: a blocked key is refused before the password is even
+// compared, so a bot cannot grind through guesses at staff passwords.
+const loginThrottle = createLoginThrottle(8, 15 * 60 * 1000);
 
 // Login validation schema
 const loginSchema = z.object({
@@ -16,6 +20,14 @@ const loginSchema = z.object({
 router.post('/login', async (req: Request, res: Response) => {
   try {
     const { email, password } = loginSchema.parse(req.body);
+
+    const rateKey = email.toLowerCase();
+    if (loginThrottle.blocked(rateKey)) {
+      return res.status(429).json({
+        error: 'Too many attempts',
+        message: 'محاولات دخول كتير. استنى 15 دقيقة وحاول تاني'
+      });
+    }
 
     // Find user
     const user = await prisma.user.findUnique({
@@ -30,6 +42,7 @@ router.post('/login', async (req: Request, res: Response) => {
     });
 
     if (!user || !user.isActive) {
+      loginThrottle.record(rateKey);
       return res.status(401).json({
         error: 'Invalid credentials',
         message: 'البريد الإلكتروني أو كلمة المرور غير صحيحة'
@@ -40,43 +53,51 @@ router.post('/login', async (req: Request, res: Response) => {
     const isValidPassword = await bcrypt.compare(password, user.passwordHash);
 
     if (!isValidPassword) {
+      loginThrottle.record(rateKey);
       return res.status(401).json({
         error: 'Invalid credentials',
         message: 'البريد الإلكتروني أو كلمة المرور غير صحيحة'
       });
     }
 
-    // Store user in session
-    (req.session as any).user = {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-      branchIds: user.branchAccess.map(ba => ba.branchId)
-    };
+    loginThrottle.clear(rateKey);
 
-    // Fetch user permissions from DB
-    const userPermissions = await prisma.userPermission.findMany({
+    const permissions = await prisma.userPermission.findMany({
       where: { userId: user.id },
       select: { permission: true }
     });
 
-    const permissions = userPermissions.map(up => up.permission);
+    // A fresh session id per login, so a cookie handed out before authentication (or one an
+    // attacker planted) can never be promoted into a signed-in session.
+    req.session.regenerate((error: any) => {
+      if (error) {
+        console.error('Session regenerate failed:', error);
+        return res.status(500).json({ error: 'Internal server error', message: 'فشل تسجيل الدخول' });
+      }
 
-    res.json({
-      success: true,
-      user: {
+      (req.session as any).user = {
         id: user.id,
         email: user.email,
         name: user.name,
         role: user.role,
-        branches: user.branchAccess.map(ba => ({
-          id: ba.branch.id,
-          name: ba.branch.name,
-          code: ba.branch.code
-        })),
-        permissions
-      }
+        branchIds: user.branchAccess.map(ba => ba.branchId)
+      };
+
+      res.json({
+        success: true,
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          branches: user.branchAccess.map(ba => ({
+            id: ba.branch.id,
+            name: ba.branch.name,
+            code: ba.branch.code
+          })),
+          permissions: permissions.map(up => up.permission)
+        }
+      });
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -120,6 +141,22 @@ router.get('/me', async (req: Request, res: Response) => {
     });
   }
 
+  // The session snapshot is taken at login, so a deactivated or deleted account has to be
+  // checked here — otherwise an employee cut off in UsersPage keeps his access for 24 hours.
+  const account = await prisma.user.findUnique({
+    where: { id: user.id },
+    include: { branchAccess: { select: { branchId: true } } }
+  });
+
+  if (!account || !account.isActive) {
+    return req.session.destroy(() => {
+      res.status(401).json({
+        error: 'Not authenticated',
+        message: 'الحساب ده مقفل أو اتحذف. تواصل مع الإدارة'
+      });
+    });
+  }
+
   // Fetch permissions
   const userPermissions = await prisma.userPermission.findMany({
     where: { userId: user.id },
@@ -127,10 +164,18 @@ router.get('/me', async (req: Request, res: Response) => {
   });
 
   const permissions = userPermissions.map(up => up.permission);
+  const branchIds = account.branchAccess.map(ba => ba.branchId);
+  (req.session as any).user = {
+    ...user,
+    role: account.role,
+    branchIds
+  };
 
   res.json({
     user: {
       ...user,
+      role: account.role,
+      branchIds,
       permissions
     }
   });

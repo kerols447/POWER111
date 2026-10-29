@@ -1,37 +1,56 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 import { prisma } from '../index.js';
 import { normalizePhone } from 'shared';
 import { shiftMinutes, hoursLabel } from './staff.js';
+import { getPushKeys, isPushEndpoint } from '../utils/push.js';
+import { createLoginThrottle } from '../utils/throttle.js';
 
 const router = Router();
 
-// Compact in-memory brute-force limiter: max 5 failed attempts per identifier per 10 minutes
-const failedAttempts = new Map<string, { count: number; resetAt: number }>();
-const MAX_ATTEMPTS = 5;
-const WINDOW_MS = 10 * 60 * 1000;
-
-function isRateLimited(key: string): boolean {
-  const entry = failedAttempts.get(key);
-  if (!entry) return false;
-  if (Date.now() > entry.resetAt) {
-    failedAttempts.delete(key);
-    return false;
-  }
-  return entry.count >= MAX_ATTEMPTS;
+// Member profile pictures live next to the product images the admin already uploads.
+const MEMBER_PHOTO_DIR = path.join(process.cwd(), 'uploads', 'members');
+if (!fs.existsSync(MEMBER_PHOTO_DIR)) {
+  fs.mkdirSync(MEMBER_PHOTO_DIR, { recursive: true });
 }
 
-function recordFailure(key: string) {
-  const entry = failedAttempts.get(key);
-  if (!entry || Date.now() > entry.resetAt) {
-    failedAttempts.set(key, { count: 1, resetAt: Date.now() + WINDOW_MS });
-  } else {
-    entry.count += 1;
+const uploadMemberPhoto = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, MEMBER_PHOTO_DIR),
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase() === '.png' ? '.png' : '.jpg';
+      cb(null, `member-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`);
+    }
+  }),
+  limits: { fileSize: 4 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (/^image\/(jpe?g|png|webp)$/.test(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('الصورة لازم تكون JPG أو PNG'));
+    }
   }
+});
+
+// Only files this route wrote are ever deleted, so a stored path can never reach other folders.
+function memberPhotoFile(photoPath: string | null | undefined): string | null {
+  if (!photoPath || !photoPath.startsWith('/uploads/members/')) return null;
+  const file = path.join(MEMBER_PHOTO_DIR, path.basename(photoPath));
+  return file.startsWith(MEMBER_PHOTO_DIR) ? file : null;
 }
 
-function clearFailures(key: string) {
-  failedAttempts.delete(key);
+// Brute-force limiter for the phone-only portal: 5 failed tries per number per 10 minutes.
+const portalLoginThrottle = createLoginThrottle(5, 10 * 60 * 1000);
+
+// The portal hands out access with nothing but a phone number, so the session id a visitor
+// had before signing in must never survive into the authenticated view.
+function restartSession(req: Request): Promise<void> {
+  return new Promise((resolve, reject) => {
+    req.session.regenerate((error: any) => (error ? reject(error) : resolve()));
+  });
 }
 
 export function requireMemberAuth(req: Request, res: Response, next: NextFunction) {
@@ -58,7 +77,7 @@ router.post('/login', async (req: Request, res: Response) => {
     const phoneNormalized = normalizePhone(data.phone);
     const rateKey = phoneNormalized;
 
-    if (isRateLimited(rateKey)) {
+    if (portalLoginThrottle.blocked(rateKey)) {
       return res.status(429).json({ error: 'Too many attempts', message: 'محاولات كثيرة. حاول بعد 10 دقائق' });
     }
 
@@ -71,8 +90,8 @@ router.post('/login', async (req: Request, res: Response) => {
     const staffUser = staffCandidates.find(u => normalizePhone(u.phone || '') === phoneNormalized);
 
     if (staffUser) {
-      clearFailures(rateKey);
-      delete (req.session as any).member;
+      portalLoginThrottle.clear(rateKey);
+      await restartSession(req);
       (req.session as any).staffUser = { userId: staffUser.id };
 
       return res.json({
@@ -95,15 +114,15 @@ router.post('/login', async (req: Request, res: Response) => {
     });
 
     if (!member) {
-      recordFailure(rateKey);
+      portalLoginThrottle.record(rateKey);
       return res.status(401).json({
         error: 'Invalid credentials',
-        message: 'الرقم ده مش مسجل عندنا في الجيم — اتصل على 01055002069'
+        message: 'الرقم ده مش مسجل عندنا في الجيم — اتصل على 01280368119'
       });
     }
 
-    clearFailures(rateKey);
-    delete (req.session as any).staffUser;
+    portalLoginThrottle.clear(rateKey);
+    await restartSession(req);
     (req.session as any).member = { memberId: member.id };
 
     res.json({
@@ -205,7 +224,7 @@ router.get('/me', async (req: Request, res: Response, next: NextFunction) => {
     const member = await prisma.member.findUnique({
       where: { id: session.memberId },
       include: {
-        person: { select: { name: true, phone: true, gender: true } },
+        person: { select: { name: true, phone: true, gender: true, photoPath: true, weightKg: true, heightCm: true } },
         branch: { select: { id: true, name: true, code: true, address: true, phone: true } }
       }
     });
@@ -273,6 +292,9 @@ router.get('/me', async (req: Request, res: Response, next: NextFunction) => {
           name: member.person.name,
           phone: member.person.phone,
           gender: member.person.gender,
+          photoPath: member.person.photoPath,
+          weightKg: member.person.weightKg,
+          heightCm: member.person.heightCm,
           branch: member.branch
         },
         currentSubscription,
@@ -348,6 +370,311 @@ router.get('/qr', async (req: Request, res: Response, next: NextFunction) => {
   } catch (error) {
     console.error('Error generating portal QR:', error);
     res.status(500).json({ error: 'Internal server error', message: 'حدث خطأ في إنشاء رمز QR' });
+  }
+});
+
+// GET /api/portal/physio — the member's session requests plus where they stand in the queue
+router.get('/physio', requireMemberAuth, async (req: Request, res: Response) => {
+  try {
+    const session = (req.session as any).member;
+    const member = await prisma.member.findUnique({ where: { id: session.memberId } });
+    if (!member) {
+      req.session.destroy(() => {});
+      return res.status(401).json({ error: 'Not authenticated', message: 'انتهت الجلسة، سجل الدخول من جديد' });
+    }
+
+    const bookings = await prisma.physioBooking.findMany({
+      where: { memberId: member.id },
+      orderBy: { createdAt: 'desc' },
+      take: 20
+    });
+
+    // The queue the member cares about is their own branch's: how many are waiting now,
+    // and how many of those asked before them.
+    const pendingAtBranch = await prisma.physioBooking.findMany({
+      where: { branchId: member.branchId, status: 'PENDING' },
+      select: { memberId: true, createdAt: true },
+      orderBy: { createdAt: 'asc' }
+    });
+
+    const myPending = bookings.find(b => b.status === 'PENDING') || null;
+    const aheadOfMe = myPending
+      ? pendingAtBranch.filter(b => b.createdAt < myPending.createdAt).length
+      : 0;
+
+    res.json({
+      success: true,
+      data: {
+        bookings,
+        pendingCount: pendingAtBranch.length,
+        aheadOfMe
+      }
+    });
+  } catch (error) {
+    console.error('Error portal physio list:', error);
+    res.status(500).json({ error: 'Internal server error', message: 'حدث خطأ في جلب جلساتك' });
+  }
+});
+
+// POST /api/portal/physio — book a physiotherapy session request from the member portal
+router.post('/physio', requireMemberAuth, async (req: Request, res: Response) => {
+  try {
+    const session = (req.session as any).member;
+    const member = await prisma.member.findUnique({ where: { id: session.memberId } });
+    if (!member) {
+      req.session.destroy(() => {});
+      return res.status(401).json({ error: 'Not authenticated', message: 'انتهت الجلسة، سجل الدخول من جديد' });
+    }
+
+    const schema = z.object({
+      requestedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'التاريخ غير صحيح'),
+      note: z.string().trim().max(300, 'الملاحظة طويلة').optional().or(z.literal(''))
+    });
+    const data = schema.parse(req.body);
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const requested = new Date(data.requestedDate + 'T00:00:00');
+    const maxDate = new Date(today.getTime() + 90 * 24 * 60 * 60 * 1000);
+    if (requested < today) {
+      return res.status(400).json({ error: 'Validation error', message: 'مينفعش تحجز تاريخ فات' });
+    }
+    if (requested > maxDate) {
+      return res.status(400).json({ error: 'Validation error', message: 'الحجز متاح لحد ٩٠ يوم قدام' });
+    }
+
+    const existingPending = await prisma.physioBooking.findFirst({
+      where: { memberId: member.id, status: 'PENDING' }
+    });
+    if (existingPending) {
+      return res.status(409).json({ error: 'Duplicate', message: 'عندك طلب قيد المراجعة بالفعل — استنى الرد عليه' });
+    }
+
+    const booking = await prisma.physioBooking.create({
+      data: {
+        memberId: member.id,
+        branchId: member.branchId,
+        requestedDate: requested,
+        note: data.note || null
+      }
+    });
+
+    res.json({ success: true, data: booking });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Validation error', message: error.errors[0]?.message || 'بيانات غير صحيحة' });
+    }
+    console.error('Error portal physio book:', error);
+    res.status(500).json({ error: 'Internal server error', message: 'حدث خطأ في حجز الجلسة' });
+  }
+});
+
+// ========== Member profile ==========
+
+// PATCH /api/portal/profile — the member keeps his own weight and height up to date
+router.patch('/profile', requireMemberAuth, async (req: Request, res: Response) => {
+  try {
+    const session = (req.session as any).member;
+    const member = await prisma.member.findUnique({ where: { id: session.memberId } });
+    if (!member) {
+      req.session.destroy(() => {});
+      return res.status(401).json({ error: 'Not authenticated', message: 'انتهت الجلسة، سجل الدخول من جديد' });
+    }
+
+    const schema = z.object({
+      weightKg: z.number().min(20, 'الوزن لازم يكون ٢٠ كجم على الأقل').max(400, 'الوزن غير منطقي').nullable(),
+      heightCm: z.number().int().min(90, 'الطول لازم يكون ٩٠ سم على الأقل').max(250, 'الطول غير منطقي').nullable()
+    });
+    const data = schema.parse(req.body);
+
+    const person = await prisma.person.update({
+      where: { id: member.personId },
+      data: { weightKg: data.weightKg, heightCm: data.heightCm }
+    });
+
+    res.json({
+      success: true,
+      data: { weightKg: person.weightKg, heightCm: person.heightCm }
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Validation error', message: error.errors[0]?.message || 'بيانات غير صحيحة' });
+    }
+    console.error('Error portal profile update:', error);
+    res.status(500).json({ error: 'Internal server error', message: 'حدث خطأ في حفظ بياناتك' });
+  }
+});
+
+// POST /api/portal/photo — multipart image upload for the member's profile picture
+const handlePhotoUpload = uploadMemberPhoto.single('photo');
+
+router.post('/photo', requireMemberAuth, (req: Request, res: Response, next: NextFunction) => {
+  handlePhotoUpload(req, res, (error: any) => {
+    if (error) {
+      const message = error.code === 'LIMIT_FILE_SIZE' ? 'الصورة أكبر من ٤ ميجابايت' : (error.message || 'ملف الصورة غير صالح');
+      return res.status(400).json({ error: 'Validation error', message });
+    }
+    next();
+  });
+}, async (req: Request, res: Response) => {
+  try {
+    const session = (req.session as any).member;
+    const member = await prisma.member.findUnique({ where: { id: session.memberId } });
+    if (!member) {
+      req.session.destroy(() => {});
+      return res.status(401).json({ error: 'Not authenticated', message: 'انتهت الجلسة، سجل الدخول من جديد' });
+    }
+
+    const file = (req as any).file;
+    if (!file) {
+      return res.status(400).json({ error: 'Validation error', message: 'مفيش صورة مرفوعة' });
+    }
+
+    const photoPath = `/uploads/members/${file.filename}`;
+    const previous = await prisma.person.findUnique({
+      where: { id: member.personId },
+      select: { photoPath: true }
+    });
+
+    await prisma.person.update({ where: { id: member.personId }, data: { photoPath } });
+
+    const stale = memberPhotoFile(previous?.photoPath);
+    if (stale && stale !== path.join(MEMBER_PHOTO_DIR, file.filename)) {
+      fs.promises.unlink(stale).catch(() => {});
+    }
+
+    res.json({ success: true, data: { photoPath } });
+  } catch (error) {
+    console.error('Error portal photo upload:', error);
+    res.status(500).json({ error: 'Internal server error', message: 'حدث خطأ في رفع الصورة' });
+  }
+});
+
+// DELETE /api/portal/photo — back to the initial letter
+router.delete('/photo', requireMemberAuth, async (req: Request, res: Response) => {
+  try {
+    const session = (req.session as any).member;
+    const member = await prisma.member.findUnique({
+      where: { id: session.memberId },
+      select: { personId: true, person: { select: { photoPath: true } } }
+    });
+    if (!member) {
+      req.session.destroy(() => {});
+      return res.status(401).json({ error: 'Not authenticated', message: 'انتهت الجلسة، سجل الدخول من جديد' });
+    }
+
+    await prisma.person.update({ where: { id: member.personId }, data: { photoPath: null } });
+
+    const stale = memberPhotoFile(member.person?.photoPath);
+    if (stale) fs.promises.unlink(stale).catch(() => {});
+
+    res.json({ success: true, data: { photoPath: null } });
+  } catch (error) {
+    console.error('Error portal photo delete:', error);
+    res.status(500).json({ error: 'Internal server error', message: 'حدث خطأ في حذف الصورة' });
+  }
+});
+
+// ========== Push notifications for the installed app ==========
+
+// The browser needs the VAPID public key to create a subscription with.
+router.get('/push/key', requireMemberAuth, async (_req: Request, res: Response) => {
+  try {
+    const keys = await getPushKeys();
+    res.json({ success: true, data: { publicKey: keys.publicKey } });
+  } catch (error) {
+    console.error('Error portal push key:', error);
+    res.status(500).json({ error: 'Internal server error', message: 'الإشعارات مش متاحة دلوقتي' });
+  }
+});
+
+// One row per device — the same member can subscribe from phone and tablet.
+router.post('/push/subscribe', requireMemberAuth, async (req: Request, res: Response) => {
+  try {
+    const session = (req.session as any).member;
+    const schema = z.object({
+      endpoint: z.string().min(10).max(2048),
+      keys: z.object({ p256dh: z.string().min(10).max(512), auth: z.string().min(5).max(512) })
+    });
+    const data = schema.parse(req.body);
+
+    if (!isPushEndpoint(data.endpoint)) {
+      return res.status(400).json({ error: 'Validation error', message: 'اشتراك الإشعارات غير صحيح' });
+    }
+
+    const existing = await prisma.pushSubscription.findUnique({ where: { endpoint: data.endpoint } });
+    if (existing && existing.memberId !== session.memberId) {
+      // Somebody else's device: hand it back as a plain validation failure, not a takeover.
+      return res.status(400).json({ error: 'Validation error', message: 'اشتراك الإشعارات غير صحيح' });
+    }
+
+    await prisma.pushSubscription.upsert({
+      where: { endpoint: data.endpoint },
+      create: {
+        memberId: session.memberId,
+        endpoint: data.endpoint,
+        p256dh: data.keys.p256dh,
+        auth: data.keys.auth
+      },
+      update: { p256dh: data.keys.p256dh, auth: data.keys.auth }
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Validation error', message: 'بيانات الاشتراك غير صحيحة' });
+    }
+    console.error('Error portal push subscribe:', error);
+    res.status(500).json({ error: 'Internal server error', message: 'تعذر تسجيل الاشتراك' });
+  }
+});
+
+router.post('/push/unsubscribe', requireMemberAuth, async (req: Request, res: Response) => {
+  try {
+    const session = (req.session as any).member;
+    const endpoint = typeof req.body?.endpoint === 'string' ? req.body.endpoint : null;
+    if (endpoint) {
+      await prisma.pushSubscription.deleteMany({ where: { endpoint, memberId: session.memberId } });
+    } else {
+      await prisma.pushSubscription.deleteMany({ where: { memberId: session.memberId } });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error portal push unsubscribe:', error);
+    res.status(500).json({ error: 'Internal server error', message: 'تعذر إلغاء الاشتراك' });
+  }
+});
+
+// The portal inbox: everything the app pushed, newest first.
+router.get('/notifications', requireMemberAuth, async (req: Request, res: Response) => {
+  try {
+    const session = (req.session as any).member;
+    const [items, unreadCount] = await Promise.all([
+      prisma.memberNotification.findMany({
+        where: { memberId: session.memberId },
+        orderBy: { createdAt: 'desc' },
+        take: 20
+      }),
+      prisma.memberNotification.count({ where: { memberId: session.memberId, readAt: null } })
+    ]);
+    res.json({ success: true, data: { notifications: items, unreadCount } });
+  } catch (error) {
+    console.error('Error portal notifications:', error);
+    res.status(500).json({ error: 'Internal server error', message: 'حدث خطأ في جلب الإشعارات' });
+  }
+});
+
+router.post('/notifications/read', requireMemberAuth, async (req: Request, res: Response) => {
+  try {
+    const session = (req.session as any).member;
+    await prisma.memberNotification.updateMany({
+      where: { memberId: session.memberId, readAt: null },
+      data: { readAt: new Date() }
+    });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error portal notifications read:', error);
+    res.status(500).json({ error: 'Internal server error', message: 'حدث خطأ في تعليم الإشعارات' });
   }
 });
 

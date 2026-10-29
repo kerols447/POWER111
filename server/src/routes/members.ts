@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { prisma } from '../index.js';
 import { requireAuth, requireRole, requireBranchAccess } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/permissions.js';
+import { userHasPermission } from '../utils/permissions.js';
+import { readPage, readPageSize } from '../utils/paging.js';
 import { createAuditLog } from './audit.js';
 import { generateMemberCode, normalizePhone, isValidEgyptianPhone, parseMemberStatusFilter } from 'shared';
 
@@ -63,10 +65,10 @@ router.get('/', requireAuth, requirePermission('VIEW_MEMBERS'), async (req: Requ
     const {
       search,
       branchId,
-      status,
-      page = 1,
-      pageSize = 20
+      status
     } = req.query;
+    const page = readPage(req.query.page);
+    const pageSize = readPageSize(req.query.pageSize, 20, 200);
 
     const where: any = {};
 
@@ -113,6 +115,10 @@ router.get('/', requireAuth, requirePermission('VIEW_MEMBERS'), async (req: Requ
     // branch/search result, so count them from the same filters without status.
     const { status: _ignoredStatus, ...whereForCounts } = where;
 
+    // The census is a business number, not part of working the desk. Accounts without it
+    // get the rows they need plus a "is there more" flag — never a total.
+    const canSeeCounts = await userHasPermission(user.id, 'VIEW_MEMBER_STATS');
+
     const [members, total, grouped] = await Promise.all([
       prisma.member.findMany({
         where,
@@ -142,37 +148,48 @@ router.get('/', requireAuth, requirePermission('VIEW_MEMBERS'), async (req: Requ
         },
         // ACTIVE first: Postgres sorts a native enum by declaration order, and ACTIVE leads it.
         orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
-        skip: (Number(page) - 1) * Number(pageSize),
-        take: Number(pageSize)
+        skip: (page - 1) * pageSize,
+        // One extra row is the "there is a next page" signal when totals are hidden.
+        take: canSeeCounts ? pageSize : pageSize + 1
       }),
-      prisma.member.count({ where }),
-      prisma.member.groupBy({
-        by: ['status'],
-        where: whereForCounts,
-        _count: { _all: true }
-      })
+      canSeeCounts ? prisma.member.count({ where }) : Promise.resolve(null),
+      canSeeCounts
+        ? prisma.member.groupBy({
+            by: ['status'],
+            where: whereForCounts,
+            _count: { _all: true }
+          })
+        : Promise.resolve([])
     ]);
 
-    const statusCounts: Record<string, number> = {
-      ACTIVE: 0,
-      EXPIRED: 0,
-      SUSPENDED: 0,
-      FROZEN: 0,
-      INACTIVE: 0
-    };
-    grouped.forEach(g => {
-      statusCounts[g.status] = g._count._all;
-    });
+    const hasMore = canSeeCounts ? false : members.length > pageSize;
+    const pageRows = hasMore ? members.slice(0, pageSize) : members;
+
+    const statusCounts: Record<string, number> | null = canSeeCounts
+      ? {
+          ACTIVE: 0,
+          EXPIRED: 0,
+          SUSPENDED: 0,
+          FROZEN: 0,
+          INACTIVE: 0
+        }
+      : null;
+    if (statusCounts) {
+      grouped.forEach(g => {
+        statusCounts[g.status] = g._count._all;
+      });
+    }
 
     res.json({
       success: true,
-      data: members,
+      data: pageRows,
       statusCounts,
       pagination: {
-        page: Number(page),
-        pageSize: Number(pageSize),
+        page,
+        pageSize,
         total,
-        totalPages: Math.ceil(total / Number(pageSize))
+        totalPages: total === null ? null : Math.ceil(total / pageSize),
+        hasMore
       }
     });
   } catch (error) {

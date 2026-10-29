@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { prisma } from '../index.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/permissions.js';
+import { checkWebUrl } from '../utils/links.js';
 
 const router = Router();
 
@@ -77,6 +78,11 @@ router.post('/', requireAuth, requireRole('OWNER'), requirePermission('EDIT_BRAN
       return res.status(400).json({ error: 'Name and code are required' });
     }
 
+    const location = checkWebUrl(locationUrl, 'رابط الخريطة');
+    if (!location.ok) {
+      return res.status(400).json({ error: 'Validation error', message: location.message });
+    }
+
     // Check if code already exists
     const existing = await prisma.branch.findUnique({ where: { code } });
     if (existing) {
@@ -88,7 +94,7 @@ router.post('/', requireAuth, requireRole('OWNER'), requirePermission('EDIT_BRAN
         name,
         code,
         address,
-        locationUrl,
+        locationUrl: location.value,
         phone,
         whatsapp
       }
@@ -112,6 +118,11 @@ router.put('/:id', requireAuth, requireRole('OWNER'), requirePermission('EDIT_BR
       return res.status(404).json({ error: 'Branch not found' });
     }
 
+    const location = checkWebUrl(locationUrl, 'رابط الخريطة');
+    if (!location.ok) {
+      return res.status(400).json({ error: 'Validation error', message: location.message });
+    }
+
     // Check if new code already exists (if changing code)
     if (code && code !== existing.code) {
       const codeExists = await prisma.branch.findUnique({ where: { code } });
@@ -126,7 +137,7 @@ router.put('/:id', requireAuth, requireRole('OWNER'), requirePermission('EDIT_BR
         name,
         code,
         address,
-        locationUrl,
+        locationUrl: location.value,
         phone,
         whatsapp,
         isActive

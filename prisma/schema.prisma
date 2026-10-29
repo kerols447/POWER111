@@ -29,6 +29,10 @@ enum Permission {
   CREATE_MEMBERS
   EDIT_MEMBERS
   DELETE_MEMBERS
+  // The members Excel sheet and the member census are business numbers, not part of the
+  // reception job — so they are their own permissions instead of riding on VIEW_MEMBERS.
+  EXPORT_MEMBERS
+  VIEW_MEMBER_STATS
   
   // Subscriptions
   VIEW_SUBSCRIPTIONS
@@ -57,6 +61,9 @@ enum Permission {
   CREATE_EXPENSES
   EDIT_EXPENSES
   DELETE_EXPENSES
+  // Reception logs expenses but must not hand out wages, so payroll is not the same
+  // permission as expense entry.
+  MANAGE_SALARIES
   
   // Reports
   VIEW_REPORTS
@@ -82,6 +89,13 @@ enum Permission {
   VIEW_DASHBOARD_EXPENSES
   VIEW_DASHBOARD_PROFIT
   VIEW_DASHBOARD_OUTSTANDING
+  // The floating assistant reads the club's reports, so it is its own permission rather
+  // than a side effect of having a dashboard — the reception desk gets a screen, not a reader.
+  USE_ASSISTANT
+
+  // Physiotherapy sessions
+  VIEW_PHYSIO
+  MANAGE_PHYSIO
 }
 
 model User {
@@ -107,6 +121,7 @@ model User {
   auditLogs     AuditLog[]
   staffShifts   StaffAttendance[]
   salaryPayments SalaryPayment[]
+  physioDecisions PhysioBooking[]
 
   @@map("users")
 }
@@ -137,6 +152,7 @@ model Branch {
   sales         Sale[]
   expenses      Expense[]
   settings      BranchSettings?
+  physioBookings PhysioBooking[]
 
   @@map("branches")
 }
@@ -197,6 +213,8 @@ model Person {
   gender        String?   // Male, Female
   address       String?
   photoPath     String?
+  weightKg      Float?    // entered by the member himself from the portal profile
+  heightCm      Int?      // entered by the member himself from the portal profile
   emergencyContactName  String?
   emergencyContactPhone String?
   notes         String?
@@ -223,6 +241,9 @@ model Member {
   branch        Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
   subscriptions Subscription[]
   attendances   Attendance[]
+  physioBookings PhysioBooking[]
+  pushSubscriptions PushSubscription[]
+  notifications  MemberNotification[]
 
   @@index([memberCode])
   @@index([personId])
@@ -293,6 +314,80 @@ enum SubscriptionStatus {
   FROZEN
   CANCELLED
   PENDING_REVIEW // for offline renewals awaiting manager approval
+}
+
+// ========== Physiotherapy sessions ==========
+
+// A session the member requests from the portal; the gym approves it and sets the price.
+model PhysioBooking {
+  id            String    @id @default(cuid())
+  memberId      String
+  branchId      String
+  requestedDate DateTime  // the day the member wants the session
+  note          String?   // member's complaint or preferred time, in their words
+  status        String    @default("PENDING") // PENDING | APPROVED | DECLINED
+  pricePiasters Int?      // set by the gym at approval
+  declineReason String?   // optional note the gym leaves with a rejection, shown to the member
+  decidedById   String?
+  decidedAt     DateTime?
+  createdAt     DateTime  @default(now())
+
+  member      Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  branch      Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  decidedBy   User?  @relation(fields: [decidedById], references: [id], onDelete: SetNull)
+
+  @@index([branchId, status, requestedDate])
+  @@index([memberId, createdAt])
+  @@map("physio_bookings")
+}
+
+// ========== Push notifications for the installed app ==========
+
+// Created once per device/browser when the member allows notifications in the portal.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  memberId  String
+  endpoint  String   @db.Text
+  p256dh    String   @db.Text
+  auth      String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([endpoint])
+  @@index([memberId])
+  @@map("push_subscriptions")
+}
+
+// VAPID identity, generated on first boot and kept in the database so no server
+// environment variable is ever needed to make notifications work.
+model PushKey {
+  id         String   @id @default("vapid")
+  publicKey  String   @db.Text
+  privateKey String   @db.Text
+  createdAt  DateTime @default(now())
+
+  @@map("push_keys")
+}
+
+// The member's notification inbox. The service worker reads from here after a push
+// arrives, which is what puts real Arabic text on the phone's lock screen.
+model MemberNotification {
+  id        String    @id @default(cuid())
+  memberId  String
+  kind      String    // PHYSIO_APPROVED | PHYSIO_DECLINED | NEW_OFFER
+  title     String
+  body      String
+  link      String?   // portal path opened when the notification is tapped
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId, createdAt])
+  @@index([memberId, readAt])
+  @@map("member_notifications")
 }
 
 // ========== Payments ==========

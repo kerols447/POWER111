@@ -90,8 +90,8 @@ router.get('/:id', requireAuth, async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/plans — Create plan (any staff, scoped to their own branches)
-router.post('/', requireAuth, async (req: Request, res: Response) => {
+// POST /api/plans — Create plan (owner and branch managers, scoped to their own branches)
+router.post('/', requireAuth, requireRole('OWNER', 'BRANCH_MANAGER'), async (req: Request, res: Response) => {
   try {
     const user = (req.session as any).user;
     const data = createPlanSchema.parse(req.body);

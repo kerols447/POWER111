@@ -11,6 +11,15 @@ const router = Router();
 
 type Cell = string | number | Date | null;
 
+// A member note that opens with '=' runs as a formula the moment somebody re-saves the sheet
+// as CSV, so text coming from the database is disarmed before it reaches the workbook.
+const FORMULA_TRIGGERS = ['=', '+', '-', '@', '\t', '\r'];
+
+function safeText(value: Cell): Cell {
+  if (typeof value !== 'string') return value;
+  return FORMULA_TRIGGERS.includes(value.charAt(0)) ? `'${value}` : value;
+}
+
 interface Column {
   header: string;
   width: number;
@@ -88,7 +97,7 @@ function addSheet(workbook: ExcelJS.Workbook, name: string, columns: Column[], r
   header.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
   header.height = 24;
 
-  rows.forEach(row => sheet.addRow(row));
+  rows.forEach(row => sheet.addRow(row.map(safeText)));
   sheet.eachRow((row, rowNumber) => {
     if (rowNumber === 1) return;
     row.alignment = { vertical: 'middle' };
@@ -118,7 +127,7 @@ function addSummarySheet(workbook: ExcelJS.Workbook, name: string, title: string
   header.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF59E0B' } };
 
   entries.forEach(([label, value]) => {
-    const row = sheet.addRow([label, value]);
+    const row = sheet.addRow([safeText(label), safeText(value)]);
     const cell = row.getCell(2);
     if (value instanceof Date) cell.numFmt = 'yyyy-mm-dd';
     // Counts and amounts live in the same sheet; only money labels take decimals.
@@ -165,7 +174,9 @@ function dateRange(from?: string, to?: string) {
 }
 
 // GET /api/exports/members.xlsx?branchId=&status=&search=
-router.get('/members', requireAuth, requirePermission('VIEW_MEMBERS'), async (req, res: Response) => {
+// Taking the whole member sheet off the server is its own permission: the desk works the
+// list day to day without holding every member's phone at once.
+router.get('/members', requireAuth, requirePermission('EXPORT_MEMBERS'), async (req, res: Response) => {
   try {
     const user = (req.session as any).user as SessionUser;
     const { branchId, status, search } = req.query as Record<string, string | undefined>;

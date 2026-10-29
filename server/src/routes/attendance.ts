@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { prisma } from '../index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/permissions.js';
+import { readPage, readPageSize } from '../utils/paging.js';
 
 const router = Router();
 
@@ -18,6 +19,48 @@ export async function crossBranchCheckinStatus(
   return {
     allowed: settings?.allowCrossBranchCheckin ?? false,
     homeBranchName: homeBranch?.name ?? 'فرع آخر'
+  };
+}
+
+// What reception needs to choose between renewing on the spot and just noting that the
+// member is inside. Only gathered when the check-in has no live subscription, so a normal
+// scan keeps costing exactly what it did before.
+async function expiredProfileFor(memberId: string, currentAttendanceId: string) {
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+
+  const [lastSub, visitsThisMonth, previousVisit] = await Promise.all([
+    prisma.subscription.findFirst({
+      where: { memberId },
+      orderBy: { endDate: 'desc' },
+      include: { plan: { select: { nameAr: true, durationDays: true } } }
+    }),
+    prisma.attendance.count({ where: { memberId, checkInTime: { gte: monthStart } } }),
+    prisma.attendance.findFirst({
+      where: { memberId, id: { not: currentAttendanceId } },
+      orderBy: { checkInTime: 'desc' },
+      select: { checkInTime: true }
+    })
+  ]);
+
+  const remainingPiasters = lastSub
+    ? Math.max(0, lastSub.pricePiasters - lastSub.paidPiasters)
+    : 0;
+
+  return {
+    hasAnySubscription: Boolean(lastSub),
+    lastPlanName: lastSub?.plan?.nameAr ?? null,
+    lastDurationDays: lastSub?.plan?.durationDays ?? null,
+    lastEndDate: lastSub?.endDate ?? null,
+    daysOverdue: lastSub
+      ? Math.max(0, Math.floor((Date.now() - lastSub.endDate.getTime()) / 86400000))
+      : null,
+    pricePiasters: lastSub?.pricePiasters ?? null,
+    paidPiasters: lastSub?.paidPiasters ?? null,
+    remainingPiasters,
+    visitsThisMonth,
+    lastVisit: previousVisit?.checkInTime ?? null
   };
 }
 
@@ -91,10 +134,25 @@ router.post('/checkin', requireAuth, requirePermission('CHECKIN_MEMBERS'), async
     });
 
     if (existingCheckin) {
+      // A re-scan of an expired member still has to bring the profile window up: reception
+      // may have closed it, and the member is standing at the desk either way.
+      const liveSubscription = member.subscriptions[0];
       return res.status(409).json({
         error: 'Already checked in',
         message: 'العضو مسجل حضوره بالفعل اليوم',
-        data: existingCheckin
+        data: existingCheckin,
+        member: {
+          id: member.id,
+          name: member.person.name,
+          memberCode: member.memberCode,
+          phone: member.person.phone,
+          photoPath: member.person.photoPath,
+          checkInTime: existingCheckin.checkInTime,
+          noActiveSubscription: !liveSubscription,
+          expiredProfile: liveSubscription
+            ? null
+            : await expiredProfileFor(member.id, existingCheckin.id)
+        }
       });
     }
 
@@ -138,6 +196,12 @@ router.post('/checkin', requireAuth, requirePermission('CHECKIN_MEMBERS'), async
         ...attendance,
         memberName: attendance.member.person.name,
         memberCode: attendance.member.memberCode,
+        memberPhotoPath: attendance.member.person.photoPath,
+        memberPhone: attendance.member.person.phone,
+        memberStatus: attendance.member.status,
+        // The reception tone is decided here so the sound matches the rule, not the wording.
+        noActiveSubscription: !activeSubscription,
+        expiredProfile: activeSubscription ? null : await expiredProfileFor(member.id, attendance.id),
         branchName: attendance.branch.name
       }
     });
@@ -263,6 +327,7 @@ router.get('/today', requireAuth, requirePermission('VIEW_ATTENDANCE'), async (r
       memberName: a.member.person.name,
       memberCode: a.member.memberCode,
       memberPhone: a.member.person.phone,
+      memberPhotoPath: a.member.person.photoPath,
       branchId: a.branchId,
       branchName: a.branch.name,
       checkInTime: a.checkInTime,
@@ -296,7 +361,9 @@ router.get('/today', requireAuth, requirePermission('VIEW_ATTENDANCE'), async (r
 router.get('/history', requireAuth, requirePermission('VIEW_ATTENDANCE'), async (req: Request, res: Response) => {
   try {
     const user = (req.session as any).user;
-    const { branchId, memberId, startDate, endDate, page = '1', pageSize = '20' } = req.query;
+    const { branchId, memberId, startDate, endDate } = req.query;
+    const page = readPage(req.query.page);
+    const pageSize = readPageSize(req.query.pageSize, 20, 200);
 
     const where: any = {};
 
@@ -314,19 +381,23 @@ router.get('/history', requireAuth, requirePermission('VIEW_ATTENDANCE'), async 
     }
 
     if (startDate || endDate) {
-      where.checkInTime = {};
-      if (startDate) where.checkInTime.gte = new Date(startDate as string);
-      if (endDate) where.checkInTime.lte = new Date(endDate as string);
+      // A date string nobody can parse must not reach Postgres as an Invalid Date.
+      const range: any = {};
+      const from = startDate ? new Date(startDate as string) : null;
+      const to = endDate ? new Date(endDate as string) : null;
+      if (from && !Number.isNaN(from.getTime())) range.gte = from;
+      if (to && !Number.isNaN(to.getTime())) range.lte = to;
+      if (Object.keys(range).length > 0) where.checkInTime = range;
     }
 
-    const skip = (Number(page) - 1) * Number(pageSize);
+    const skip = (page - 1) * pageSize;
 
     const [attendances, total] = await Promise.all([
       prisma.attendance.findMany({
         where,
         orderBy: { checkInTime: 'desc' },
         skip,
-        take: Number(pageSize),
+        take: pageSize,
         include: {
           member: {
             include: { person: true }
@@ -355,10 +426,10 @@ router.get('/history', requireAuth, requirePermission('VIEW_ATTENDANCE'), async 
       success: true,
       data: formatted,
       pagination: {
-        page: Number(page),
-        pageSize: Number(pageSize),
+        page,
+        pageSize,
         total,
-        totalPages: Math.ceil(total / Number(pageSize))
+        totalPages: Math.ceil(total / pageSize)
       }
     });
   } catch (error) {

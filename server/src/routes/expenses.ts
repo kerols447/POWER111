@@ -2,8 +2,12 @@ import { Router, Request, Response } from 'express';
 import { prisma } from '../index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/permissions.js';
+import { parseDate, piasters } from '../utils/money.js';
 
 const router = Router();
+
+// The list on screen is a window; the Excel export in exports.ts carries the whole range.
+const MAX_EXPENSE_ROWS = 1000;
 
 router.get('/', requireAuth, requirePermission('VIEW_EXPENSES'), async (req: Request, res: Response) => {
   try {
@@ -30,9 +34,13 @@ router.get('/', requireAuth, requirePermission('VIEW_EXPENSES'), async (req: Req
       where.category = category as string;
     }
     if (from || to) {
-      where.date = {};
-      if (from) where.date.gte = new Date(from as string);
-      if (to) where.date.lte = new Date(to as string);
+      // An unparsable date must not reach Postgres as an Invalid Date.
+      const range: any = {};
+      const fromDate = from ? new Date(from as string) : null;
+      const toDate = to ? new Date(to as string) : null;
+      if (fromDate && !Number.isNaN(fromDate.getTime())) range.gte = fromDate;
+      if (toDate && !Number.isNaN(toDate.getTime())) range.lte = toDate;
+      if (Object.keys(range).length > 0) where.date = range;
     }
     if (search) {
       where.description = { contains: search as string, mode: 'insensitive' };
@@ -43,7 +51,8 @@ router.get('/', requireAuth, requirePermission('VIEW_EXPENSES'), async (req: Req
       include: {
         branch: { select: { id: true, name: true } }
       },
-      orderBy: { date: 'desc' }
+      orderBy: { date: 'desc' },
+      take: MAX_EXPENSE_ROWS
     });
 
     res.json(expenses);
@@ -89,13 +98,18 @@ router.post('/', requireAuth, requirePermission('CREATE_EXPENSES'), async (req: 
       return res.status(403).json({ error: 'Access denied to this branch' });
     }
 
+    const amount = piasters(amountPiasters);
+    if (amount === null) {
+      return res.status(400).json({ error: 'Validation error', message: 'المبلغ غير صحيح' });
+    }
+
     const expense = await prisma.expense.create({
       data: {
         branchId,
-        category,
-        description,
-        amountPiasters: parseInt(amountPiasters),
-        date: date ? new Date(date) : new Date(),
+        category: String(category).slice(0, 60),
+        description: String(description).slice(0, 500),
+        amountPiasters: amount,
+        date: parseDate(date) ?? new Date(),
         createdBy: sessionUser.id
       },
       include: {
@@ -125,13 +139,18 @@ router.put('/:id', requireAuth, requirePermission('EDIT_EXPENSES'), async (req: 
       return res.status(403).json({ error: 'Access denied' });
     }
 
+    const amount = amountPiasters !== undefined ? piasters(amountPiasters) : null;
+    if (amountPiasters !== undefined && amount === null) {
+      return res.status(400).json({ error: 'Validation error', message: 'المبلغ غير صحيح' });
+    }
+
     const expense = await prisma.expense.update({
       where: { id },
       data: {
-        category,
-        description,
-        amountPiasters: amountPiasters !== undefined ? parseInt(amountPiasters) : undefined,
-        date: date ? new Date(date) : undefined
+        category: category !== undefined ? String(category).slice(0, 60) : undefined,
+        description: description !== undefined ? String(description).slice(0, 500) : undefined,
+        amountPiasters: amount ?? undefined,
+        date: date !== undefined ? (parseDate(date) ?? undefined) : undefined
       },
       include: {
         branch: { select: { id: true, name: true } }

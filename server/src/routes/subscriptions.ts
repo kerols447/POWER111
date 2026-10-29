@@ -4,6 +4,7 @@ import { prisma } from '../index.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/permissions.js';
 import { createAuditLog } from './audit.js';
+import { readPage, readPageSize } from '../utils/paging.js';
 
 const router = Router();
 
@@ -28,7 +29,9 @@ const recordPaymentSchema = z.object({
 router.get('/', requireAuth, requirePermission('VIEW_SUBSCRIPTIONS'), async (req: Request, res: Response) => {
   try {
     const user = (req.session as any).user;
-    const { branchId, status, memberId, search, page = 1, pageSize = 20 } = req.query;
+    const { branchId, status, memberId, search } = req.query;
+    const page = readPage(req.query.page);
+    const pageSize = readPageSize(req.query.pageSize, 20, 200);
 
     const where: any = {};
 
@@ -62,12 +65,14 @@ router.get('/', requireAuth, requirePermission('VIEW_SUBSCRIPTIONS'), async (req
               person: { select: { id: true, name: true, phone: true } }
             }
           },
-          plan: { select: { id: true, name: true, nameAr: true, durationDays: true } },
+          // pricePiasters travels along so a renewal started straight from the member's page
+          // can show and capture the real price even when the connection is down.
+          plan: { select: { id: true, name: true, nameAr: true, durationDays: true, pricePiasters: true } },
           branch: { select: { id: true, name: true, code: true } }
         },
         orderBy: { createdAt: 'desc' },
-        skip: (Number(page) - 1) * Number(pageSize),
-        take: Number(pageSize)
+        skip: (page - 1) * pageSize,
+        take: pageSize
       }),
       prisma.subscription.count({ where })
     ]);
@@ -76,10 +81,10 @@ router.get('/', requireAuth, requirePermission('VIEW_SUBSCRIPTIONS'), async (req
       success: true,
       data: subscriptions,
       pagination: {
-        page: Number(page),
-        pageSize: Number(pageSize),
+        page,
+        pageSize,
         total,
-        totalPages: Math.ceil(total / Number(pageSize))
+        totalPages: Math.ceil(total / pageSize)
       }
     });
   } catch (error) {
@@ -92,9 +97,11 @@ router.get('/', requireAuth, requirePermission('VIEW_SUBSCRIPTIONS'), async (req
 router.get('/expiring', requireAuth, async (req: Request, res: Response) => {
   try {
     const user = (req.session as any).user;
-    const { days = '3' } = req.query;
 
-    const daysAhead = parseInt(days as string);
+    // "days" arrives from the query string: an unset or silly value must not turn into an
+    // Invalid Date (which used to throw) or a window that dumps every subscription.
+    const requestedDays = Math.floor(Number(req.query.days));
+    const daysAhead = Number.isFinite(requestedDays) ? Math.min(Math.max(requestedDays, 0), 90) : 3;
     const now = new Date();
     const futureDate = new Date();
     futureDate.setDate(futureDate.getDate() + daysAhead);
@@ -120,13 +127,16 @@ router.get('/expiring', requireAuth, async (req: Request, res: Response) => {
         },
         plan: { select: { id: true, name: true, nameAr: true } }
       },
-      orderBy: { endDate: 'asc' }
+      orderBy: { endDate: 'asc' },
+      take: 500
     });
 
     const result = expiring.map(sub => ({
       id: sub.id,
       endDate: sub.endDate,
       member: {
+        // Renewal only happens on the member's own page, so every caller needs his id.
+        id: sub.member.id,
         name: sub.member.person.name,
         code: sub.member.memberCode
       },

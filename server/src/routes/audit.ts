@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../index.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, requireRole } from '../middleware/auth.js';
+import { readPage, readPageSize } from '../utils/paging.js';
 
 const router = Router();
 
@@ -28,16 +29,18 @@ export async function createAuditLog(
 }
 
 // Get audit logs (owner/manager only)
-router.get('/', requireAuth, async (req: Request, res: Response) => {
+router.get('/', requireAuth, requireRole('OWNER', 'BRANCH_MANAGER'), async (req: Request, res: Response) => {
   try {
     const user = (req.session as any).user;
-    const { branchId, page = 1, pageSize = 50 } = req.query;
+    const branchId = typeof req.query.branchId === 'string' ? req.query.branchId : '';
+    const page = readPage(req.query.page);
+    const pageSize = readPageSize(req.query.pageSize, 50, 200);
 
     const where: any = {};
 
     // Filter by branch
     if (branchId) {
-      if (user.role !== 'OWNER' && !user.branchIds.includes(branchId as string)) {
+      if (user.role !== 'OWNER' && !user.branchIds.includes(branchId)) {
         return res.status(403).json({
           error: 'Forbidden',
           message: 'ليس لديك صلاحية الوصول لهذا الفرع'
@@ -63,8 +66,8 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
         orderBy: {
           createdAt: 'desc'
         },
-        skip: (Number(page) - 1) * Number(pageSize),
-        take: Number(pageSize)
+        skip: (page - 1) * pageSize,
+        take: pageSize
       }),
       prisma.auditLog.count({ where })
     ]);
@@ -73,10 +76,10 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
       success: true,
       logs,
       pagination: {
-        page: Number(page),
-        pageSize: Number(pageSize),
+        page,
+        pageSize,
         total,
-        totalPages: Math.ceil(total / Number(pageSize))
+        totalPages: Math.ceil(total / pageSize)
       }
     });
   } catch (error) {

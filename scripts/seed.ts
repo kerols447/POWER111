@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
@@ -8,7 +9,21 @@ const OWNER_PASSWORD = 'power1112026';
 const ADMIN_EMAIL = 'admin@power111.com';
 const ADMIN_PASSWORD = 'admin123';
 
+// This script deletes every row it knows about before writing demo data, so it refuses to
+// talk to anything that is not clearly a local database. Pointing it at the club's real
+// server would wipe the members, and no seeding is worth that risk.
+function assertLocalDatabase() {
+  const url = process.env.DATABASE_URL || '';
+  const local = /@(localhost|127\.0\.0\.1|\[::1\]|host\.docker\.internal)(:|\/)/.test(url);
+  if (!local && process.env.SEED_ALLOW_REMOTE !== 'yes') {
+    console.error('الـ seed بيشتغل على قاعدة بيانات محلية بس — DATABASE_URL مش عنوان محلي.');
+    console.error('لو إنت متأكد إن دي قاعدة تجريبية، شغّل بـ SEED_ALLOW_REMOTE=yes.');
+    process.exit(1);
+  }
+}
+
 async function main() {
+  assertLocalDatabase();
   console.log('Seeding database...');
 
   // Clean existing demo data (order matters for foreign keys)

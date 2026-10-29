@@ -21,6 +21,10 @@ const LABEL_PLANS = [
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+// One import runs as a single transaction, row by row, so a sheet far bigger than anything the
+// club has ever had would hold the database open. Split a bigger file instead.
+const MAX_IMPORT_ROWS = 20000;
+
 class DryRunAbort extends Error {}
 
 interface WantedRow {
@@ -65,6 +69,9 @@ router.post('/members', requireAuth, requireRole('OWNER'), async (req: Request, 
     }
     if (!Array.isArray(rows) || rows.length === 0) {
       return res.status(400).json({ error: 'Validation', message: 'مفيش صفوف' });
+    }
+    if (rows.length > MAX_IMPORT_ROWS) {
+      return res.status(400).json({ error: 'Validation', message: `الشيت أكبر من ${MAX_IMPORT_ROWS} صف — قسّمه على أكتر من مرة` });
     }
 
     const branch = await prisma.branch.findUnique({ where: { id: branchId } });
@@ -296,6 +303,9 @@ router.post('/member-contacts', requireAuth, requireRole('OWNER'), async (req: R
     }
     if (!Array.isArray(rows) || rows.length === 0) {
       return res.status(400).json({ error: 'Validation', message: 'مفيش صفوف' });
+    }
+    if (rows.length > MAX_IMPORT_ROWS) {
+      return res.status(400).json({ error: 'Validation', message: `الشيت أكبر من ${MAX_IMPORT_ROWS} صف — قسّمه على أكتر من مرة` });
     }
 
     const branch = await prisma.branch.findUnique({ where: { id: branchId } });

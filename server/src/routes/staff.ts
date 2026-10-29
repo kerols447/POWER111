@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { prisma } from '../index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/permissions.js';
+import { userHasPermission } from '../utils/permissions.js';
 
 const router = Router();
 
@@ -79,6 +80,10 @@ router.get('/', requireAuth, requirePermission('VIEW_ATTENDANCE'), async (req: R
     monthStart.setDate(1);
     monthStart.setHours(0, 0, 0, 0);
 
+    // The desk needs who is on shift, not what anyone earns. Wages and payouts leave the
+    // response entirely for accounts without the payroll permission.
+    const canSeeSalaries = await userHasPermission(user.id, 'MANAGE_SALARIES');
+
     const staff = await prisma.user.findMany({
       where,
       orderBy: [{ role: 'asc' }, { name: 'asc' }],
@@ -89,9 +94,9 @@ router.get('/', requireAuth, requirePermission('VIEW_ATTENDANCE'), async (req: R
         role: true,
         phone: true,
         staffCode: true,
+        isActive: true,
         salaryPiasters: true,
         salaryBasis: true,
-        isActive: true,
         branchAccess: { select: { branch: { select: { id: true, name: true, code: true } } } }
       }
     });
@@ -107,11 +112,13 @@ router.get('/', requireAuth, requirePermission('VIEW_ATTENDANCE'), async (req: R
         where: { userId: { in: ids }, checkInTime: { gte: monthStart } },
         select: { userId: true, checkInTime: true, checkOutTime: true }
       }),
-      prisma.salaryPayment.groupBy({
-        by: ['userId'],
-        where: { userId: { in: ids }, createdAt: { gte: monthStart } },
-        _sum: { amountPiasters: true }
-      })
+      canSeeSalaries
+        ? prisma.salaryPayment.groupBy({
+            by: ['userId'],
+            where: { userId: { in: ids }, createdAt: { gte: monthStart } },
+            _sum: { amountPiasters: true }
+          })
+        : Promise.resolve([])
     ]);
 
     const now = new Date();
@@ -148,9 +155,11 @@ router.get('/', requireAuth, requirePermission('VIEW_ATTENDANCE'), async (req: R
         hoursTodayLabel: hoursLabel(todayMinutes),
         hoursMonth: monthMinutes,
         hoursMonthLabel: hoursLabel(monthMinutes),
-        salaryPiasters: s.salaryPiasters ?? null,
-        salaryBasis: s.salaryBasis,
-        paidThisMonthPiasters: monthPay.find(p => p.userId === s.id)?._sum.amountPiasters ?? 0
+        ...(canSeeSalaries && {
+          salaryPiasters: s.salaryPiasters ?? null,
+          salaryBasis: s.salaryBasis,
+          paidThisMonthPiasters: monthPay.find(p => p.userId === s.id)?._sum.amountPiasters ?? 0
+        })
       };
     });
 
@@ -425,7 +434,8 @@ function canSeeStaff(sessionUser: any, staff: { branches: { id: string }[] }): b
 }
 
 // GET /api/staff/:id/salary — worked hours, what is owed and what was already paid
-router.get('/:id/salary', requireAuth, requirePermission('VIEW_EXPENSES'), async (req: Request, res: Response) => {
+// Payroll is its own permission: recording an expense at the desk is not reading wages.
+router.get('/:id/salary', requireAuth, requirePermission('MANAGE_SALARIES'), requirePermission('VIEW_EXPENSES'), async (req: Request, res: Response) => {
   try {
     const sessionUser = (req.session as any).user;
     const staff = await loadStaffForSalary(req.params.id);
@@ -522,7 +532,7 @@ router.get('/:id/salary', requireAuth, requirePermission('VIEW_EXPENSES'), async
 });
 
 // POST /api/staff/:id/salary — pay a wage out and book it under expenses
-router.post('/:id/salary', requireAuth, requirePermission('CREATE_EXPENSES'), async (req: Request, res: Response) => {
+router.post('/:id/salary', requireAuth, requirePermission('MANAGE_SALARIES'), requirePermission('CREATE_EXPENSES'), async (req: Request, res: Response) => {
   try {
     const sessionUser = (req.session as any).user;
     const staff = await loadStaffForSalary(req.params.id);
@@ -605,7 +615,7 @@ router.post('/:id/salary', requireAuth, requirePermission('CREATE_EXPENSES'), as
 });
 
 // DELETE /api/staff/salary/:paymentId — undo a payout and its expense together
-router.delete('/salary/:paymentId', requireAuth, requirePermission('DELETE_EXPENSES'), async (req: Request, res: Response) => {
+router.delete('/salary/:paymentId', requireAuth, requirePermission('MANAGE_SALARIES'), requirePermission('DELETE_EXPENSES'), async (req: Request, res: Response) => {
   try {
     const sessionUser = (req.session as any).user;
     const payment = await prisma.salaryPayment.findUnique({

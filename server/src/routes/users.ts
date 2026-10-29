@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
+import { Permission } from '@prisma/client';
 import { prisma } from '../index.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { initializeUserPermissions, ROLE_PERMISSIONS } from '../utils/permissions.js';
@@ -397,6 +398,17 @@ router.put('/:id/permissions', requireAuth, requireRole('OWNER'), async (req: Re
       return res.status(400).json({ error: 'Permissions must be an array' });
     }
 
+    // A permission name that is not in the enum would be rejected by Postgres mid-write; the
+    // cast to `any` below means anything used to travel all the way here unchecked.
+    const known = new Set<string>(Object.values(Permission));
+    const names: string[] = [];
+    for (const permission of permissions) {
+      if (typeof permission !== 'string' || !known.has(permission)) {
+        return res.status(400).json({ error: 'Validation error', message: `صلاحية غير معروفة: ${String(permission).slice(0, 40)}` });
+      }
+      if (!names.includes(permission)) names.push(permission);
+    }
+
     const user = await prisma.user.findUnique({ where: { id } });
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
@@ -408,11 +420,11 @@ router.put('/:id/permissions', requireAuth, requireRole('OWNER'), async (req: Re
     });
 
     // Create new permissions
-    if (permissions.length > 0) {
+    if (names.length > 0) {
       await prisma.userPermission.createMany({
-        data: permissions.map((permission: string) => ({
+        data: names.map((permission) => ({
           userId: id,
-          permission: permission as any
+          permission: permission as Permission
         }))
       });
     }
