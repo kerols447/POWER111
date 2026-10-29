@@ -147,8 +147,14 @@ export function InstallBanner() {
   if (!opened || onDevice || dismissed) return null;
   if (pathname !== '/' && pathname !== '/portal') return null;
 
+  // The portal carries a bottom tab bar; the banner has to sit on top of it, never over it.
+  const onPortal = pathname === '/portal';
+
   return (
-    <div className="fixed bottom-3 right-3 left-[5.5rem] sm:left-auto sm:w-[380px] sm:right-5 sm:bottom-5 z-40 rounded-2xl border border-white/10 bg-[#141414] p-3 shadow-2xl">
+    <div
+      className={`fixed right-3 left-[5.5rem] sm:left-auto sm:w-[380px] sm:right-5 z-40 rounded-2xl border border-white/10 bg-[#141414] p-3 shadow-2xl ${onPortal ? '' : 'bottom-3 sm:bottom-5'}`}
+      style={onPortal ? { bottom: 'calc(70px + env(safe-area-inset-bottom))' } : undefined}
+    >
       <div className="flex items-center gap-3">
         <img src="/power-logo.jpg" alt="" className="w-10 h-10 rounded-xl object-cover shrink-0" />
 
@@ -172,7 +178,7 @@ export function InstallBanner() {
           type="button"
           onClick={hide}
           aria-label="إخفاء"
-          className="shrink-0 w-10 h-10 rounded-lg flex items-center justify-center text-gray-500 transition-colors duration-200 active:scale-90 sm:hover:text-white"
+          className="shrink-0 w-11 h-11 rounded-lg flex items-center justify-center text-gray-500 transition-colors duration-200 active:scale-90 sm:hover:text-white"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -183,7 +189,7 @@ export function InstallBanner() {
       <button
         type="button"
         onClick={() => run()}
-        className="mt-2.5 w-full sm:hidden px-4 py-2.5 rounded-xl bg-amber-500 text-black text-sm font-bold transition-transform duration-200 active:scale-95"
+        className="mt-2.5 w-full sm:hidden min-h-11 px-4 py-2.5 rounded-xl bg-amber-500 text-black text-sm font-bold transition-transform duration-200 active:scale-95"
       >
         {canInstall ? 'تثبيت التطبيق' : 'ثبّت التطبيق الآن'}
       </button>

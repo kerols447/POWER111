@@ -11,6 +11,8 @@ export default defineConfig({
       manifest: false,
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+        // Push + notification click handling for the installed app lives beside the worker.
+        importScripts: ['sw-push.js'],
         navigateFallback: 'index.html',
         navigateFallbackDenylist: [/^\/api\//],
         skipWaiting: true,
@@ -64,16 +66,20 @@ export default defineConfig({
           },
           {
             urlPattern: /\/api\/.*/i,
+            method: 'GET',
             handler: 'NetworkFirst',
             options: {
               cacheName: 'api-cache',
               expiration: {
-                maxEntries: 500,
-                maxAgeSeconds: 60 * 60 * 24 * 30
+                // This cache holds other people's records, so it is kept short and is
+                // deleted outright the moment the session ends — 30 days of member data
+                // sitting in Cache Storage after a logout is not an offline feature.
+                maxEntries: 200,
+                maxAgeSeconds: 60 * 60 * 24 * 3
               },
               networkTimeoutSeconds: 3,
               cacheableResponse: {
-                statuses: [0, 200]
+                statuses: [200]
               }
             }
           }

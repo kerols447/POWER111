@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { arDate, localDate } from '../utils/dates';
@@ -7,12 +7,17 @@ import { addPendingOperation } from '../utils/offlineDb';
 import { whatsappLink, displayPhone } from '../utils/whatsapp';
 import { downloadWorkbook } from '../utils/downloadWorkbook';
 import ConfirmDialog from '../components/ConfirmDialog';
+import MemberAvatar from '../components/MemberAvatar';
 import NoticeBanner from '../components/NoticeBanner';
 import MemberFormModal, { MemberFormValues } from '../components/MemberFormModal';
+import SubscriptionsPanel from '../components/SubscriptionsPanel';
+import PlansSection from '../components/PlansSection';
 import {
   PageHeader, Btn, StatTile, Badge, TableShell, Th, Td, Row, ListCard,
-  EmptyState, Loading, Picker, SearchField, SectionTitle, UiIcon, CARD, TONE, OfflineBanner
+  EmptyState, Loading, Picker, SearchField, SectionTitle, Segmented, UiIcon, CARD, TONE, OfflineBanner,
+  type IconName
 } from '../components/ui';
+import { Stagger } from '../components/Motion';
 
 interface Member {
   id: string;
@@ -44,6 +49,8 @@ interface Branch {
   name: string;
   code: string;
 }
+
+type MembersTab = 'members' | 'subscriptions' | 'plans';
 
 function generateOperationId(): string {
   return `op_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -80,7 +87,10 @@ function MembersPage() {
   const [branchFilter, setBranchFilter] = useState(stored.branchFilter);
   const [statusFilter, setStatusFilter] = useState(stored.statusFilter);
   const [page, setPage] = useState(stored.page);
-  const [totalPages, setTotalPages] = useState(1);
+  // null while the account has no census permission: the pager then runs on "has more"
+  // alone and never renders a total.
+  const [totalPages, setTotalPages] = useState<number | null>(1);
+  const [hasMore, setHasMore] = useState(false);
   const [statusCounts, setStatusCounts] = useState<Record<string, number> | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Member | null>(null);
@@ -90,6 +100,21 @@ function MembersPage() {
   const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [notice, setNotice] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+
+  // Members, their subscriptions and the plans they buy are one job at the desk, so they
+  // live on this page as tabs instead of separate sidebar entries.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [tab, setTab] = useState<MembersTab>(() => {
+    const requested = searchParams.get('tab');
+    return requested === 'subscriptions' || requested === 'plans' ? requested : 'members';
+  });
+
+  // Bell and shortcut links can point at a tab while this page is already open, and a
+  // same-page navigation never remounts the component, so the URL stays the source of truth.
+  useEffect(() => {
+    const requested = searchParams.get('tab');
+    setTab(requested === 'subscriptions' || requested === 'plans' ? requested : 'members');
+  }, [searchParams]);
 
   useEffect(() => {
     if (!notice) return;
@@ -129,10 +154,13 @@ function MembersPage() {
       const data = await res.json();
       if (data.success) {
         setMembers(data.data);
-        setTotalPages(data.pagination.totalPages);
+        setTotalPages(data.pagination.totalPages ?? null);
+        setHasMore(Boolean(data.pagination.hasMore));
         setStatusCounts(data.statusCounts || null);
-        const lastPage = Math.max(1, data.pagination.totalPages);
-        if (page > lastPage) setPage(lastPage);
+        if (typeof data.pagination.totalPages === 'number') {
+          const lastPage = Math.max(1, data.pagination.totalPages);
+          if (page > lastPage) setPage(lastPage);
+        }
       }
     } catch (err) {
       console.error('Error fetching members:', err);
@@ -395,6 +423,23 @@ function MembersPage() {
 
   const hasFilters = !!(search || branchFilter || statusFilter || page > 1);
 
+  // Working the member list is not the same as holding the club's census or its sheet,
+  // so both have their own permission and simply disappear for accounts without them.
+  const canExportSheet = hasPermission('EXPORT_MEMBERS');
+  const canSeeCensus = hasPermission('VIEW_MEMBER_STATS');
+
+  const canSeeSubscriptions = hasPermission('VIEW_SUBSCRIPTIONS');
+  const activeTab: MembersTab = canSeeSubscriptions ? tab : 'members';
+  const goTab = (next: MembersTab) => {
+    setTab(next);
+    setSearchParams(next === 'members' ? {} : { tab: next }, { replace: true });
+  };
+
+  // The plans tab brings its own titled card, so only the other two need a page header.
+  const headerMeta = activeTab === 'subscriptions'
+    ? { icon: 'subscriptions' as IconName, title: 'الاشتراكات', caption: 'الحالة، التجميد، والمبالغ المتبقية' }
+    : { icon: 'member' as IconName, title: 'الأعضاء', caption: 'إدارة أعضاء الجيم' };
+
   const filterByStatus = (value: string) => {
     setStatusFilter((current: string) => (current === value ? '' : value));
     setPage(1);
@@ -412,72 +457,100 @@ function MembersPage() {
   }
 
   return (
-    <div className="space-y-5 sm:space-y-7">
-      {/* Offline Banner */}
-      {!isOnline && <OfflineBanner />}
+    <Stagger className="space-y-5 sm:space-y-7">
+      {/* Offline Banner — the subscriptions panel raises its own */}
+      {!isOnline && activeTab !== 'subscriptions' && <OfflineBanner />}
 
       {notice && <NoticeBanner kind={notice.kind} text={notice.text} onDismiss={() => setNotice(null)} />}
 
       {/* Header */}
-      <PageHeader
-        icon="member"
-        title="الأعضاء"
-        caption="إدارة أعضاء الجيم"
-        actions={
-          <>
-            <Btn icon="download" variant="ghost" onClick={handleExportExcel} disabled={exporting}>
-              {exporting ? 'جارٍ التحضير…' : 'تحميل Excel'}
-            </Btn>
-            <Btn
-              icon="plus"
-              variant="primary"
-              onClick={() => {
-                setError('');
-                setEditing(null);
-                setShowModal(true);
-              }}
-            >
-              إضافة عضو
-            </Btn>
-          </>
-        }
-      />
+      {activeTab !== 'plans' && (
+        <PageHeader
+          icon={headerMeta.icon}
+          title={headerMeta.title}
+          caption={headerMeta.caption}
+          actions={
+            // Buying and renewing happen on the member's own page, so the ledger writes nothing.
+            activeTab === 'subscriptions' ? undefined : (
+              <>
+                {canExportSheet && (
+                  <Btn icon="download" variant="ghost" onClick={handleExportExcel} disabled={exporting}>
+                    {exporting ? 'جارٍ التحضير…' : 'تحميل Excel'}
+                  </Btn>
+                )}
+                <Btn
+                  icon="plus"
+                  variant="primary"
+                  onClick={() => {
+                    setError('');
+                    setEditing(null);
+                    setShowModal(true);
+                  }}
+                >
+                  إضافة عضو
+                </Btn>
+              </>
+            )
+          }
+        />
+      )}
 
+      {canSeeSubscriptions && (
+        <Segmented
+          value={activeTab}
+          onChange={goTab}
+          ariaLabel="أقسام الأعضاء"
+          options={[
+            { key: 'members', label: 'الأعضاء' },
+            { key: 'subscriptions', label: 'الاشتراكات' },
+            { key: 'plans', label: 'الخطط' }
+          ]}
+        />
+      )}
+
+      {activeTab === 'subscriptions' && <SubscriptionsPanel />}
+
+      {activeTab === 'plans' && <PlansSection />}
+
+      {activeTab === 'members' && (
+        <>
       {/* Stats Summary Cards — each one doubles as a one-tap filter */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <StatTile
-          icon="users"
-          tone={TONE.members}
-          label="إجمالي الأعضاء"
-          value={cardCounts.total}
-          caption={scopeLabel}
-          onClick={() => { setStatusFilter(''); setPage(1); }}
-        />
-        <StatTile
-          icon="check"
-          tone={TONE.revenue}
-          label="نشط"
-          value={cardCounts.active}
-          caption="اشتراك فعّال"
-          onClick={() => filterByStatus('ACTIVE')}
-        />
-        <StatTile
-          icon="warning"
-          tone={TONE.expenses}
-          label="منتهي"
-          value={cardCounts.expired}
-          caption="بحاجة لتجديد"
-          onClick={() => filterByStatus('EXPIRED')}
-        />
-        <StatTile
-          icon="clock"
-          tone={TONE.outstanding}
-          label="موقوف / مجمد"
-          value={cardCounts.paused}
-          caption="غير نشط مؤقتاً"
-          onClick={() => filterByStatus('SUSPENDED,FROZEN')}
-        />
-      </div>
+      {canSeeCensus && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <StatTile
+            icon="users"
+            tone={TONE.members}
+            label="إجمالي الأعضاء"
+            value={cardCounts.total}
+            caption={scopeLabel}
+            onClick={() => { setStatusFilter(''); setPage(1); }}
+          />
+          <StatTile
+            icon="check"
+            tone={TONE.revenue}
+            label="نشط"
+            value={cardCounts.active}
+            caption="اشتراك فعّال"
+            onClick={() => filterByStatus('ACTIVE')}
+          />
+          <StatTile
+            icon="warning"
+            tone={TONE.expenses}
+            label="منتهي"
+            value={cardCounts.expired}
+            caption="بحاجة لتجديد"
+            onClick={() => filterByStatus('EXPIRED')}
+          />
+          <StatTile
+            icon="clock"
+            tone={TONE.outstanding}
+            label="موقوف / مجمد"
+            value={cardCounts.paused}
+            caption="غير نشط مؤقتاً"
+            onClick={() => filterByStatus('SUSPENDED,FROZEN')}
+          />
+        </div>
+      )}
 
       {/* Filters */}
       <div className={`${CARD} p-4 sm:p-5`}>
@@ -562,11 +635,7 @@ function MembersPage() {
                     </Td>
                     <Td>
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${TONE.members}14`, color: TONE.members }}>
-                          <span className="text-sm font-bold">
-                            {member.person.name.charAt(0)}
-                          </span>
-                        </div>
+                        <MemberAvatar name={member.person.name} photoPath={member.person.photoPath} />
                         <span className="text-sm font-semibold text-white">
                           {member.person.name}
                         </span>
@@ -648,11 +717,7 @@ function MembersPage() {
                     className="w-full flex items-start justify-between gap-3 text-right"
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${TONE.members}14`, color: TONE.members }}>
-                        <span className="text-base font-bold">
-                          {member.person.name.charAt(0)}
-                        </span>
-                      </div>
+                      <MemberAvatar name={member.person.name} photoPath={member.person.photoPath} className="w-11 h-11 rounded-xl" letterClassName="text-base font-bold" />
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-white truncate">{member.person.name}</p>
                         <p className="text-xs text-gray-500 font-mono mt-0.5">{displayPhone(member.person.phone)}</p>
@@ -713,21 +778,31 @@ function MembersPage() {
           </>
         )}
 
-        {/* Pagination */}
-        {totalPages > 1 && (
+        {/* Pagination — without the census permission there is no total to show, so the
+            pager runs on the server's "there is a next page" flag alone. */}
+        {(hasMore || (totalPages !== null && totalPages > 1)) && (
           <div className="flex items-center justify-between px-5 py-4 border-t border-dark-border">
             <Btn variant="ghost" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
               السابق
             </Btn>
             <span className="text-sm text-gray-400 font-medium">
-              صفحة <span className="text-primary font-bold">{page}</span> من <span className="text-white font-bold">{totalPages}</span>
+              صفحة <span className="text-primary font-bold">{page}</span>
+              {totalPages !== null && (
+                <> من <span className="text-white font-bold">{totalPages}</span></>
+              )}
             </span>
-            <Btn variant="ghost" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
+            <Btn
+              variant="ghost"
+              onClick={() => setPage(p => p + 1)}
+              disabled={totalPages === null ? !hasMore : page >= totalPages}
+            >
               التالي
             </Btn>
           </div>
         )}
       </div>
+        </>
+      )}
 
       {/* Add Member Modal */}
       {showModal && (
@@ -765,7 +840,7 @@ function MembersPage() {
         onConfirm={handleDelete}
         onCancel={() => setPendingDelete(null)}
       />
-    </div>
+    </Stagger>
   );
 }
 

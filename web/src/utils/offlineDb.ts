@@ -17,6 +17,7 @@ export interface CachedMember {
   memberCode: string;
   name: string;
   phone: string;
+  photoPath?: string | null;
   branchId: string;
   hasActiveSubscription: boolean;
   cachedAt: number;
@@ -210,4 +211,35 @@ export async function clearCachedProductsForBranch(branchId: string): Promise<vo
     await tx.store.delete(product.id);
   }
   await tx.done;
+}
+
+// Signing out on a shared reception phone must not leave the club's members, products or
+// fetched pages behind for whoever picks it up next. The unsynced queue is kept on purpose:
+// those are tickets the desk already wrote and still owes the server.
+export async function wipeLocalBusinessData(): Promise<void> {
+  try {
+    const db = await getDB();
+    const tx = db.transaction(['cachedMembers', 'cachedProducts', 'appSettings'], 'readwrite');
+    await Promise.all([
+      tx.objectStore('cachedMembers').clear(),
+      tx.objectStore('cachedProducts').clear(),
+      tx.objectStore('appSettings').clear(),
+      tx.done
+    ]);
+    db.close();
+    dbInstance = null;
+  } catch (error) {
+    console.error('Failed to clear offline data:', error);
+  }
+
+  if (typeof caches !== 'undefined') {
+    try {
+      const names = await caches.keys();
+      await Promise.all(
+        names.filter(name => name.startsWith('api-cache')).map(name => caches.delete(name))
+      );
+    } catch (error) {
+      console.error('Failed to clear cached responses:', error);
+    }
+  }
 }

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import type { MouseEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { whatsappLink } from '../utils/whatsapp';
+import { safeWebUrl } from '../utils/links';
 import { CountUp, DrawIcon, Reveal, RevealWords, ScrollProgress, useInView } from '../components/Motion';
 import { InstallButton } from '../components/InstallPrompt';
 
@@ -37,7 +38,7 @@ interface PublicOffer {
   endDate: string;
 }
 
-const SUPPORT_PHONE = '01055002069';
+const SUPPORT_PHONE = '01280368119';
 
 const SOCIAL_LINKS = [
   {
@@ -485,6 +486,7 @@ export default function LandingPage() {
           <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-4">
             {branches.map((branch, i) => {
               const wa = whatsappLink(branch.whatsapp || branch.phone || '');
+              const mapUrl = safeWebUrl(branch.locationUrl);
               return (
                 <Reveal key={branch.id} delay={i * 120} className="h-full">
                 <div className={`${hoverCard} p-5 sm:p-6 h-full`}>
@@ -524,9 +526,9 @@ export default function LandingPage() {
                         <span>واتساب</span>
                       </a>
                     )}
-                    {branch.locationUrl && (
+                    {mapUrl && (
                       <a
-                        href={branch.locationUrl}
+                        href={mapUrl}
                         target="_blank"
                         rel="noreferrer"
                         className="inline-flex items-center gap-2 min-h-10 px-3 py-2 rounded-lg text-sm text-amber-400 border border-amber-500/20 transition-all duration-200 active:scale-95 sm:hover:bg-amber-500/10"

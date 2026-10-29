@@ -5,6 +5,8 @@ import {
   PageHeader, SectionTitle, StatTile, Badge, Btn, Field, LABEL, FIELD,
   TableShell, Th, Td, Row, ListCard, Loading, Modal, UiIcon, CARD, TONE
 } from '../components/ui';
+import type { BadgeTone } from '../components/ui';
+import { Stagger } from '../components/Motion';
 
 interface Branch {
   id: string;
@@ -38,6 +40,8 @@ const permissionLabels: Record<string, string> = {
   CREATE_MEMBERS: 'إضافة أعضاء',
   EDIT_MEMBERS: 'تعديل أعضاء',
   DELETE_MEMBERS: 'حذف أعضاء',
+  EXPORT_MEMBERS: 'تحميل شيت الأعضاء (Excel)',
+  VIEW_MEMBER_STATS: 'معرفة عدد الأعضاء والإحصائيات',
   VIEW_SUBSCRIPTIONS: 'عرض الاشتراكات',
   CREATE_SUBSCRIPTIONS: 'إنشاء اشتراكات',
   EDIT_SUBSCRIPTIONS: 'تعديل اشتراكات',
@@ -56,6 +60,9 @@ const permissionLabels: Record<string, string> = {
   CREATE_EXPENSES: 'إضافة مصروفات',
   EDIT_EXPENSES: 'تعديل مصروفات',
   DELETE_EXPENSES: 'حذف مصروفات',
+  MANAGE_SALARIES: 'رواتب الموظفين (عرض وصرف)',
+  VIEW_PHYSIO: 'عرض جلسات العلاج الطبيعي',
+  MANAGE_PHYSIO: 'الموافقة على الجلسات وتسعيرها',
   VIEW_REPORTS: 'عرض التقارير',
   VIEW_FINANCIAL_REPORTS: 'التقارير المالية',
   VIEW_BRANCHES: 'عرض الفروع',
@@ -70,21 +77,24 @@ const permissionLabels: Record<string, string> = {
   VIEW_DASHBOARD_REVENUE: 'إيرادات اليوم',
   VIEW_DASHBOARD_EXPENSES: 'مصروفات اليوم',
   VIEW_DASHBOARD_PROFIT: 'صافي الربح',
-  VIEW_DASHBOARD_OUTSTANDING: 'المستحقات'
+  VIEW_DASHBOARD_OUTSTANDING: 'المستحقات',
+  USE_ASSISTANT: 'المساعد الذكي (يقرأ التقارير)'
 };
 
 const permissionGroups = [
-  { label: 'الأعضاء', permissions: ['VIEW_MEMBERS', 'CREATE_MEMBERS', 'EDIT_MEMBERS', 'DELETE_MEMBERS'] },
+  { label: 'الأعضاء', permissions: ['VIEW_MEMBERS', 'CREATE_MEMBERS', 'EDIT_MEMBERS', 'DELETE_MEMBERS', 'EXPORT_MEMBERS', 'VIEW_MEMBER_STATS'] },
   { label: 'الاشتراكات', permissions: ['VIEW_SUBSCRIPTIONS', 'CREATE_SUBSCRIPTIONS', 'EDIT_SUBSCRIPTIONS', 'RENEW_SUBSCRIPTIONS', 'FREEZE_SUBSCRIPTIONS'] },
   { label: 'الحضور', permissions: ['VIEW_ATTENDANCE', 'CHECKIN_MEMBERS'] },
   { label: 'المنتجات', permissions: ['VIEW_PRODUCTS', 'CREATE_PRODUCTS', 'EDIT_PRODUCTS', 'DELETE_PRODUCTS'] },
   { label: 'المبيعات', permissions: ['VIEW_SALES', 'CREATE_SALES', 'MANAGE_DISCOUNTS'] },
-  { label: 'المصروفات', permissions: ['VIEW_EXPENSES', 'CREATE_EXPENSES', 'EDIT_EXPENSES', 'DELETE_EXPENSES'] },
+  { label: 'المصروفات', permissions: ['VIEW_EXPENSES', 'CREATE_EXPENSES', 'EDIT_EXPENSES', 'DELETE_EXPENSES', 'MANAGE_SALARIES'] },
+  { label: 'العلاج الطبيعي', permissions: ['VIEW_PHYSIO', 'MANAGE_PHYSIO'] },
   { label: 'التقارير', permissions: ['VIEW_REPORTS', 'VIEW_FINANCIAL_REPORTS', 'VIEW_ALL_BRANCHES_DASHBOARD'] },
   { label: 'الفروع', permissions: ['VIEW_BRANCHES', 'EDIT_BRANCHES'] },
   { label: 'المستخدمين', permissions: ['VIEW_USERS', 'CREATE_USERS', 'EDIT_USERS', 'DELETE_USERS'] },
   { label: 'الإعدادات', permissions: ['MANAGE_SETTINGS'] },
-  { label: 'الصفحة الرئيسية', permissions: ['VIEW_DASHBOARD', 'VIEW_DASHBOARD_REVENUE', 'VIEW_DASHBOARD_EXPENSES', 'VIEW_DASHBOARD_PROFIT', 'VIEW_DASHBOARD_OUTSTANDING'] }
+  { label: 'الصفحة الرئيسية', permissions: ['VIEW_DASHBOARD', 'VIEW_DASHBOARD_REVENUE', 'VIEW_DASHBOARD_EXPENSES', 'VIEW_DASHBOARD_PROFIT', 'VIEW_DASHBOARD_OUTSTANDING'] },
+  { label: 'المساعد الذكي', permissions: ['USE_ASSISTANT'] }
 ];
 
 const roleLabels: Record<string, string> = {
@@ -114,8 +124,6 @@ function salaryLabel(user: User): string | null {
   const egp = (user.salaryPiasters / 100).toLocaleString('ar-EG-u-nu-latn');
   return user.salaryBasis === 'HOURLY' ? `${egp} ج.م / ساعة` : `${egp} ج.م شهرياً`;
 }
-
-type BadgeTone = 'gold' | 'green' | 'red' | 'amber' | 'blue' | 'gray';
 
 // The checkbox rows of the permission editor — one kit token set, ≥44px touch target.
 const PERM_CHECK = 'w-4 h-4 rounded bg-dark border-dark-border text-primary focus:outline-none shrink-0';
@@ -381,7 +389,7 @@ function UsersPage() {
       case 'BRANCH_MANAGER': return 'amber';
       case 'RECEPTIONIST': return 'green';
       case 'ACCOUNTANT': return 'amber';
-      case 'TRAINER': return 'blue';
+      case 'TRAINER': return 'gray';
       case 'CONTENT_MANAGER': return 'red';
       default: return 'gray';
     }
@@ -392,7 +400,7 @@ function UsersPage() {
   }
 
   return (
-    <div className="space-y-5 sm:space-y-7" dir="rtl">
+    <Stagger className="space-y-5 sm:space-y-7" dir="rtl">
       {notice && <NoticeBanner kind={notice.kind} text={notice.text} onDismiss={() => setNotice(null)} />}
 
       {/* Header */}
@@ -904,7 +912,7 @@ function UsersPage() {
         onConfirm={handleDelete}
         onCancel={() => setPendingDelete(null)}
       />
-    </div>
+    </Stagger>
   );
 }
 

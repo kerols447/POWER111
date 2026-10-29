@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import type { CSSProperties, ReactNode } from 'react';
+import { Children, useEffect, useRef, useState } from 'react';
+import type { CSSProperties, HTMLAttributes, ReactNode } from 'react';
 
 // The reveal failsafe is not decoration: an earlier build left the whole site
 // invisible on phones because the observer never fired.
@@ -7,6 +7,112 @@ const FAILSAFE_MS = 1400;
 
 function reducedMotion() {
   return typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+}
+
+/** Live reduced-motion state, so a motion preference set mid-session is honoured. */
+export function usePrefersReducedMotion() {
+  const [reduced, setReduced] = useState(reducedMotion);
+
+  useEffect(() => {
+    const query = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+    if (!query) return;
+    const onChange = () => setReduced(query.matches);
+    query.addEventListener('change', onChange);
+    return () => query.removeEventListener('change', onChange);
+  }, []);
+
+  return reduced;
+}
+
+/**
+ * The card entrance. One short rise on mount, with a per-card delay so a grid arrives in
+ * an easy sweep instead of all at once. Only opacity and transform move, and a reduced
+ * motion preference renders it already in place.
+ */
+export function RiseIn({
+  children,
+  delay = 0,
+  duration = 260,
+  y = 14,
+  className = '',
+  style
+}: {
+  children: ReactNode;
+  delay?: number;
+  duration?: number;
+  y?: number;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const reduced = usePrefersReducedMotion();
+  const [shown, setShown] = useState(reduced);
+
+  useEffect(() => {
+    if (reduced) {
+      setShown(true);
+      return;
+    }
+    let second = 0;
+    // Two frames: the first paints the starting state, the second starts the transition.
+    const first = requestAnimationFrame(() => {
+      second = requestAnimationFrame(() => setShown(true));
+    });
+    return () => {
+      cancelAnimationFrame(first);
+      cancelAnimationFrame(second);
+    };
+  }, [reduced]);
+
+  return (
+    <div
+      className={className}
+      style={{
+        ...style,
+        opacity: shown ? 1 : 0,
+        transform: shown ? 'none' : `translate3d(0, ${y}px, 0)`,
+        transition: `opacity ${duration}ms ease-out ${delay}ms, transform ${duration}ms cubic-bezier(.16,.84,.44,1) ${delay}ms`,
+        willChange: shown ? undefined : 'opacity, transform'
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Fades and lifts the page that arrives when the route changes. The wrapper is keyed by
+ * the pathname, so the animation replays on every navigation.
+ */
+export function PageTransition({ children }: { children: ReactNode }) {
+  const reduced = usePrefersReducedMotion();
+  return <div className={reduced ? undefined : 'animate-page-in'}>{children}</div>;
+}
+
+/**
+ * A page's vertical rhythm with one short rise per section, in reading order.
+ * `Children.toArray` drops the sections a permission or an empty state hides, so the
+ * sweep keeps its timing instead of leaving silent gaps.
+ */
+export function Stagger({
+  children,
+  className = 'space-y-5 sm:space-y-7',
+  step = 55,
+  cap = 260,
+  ...rest
+}: Omit<HTMLAttributes<HTMLDivElement>, 'children'> & {
+  children: ReactNode;
+  className?: string;
+  step?: number;
+  cap?: number;
+}) {
+  const sections = Children.toArray(children);
+  return (
+    <div className={className} {...rest}>
+      {sections.map((section, i) => (
+        <RiseIn key={i} delay={Math.min(i * step, cap)}>{section}</RiseIn>
+      ))}
+    </div>
+  );
 }
 
 export function useInView<T extends HTMLElement>(threshold = 0.15) {

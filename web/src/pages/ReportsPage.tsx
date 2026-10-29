@@ -8,8 +8,9 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import NoticeBanner from '../components/NoticeBanner';
 import {
   PageHeader, SectionTitle, StatTile, Badge, Btn, Segmented, Picker, Field,
-  CARD, FIELD, GOLD, TONE, UiIcon, TableShell, Th, Td, Row, ListCard, EmptyState, Loading
+  CARD, CHART, FIELD, GOLD, TONE, UiIcon, TableShell, Th, Td, Row, ListCard, EmptyState, Loading
 } from '../components/ui';
+import { Stagger } from '../components/Motion';
 
 interface Branch {
   id: string;
@@ -74,6 +75,18 @@ interface ExpensesReport {
   expenses: ExpenseRecord[];
   byCategory: Record<string, { count: number; total: number }>;
   total: number;
+  count: number;
+  truncated: boolean;
+  limit: number;
+}
+
+// The lists stop at a row limit, but the money totals come from the database over the whole
+// period, so a long range still reports the right numbers.
+interface SalesSummary {
+  count: number;
+  totalPiasters: number;
+  truncated: boolean;
+  limit: number;
 }
 
 interface ActivityItem {
@@ -138,16 +151,10 @@ function formatPiasters(piasters: number): string {
   return pounds.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' ج.م';
 }
 
-const COLORS = ['#F59E0B', '#D97706', '#FCD34D', '#B45309', '#92400E', '#78350F'];
+const COLORS = CHART.planRamp;
 
 // The same chart theme the dashboard uses, so every series reads as one product.
-const chartTooltipStyle = {
-  backgroundColor: '#0A0A0A',
-  border: '1px solid #2A2A2A',
-  borderRadius: '12px',
-  fontSize: '12px',
-  boxShadow: '0 8px 32px rgba(0,0,0,0.4)'
-};
+const chartTooltipStyle = CHART.tooltip;
 
 type ReportTab = 'financial' | 'sales' | 'expenses' | 'activity' | 'branches';
 
@@ -167,10 +174,13 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [notice, setNotice] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  // How many members the club has is the owner's number; the desk only sees the rows it works on.
+  const canSeeCensus = hasPermission('VIEW_MEMBER_STATS');
 
   const [financial, setFinancial] = useState<FinancialSummary | null>(null);
   const [branchStats, setBranchStats] = useState<BranchStat[]>([]);
   const [salesData, setSalesData] = useState<SaleRecord[]>([]);
+  const [salesSummary, setSalesSummary] = useState<SalesSummary>({ count: 0, totalPiasters: 0, truncated: false, limit: 5000 });
   const [expensesData, setExpensesData] = useState<ExpensesReport | null>(null);
   const [activity, setActivity] = useState<ActivityReport | null>(null);
   // 'ALL' keeps the full journal; a kind narrows it to just that sort of operation
@@ -224,13 +234,29 @@ export default function ReportsPage() {
         const res = await fetch(`/api/reports/sales?${params}`, { credentials: 'include' });
         if (res.ok) {
           const data = await res.json();
-          setSalesData(Array.isArray(data) ? data : []);
+          const rows = Array.isArray(data?.sales) ? data.sales : [];
+          setSalesData(rows);
+          setSalesSummary({
+            count: typeof data?.count === 'number' ? data.count : rows.length,
+            totalPiasters: typeof data?.totalPiasters === 'number'
+              ? data.totalPiasters
+              : rows.reduce((sum: number, row: SaleRecord) => sum + row.finalTotalPiasters, 0),
+            truncated: !!data?.truncated,
+            limit: data?.limit || 5000
+          });
         }
       } else if (activeTab === 'expenses') {
         const res = await fetch(`/api/reports/expenses?${params}`, { credentials: 'include' });
         if (res.ok) {
           const data = await res.json();
-          setExpensesData(data);
+          setExpensesData({
+            expenses: Array.isArray(data?.expenses) ? data.expenses : [],
+            byCategory: data?.byCategory || {},
+            total: data?.total || 0,
+            count: typeof data?.count === 'number' ? data.count : (Array.isArray(data?.expenses) ? data.expenses.length : 0),
+            truncated: !!data?.truncated,
+            limit: data?.limit || 5000
+          });
         }
       } else if (activeTab === 'activity') {
         const res = await fetch(`/api/reports/activity?${params}`, { credentials: 'include' });
@@ -250,7 +276,8 @@ export default function ReportsPage() {
         const res = await fetch(`/api/reports/branches?${branchParams}`, { credentials: 'include' });
         if (res.ok) {
           const data = await res.json();
-          setBranchStats(Array.isArray(data) ? data : []);
+          // The server withholds the member census from accounts that must not see it.
+          setBranchStats((Array.isArray(data) ? data : []).map((s: BranchStat) => ({ ...s, activeMembers: s.activeMembers ?? 0 })));
         }
       }
     } catch (error) {
@@ -348,7 +375,10 @@ export default function ReportsPage() {
       }))
     : [];
 
-  const totalSalesAmount = salesData.reduce((sum, s) => sum + s.finalTotalPiasters, 0);
+  // The money on the sales tab is the database's own sum of the whole period, not an addition
+  // of the rows that fit in the list — a long range still reports the true total.
+  const totalSalesAmount = salesSummary.totalPiasters;
+  const totalSalesCount = salesSummary.count;
 
   // The journal is one flat list from the API; the owner reads it day by day, so it is
   // grouped on his own calendar (Cairo) rather than the raw UTC timestamps.
@@ -384,7 +414,7 @@ export default function ReportsPage() {
   /* ---------------------------------------------------------------- */
 
   return (
-    <div className="space-y-5 sm:space-y-7 lg:space-y-8">
+    <Stagger className="space-y-5 sm:space-y-7 lg:space-y-8">
       {/* ============================================================ */}
       {/*  Header                                                      */}
       {/* ============================================================ */}
@@ -612,9 +642,9 @@ export default function ReportsPage() {
                           { name: 'ربح', value: Math.max(0, financial.profit / 100) },
                         ]}
                       >
-                        <CartesianGrid strokeDasharray="3 3" stroke="#1A1A1A" vertical={false} />
-                        <XAxis dataKey="name" stroke="#4B5563" fontSize={11} tickLine={false} axisLine={false} />
-                        <YAxis stroke="#4B5563" fontSize={11} tickLine={false} axisLine={false} width={50} />
+                        <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
+                        <XAxis dataKey="name" stroke={CHART.axis} fontSize={11} tickLine={false} axisLine={false} />
+                        <YAxis stroke={CHART.axis} fontSize={11} tickLine={false} axisLine={false} width={50} />
                         <Tooltip
                           cursor={{ fill: 'rgba(245,158,11,0.05)' }}
                           contentStyle={chartTooltipStyle}
@@ -624,8 +654,8 @@ export default function ReportsPage() {
                         <Bar dataKey="value" radius={[8, 8, 0, 0]} name="المبلغ" barSize={40}>
                           {[
                             { fill: GOLD },
-                            { fill: '#374151' },
-                            { fill: '#D97706' },
+                            { fill: CHART.neutral },
+                            { fill: CHART.deep },
                           ].map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={entry.fill} />
                           ))}
@@ -650,7 +680,7 @@ export default function ReportsPage() {
                 <StatTile
                   icon="subscriptions"
                   label="عدد الفواتير"
-                  value={salesData.length}
+                  value={totalSalesCount}
                 />
                 <StatTile
                   icon="sales"
@@ -663,7 +693,7 @@ export default function ReportsPage() {
                     icon="wallet"
                     label="متوسط الفاتورة"
                     value={
-                      salesData.length > 0 ? formatPiasters(totalSalesAmount / salesData.length) : '0 ج.م'
+                      totalSalesCount > 0 ? formatPiasters(totalSalesAmount / totalSalesCount) : '0 ج.م'
                     }
                   />
                 </div>
@@ -674,7 +704,7 @@ export default function ReportsPage() {
                 <div className="p-4 sm:p-5 border-b border-dark-border">
                   <SectionTitle
                     right={
-                      salesData.length > 0 ? <Badge tone="gold">{salesData.length}</Badge> : undefined
+                      totalSalesCount > 0 ? <Badge tone="gold">{totalSalesCount}</Badge> : undefined
                     }
                   >
                     سجل المبيعات
@@ -684,6 +714,11 @@ export default function ReportsPage() {
                   <EmptyState title="لا توجد مبيعات في هذه الفترة" />
                 ) : (
                   <>
+                    {salesSummary.truncated && (
+                      <div className="px-4 py-3 text-[11px] text-gray-500 border-b border-white/[0.04]">
+                        الأرقام فوق هي إجمالي الفترة كلها — القائمة بتعرض آخر {salesSummary.limit} فاتورة بس، ضيّق التاريخ عشان تشوف الباقي.
+                      </div>
+                    )}
                     {/* Phone: same fields as the table, stacked */}
                     <div className="sm:hidden p-4 space-y-3">
                       {salesData.map(sale => (
@@ -794,7 +829,7 @@ export default function ReportsPage() {
                 <StatTile
                   icon="wallet"
                   label="عدد المصروفات"
-                  value={expensesData.expenses.length}
+                  value={expensesData.count || expensesData.expenses.length}
                 />
               </div>
 
@@ -858,7 +893,7 @@ export default function ReportsPage() {
                   <SectionTitle
                     tone={TONE.expenses}
                     right={
-                      expensesData.expenses.length > 0 ? <Badge tone="red">{expensesData.expenses.length}</Badge> : undefined
+                      expensesData.count > 0 ? <Badge tone="red">{expensesData.count}</Badge> : undefined
                     }
                   >
                     سجل المصروفات
@@ -868,6 +903,11 @@ export default function ReportsPage() {
                   <EmptyState title="لا توجد مصروفات في هذه الفترة" />
                 ) : (
                   <>
+                    {expensesData.truncated && (
+                      <div className="px-4 py-3 text-[11px] text-gray-500 border-b border-white/[0.04]">
+                        الأرقام والفئات فوق هي إجمالي الفترة كلها — القائمة بتعرض آخر {expensesData.limit} مصروف بس، ضيّق التاريخ عشان تشوف الباقي.
+                      </div>
+                    )}
                     {/* Phone: same fields as the table, stacked */}
                     <div className="sm:hidden p-4 space-y-3">
                       {expensesData.expenses.map(expense => (
@@ -1054,7 +1094,7 @@ export default function ReportsPage() {
                                   ? { backgroundColor: `${TONE.revenue}14`, color: TONE.revenue }
                                   : activityFlow(item.kind) === 'out'
                                     ? { backgroundColor: `${TONE.expenses}14`, color: TONE.expenses }
-                                    : { backgroundColor: '#141414', color: '#9CA3AF' }
+                                    : { backgroundColor: 'rgba(255,255,255,0.04)', color: TONE.neutral }
                               }
                             >
                               <ActivityKindIcon kind={item.kind} className="w-4 h-4" />
@@ -1133,9 +1173,9 @@ export default function ReportsPage() {
                     <div className="h-[190px] sm:h-[240px]">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={branchComparisonData} barGap={2} margin={{ top: 6, right: 8, left: 8, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#1A1A1A" vertical={false} />
-                          <XAxis dataKey="name" stroke="#4B5563" fontSize={11} tickLine={false} axisLine={false} />
-                          <YAxis stroke="#4B5563" fontSize={11} tickLine={false} axisLine={false} width={50} />
+                          <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
+                          <XAxis dataKey="name" stroke={CHART.axis} fontSize={11} tickLine={false} axisLine={false} />
+                          <YAxis stroke={CHART.axis} fontSize={11} tickLine={false} axisLine={false} width={50} />
                           <Tooltip
                             cursor={{ fill: 'rgba(245,158,11,0.05)' }}
                             contentStyle={chartTooltipStyle}
@@ -1143,8 +1183,8 @@ export default function ReportsPage() {
                             formatter={(value: number) => [`${value.toFixed(0)} ج.م`]}
                           />
                           <Bar dataKey="revenue" fill={GOLD} radius={[6, 6, 0, 0]} name="إيرادات" />
-                          <Bar dataKey="expenses" fill="#374151" radius={[6, 6, 0, 0]} name="مصروفات" />
-                          <Bar dataKey="profit" fill="#D97706" radius={[6, 6, 0, 0]} name="ربح" />
+                          <Bar dataKey="expenses" fill={CHART.neutral} radius={[6, 6, 0, 0]} name="مصروفات" />
+                          <Bar dataKey="profit" fill={CHART.deep} radius={[6, 6, 0, 0]} name="ربح" />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -1153,10 +1193,10 @@ export default function ReportsPage() {
                         <span className="w-3 h-3 rounded-sm" style={{ background: GOLD }} /> إيرادات
                       </span>
                       <span className="flex items-center gap-2 text-xs text-gray-400">
-                        <span className="w-3 h-3 rounded-sm" style={{ background: '#374151' }} /> مصروفات
+                        <span className="w-3 h-3 rounded-sm" style={{ background: CHART.neutral }} /> مصروفات
                       </span>
                       <span className="flex items-center gap-2 text-xs text-gray-400">
-                        <span className="w-3 h-3 rounded-sm" style={{ background: '#D97706' }} /> ربح
+                        <span className="w-3 h-3 rounded-sm" style={{ background: CHART.deep }} /> ربح
                       </span>
                     </div>
                       </>
@@ -1204,13 +1244,15 @@ export default function ReportsPage() {
                                 </p>
                               </div>
                             )}
-                            <div className="bg-dark rounded-xl p-2.5">
-                              <p className="text-[11px] text-gray-500 mb-0.5">الأعضاء</p>
-                              <div className="flex items-center gap-1.5">
-                                <UiIcon name="users" className="w-3.5 h-3.5 text-gray-500" />
-                                <p className="text-xs sm:text-sm font-bold text-white">{stat.activeMembers}</p>
+                            {canSeeCensus && (
+                              <div className="bg-dark rounded-xl p-2.5">
+                                <p className="text-[11px] text-gray-500 mb-0.5">الأعضاء</p>
+                                <div className="flex items-center gap-1.5">
+                                  <UiIcon name="users" className="w-3.5 h-3.5 text-gray-500" />
+                                  <p className="text-xs sm:text-sm font-bold text-white">{stat.activeMembers}</p>
+                                </div>
                               </div>
-                            </div>
+                            )}
                             <div className="bg-dark rounded-xl p-2.5 col-span-2">
                               <p className="text-[11px] text-gray-500 mb-0.5">الاشتراكات</p>
                               <p className="text-xs sm:text-sm font-bold text-white">{stat.activeSubscriptions}</p>
@@ -1236,7 +1278,7 @@ export default function ReportsPage() {
                             {hasPermission('VIEW_DASHBOARD_EXPENSES') && <Th>المصروفات</Th>}
                             {hasPermission('VIEW_DASHBOARD_PROFIT') && <Th>الربح</Th>}
                             {hasPermission('VIEW_DASHBOARD_OUTSTANDING') && <Th>مستحقات</Th>}
-                            <Th>الأعضاء</Th>
+                            {canSeeCensus && <Th>الأعضاء</Th>}
                             <Th>الاشتراكات</Th>
                             <Th>المبيعات</Th>
                           </>
@@ -1280,12 +1322,14 @@ export default function ReportsPage() {
                                   <Badge tone="amber">{formatPiasters(stat.outstanding || 0)}</Badge>
                                 </Td>
                               )}
-                              <Td>
-                                <div className="flex items-center gap-1.5">
-                                  <UiIcon name="users" className="w-3.5 h-3.5 text-gray-500" />
-                                  <span className="text-sm font-medium text-white">{stat.activeMembers}</span>
-                                </div>
-                              </Td>
+                              {canSeeCensus && (
+                                <Td>
+                                  <div className="flex items-center gap-1.5">
+                                    <UiIcon name="users" className="w-3.5 h-3.5 text-gray-500" />
+                                    <span className="text-sm font-medium text-white">{stat.activeMembers}</span>
+                                  </div>
+                                </Td>
+                              )}
                               <Td>
                                 <span className="text-sm font-medium text-white">{stat.activeSubscriptions}</span>
                               </Td>
@@ -1304,6 +1348,6 @@ export default function ReportsPage() {
           )}
         </>
       )}
-    </div>
+    </Stagger>
   );
 }

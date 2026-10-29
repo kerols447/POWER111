@@ -6,6 +6,7 @@ import {
   PageHeader, SectionTitle, Field, Picker, Toggle, Btn, Loading, EmptyState,
   CARD, FIELD, TONE
 } from '../components/ui';
+import { Stagger } from '../components/Motion';
 
 interface Branch {
   id: string;
@@ -254,7 +255,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="space-y-5 sm:space-y-7" dir="rtl">
+    <Stagger className="space-y-5 sm:space-y-7" dir="rtl">
       {/* Header */}
       <PageHeader
         icon="settings"
@@ -541,6 +542,6 @@ export default function SettingsPage() {
           )}
         </div>
       )}
-    </div>
+    </Stagger>
   );
 }

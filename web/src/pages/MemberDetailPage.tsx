@@ -6,10 +6,15 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { addPendingOperation } from '../utils/offlineDb';
 import JsBarcode from 'jsbarcode';
 import { whatsappLink, displayPhone } from '../utils/whatsapp';
+import { bmiOf } from '../utils/bodyMetrics';
+import { elementText, openPrintWindow } from '../utils/printDocument';
+import BmiIndicator from '../components/BmiIndicator';
 import ConfirmDialog from '../components/ConfirmDialog';
 import NoticeBanner from '../components/NoticeBanner';
 import MemberFormModal, { MemberFormValues } from '../components/MemberFormModal';
-import { Badge, Btn, SectionTitle, Loading, UiIcon, CARD, TONE } from '../components/ui';
+import SubscriptionsPanel from '../components/SubscriptionsPanel';
+import { Badge, Btn, SectionTitle, Loading, UiIcon, CARD } from '../components/ui';
+import { Stagger } from '../components/Motion';
 
 interface Member {
   id: string;
@@ -21,7 +26,9 @@ interface Member {
     phone: string;
     email?: string;
     gender?: string;
-    photoPath?: string;
+    photoPath?: string | null;
+    weightKg?: number | null;
+    heightCm?: number | null;
   };
   branch: {
     id: string;
@@ -72,6 +79,15 @@ function MemberDetailPage() {
   const [deleting, setDeleting] = useState(false);
   const [notice, setNotice] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const [activeTab, setActiveTab] = useState<'info' | 'subscriptions' | 'attendance'>('info');
+  const [newSubSignal, setNewSubSignal] = useState(0);
+  const [renewSignal, setRenewSignal] = useState(0);
+
+  // Leaving a tab drops any pending «new subscription» or «renew» request so coming back stays quiet.
+  const goTab = (next: 'info' | 'subscriptions' | 'attendance') => {
+    setActiveTab(next);
+    setNewSubSignal(0);
+    setRenewSignal(0);
+  };
   const barcodeRef = useRef<SVGSVGElement>(null);
 
   useEffect(() => {
@@ -257,12 +273,13 @@ function MemberDetailPage() {
   }
 
   const activeSubscription = member?.subscriptions.find(s => s.status === 'ACTIVE');
+  const personBmi = bmiOf(member.person.weightKg, member.person.heightCm);
   const totalPaid = member?.subscriptions.reduce((sum, sub) => {
     return sum + sub.payments.reduce((pSum, p) => pSum + p.amountPiasters, 0);
   }, 0) || 0;
 
   return (
-    <div className="space-y-5 sm:space-y-7">
+    <Stagger className="space-y-5 sm:space-y-7">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3 sm:gap-4 min-w-0">
@@ -275,6 +292,13 @@ function MemberDetailPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
+          {member.person.photoPath && (
+            <img
+              src={member.person.photoPath}
+              alt=""
+              className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl object-cover border border-dark-border bg-dark-card shrink-0"
+            />
+          )}
           <div className="min-w-0">
             <h1 className="text-xl sm:text-2xl font-extrabold text-white truncate">{member.person.name}</h1>
             <p className="text-gray-400 mt-1 text-xs sm:text-sm">
@@ -284,11 +308,17 @@ function MemberDetailPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {getStatusBadge(member.status)}
-          {hasPermission('CREATE_SUBSCRIPTIONS') && (
+          {hasPermission(activeSubscription ? 'RENEW_SUBSCRIPTIONS' : 'CREATE_SUBSCRIPTIONS') && (
             <Btn
               variant="primary"
-              icon="plus"
-              onClick={() => navigate(`/admin/subscriptions?member=${member.id}`)}
+              icon={activeSubscription ? 'refresh' : 'plus'}
+              onClick={() => {
+                // Renewal has one home and it is right here: one tap opens the form for the
+                // period that is running now, with the money fields already filled in.
+                setActiveTab('subscriptions');
+                if (activeSubscription) setRenewSignal(n => n + 1);
+                else setNewSubSignal(n => n + 1);
+              }}
             >
               {activeSubscription ? 'تجديد الاشتراك' : 'إضافة اشتراك'}
             </Btn>
@@ -318,7 +348,7 @@ function MemberDetailPage() {
       {/* Tabs */}
       <div className="flex gap-2 border-b border-dark-border">
         <button
-          onClick={() => setActiveTab('info')}
+          onClick={() => goTab('info')}
           className={`px-4 py-2.5 min-h-11 text-sm font-medium transition-colors ${
             activeTab === 'info'
               ? 'text-primary border-b-2 border-primary'
@@ -328,7 +358,7 @@ function MemberDetailPage() {
           المعلومات
         </button>
         <button
-          onClick={() => setActiveTab('subscriptions')}
+          onClick={() => goTab('subscriptions')}
           className={`px-4 py-2.5 min-h-11 text-sm font-medium transition-colors ${
             activeTab === 'subscriptions'
               ? 'text-primary border-b-2 border-primary'
@@ -338,7 +368,7 @@ function MemberDetailPage() {
           الاشتراكات ({member?.subscriptions.length || 0})
         </button>
         <button
-          onClick={() => setActiveTab('attendance')}
+          onClick={() => goTab('attendance')}
           className={`px-4 py-2.5 min-h-11 text-sm font-medium transition-colors ${
             activeTab === 'attendance'
               ? 'text-primary border-b-2 border-primary'
@@ -391,6 +421,18 @@ function MemberDetailPage() {
                   {member.person.gender === 'Male' ? 'ذكر' : member.person.gender === 'Female' ? 'أنثى' : '—'}
                 </p>
               </div>
+              {personBmi !== null && (
+                <>
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">الوزن</label>
+                    <p className="text-white font-medium" dir="ltr">{member.person.weightKg} كجم</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">الطول</label>
+                    <p className="text-white font-medium" dir="ltr">{member.person.heightCm} سم</p>
+                  </div>
+                </>
+              )}
               <div>
                 <label className="block text-sm text-gray-400 mb-1">الكود</label>
                 <p className="text-primary font-mono font-bold">{member.memberCode}</p>
@@ -428,31 +470,32 @@ function MemberDetailPage() {
               </div>
               <Btn
                 onClick={() => {
-                  const printWindow = window.open('', '_blank');
-                  if (printWindow) {
-                    printWindow.document.write(`
-                      <html>
-                        <head>
-                          <title>بطاقة ${member.person.name}</title>
-                          <style>
-                            body { font-family: Arial; text-align: center; padding: 20px; }
-                            .qr { margin: 20px auto; }
-                            .barcode { margin: 20px auto; }
-                            .name { font-size: 24px; font-weight: bold; margin: 10px 0; }
-                            .code { font-size: 18px; color: #666; }
-                          </style>
-                        </head>
-                        <body>
-                          <div class="name">${member.person.name}</div>
-                          <div class="code">${member.memberCode}</div>
-                          <div class="qr"><img src="${qrImage}" /></div>
-                          <div class="barcode">${barcodeRef.current?.outerHTML || ''}</div>
-                        </body>
-                      </html>
-                    `);
-                    printWindow.document.close();
-                    printWindow.print();
-                  }
+                  openPrintWindow({
+                    title: `بطاقة ${member.person.name}`,
+                    css: `body { font-family: Arial; text-align: center; padding: 20px; }
+                      .qr { margin: 20px auto; }
+                      .barcode { margin: 20px auto; }
+                      .name { font-size: 24px; font-weight: bold; margin: 10px 0; }
+                      .code { font-size: 18px; color: #666; }`,
+                    build: (doc) => {
+                      const qr = doc.createElement('div');
+                      qr.className = 'qr';
+                      if (qrImage) {
+                        const img = doc.createElement('img');
+                        img.src = qrImage;
+                        qr.appendChild(img);
+                      }
+                      const barcode = doc.createElement('div');
+                      barcode.className = 'barcode';
+                      if (barcodeRef.current) barcode.appendChild(doc.importNode(barcodeRef.current, true));
+                      return [
+                        elementText(doc, 'div', 'name', member.person.name),
+                        elementText(doc, 'div', 'code', member.memberCode),
+                        qr,
+                        barcode
+                      ];
+                    }
+                  })?.print();
                 }}
                 variant="primary"
                 icon="print"
@@ -462,87 +505,29 @@ function MemberDetailPage() {
               </Btn>
             </div>
           </div>
+
+          {personBmi !== null && (
+            <div className="lg:col-span-2">
+              <BmiIndicator
+                weightKg={member.person.weightKg}
+                heightCm={member.person.heightCm}
+                title="مؤشر كتلة الجسم للعضو"
+              />
+            </div>
+          )}
         </div>
       )}
 
-      {/* Subscriptions Tab */}
+      {/* Subscriptions Tab — the whole subscriptions workspace scoped to this member,
+          so renewal, payment, freezing and the receipt all happen without leaving his page. */}
       {activeTab === 'subscriptions' && (
-        <div className="space-y-4">
-          {/* Active Subscription Summary */}
-          {activeSubscription && (
-            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-6">
-              <div className="mb-4">
-                <SectionTitle tone={TONE.revenue} right={getStatusBadge(activeSubscription.status)}>
-                  الاشتراك النشط
-                </SectionTitle>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">الخطة</label>
-                  <p className="text-white font-bold">{activeSubscription.plan.nameAr || activeSubscription.plan.name}</p>
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">تاريخ البدء</label>
-                  <p className="text-white font-medium">
-                    {arDate(activeSubscription.startDate)}
-                  </p>
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">تاريخ الانتهاء</label>
-                  <p className="text-white font-medium">
-                    {arDate(activeSubscription.endDate)}
-                  </p>
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">المدة</label>
-                  <p className="text-white font-medium">{activeSubscription.plan.durationDays} يوم</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* All Subscriptions */}
-          <div className={`${CARD} overflow-hidden`}>
-            <div className="p-4 sm:p-5 border-b border-dark-border">
-              <SectionTitle
-                right={
-                  hasPermission('CREATE_SUBSCRIPTIONS') && (
-                    <Btn variant="ghost" onClick={() => navigate(`/admin/subscriptions?member=${member.id}`)}>
-                      {activeSubscription ? 'تجديد الباقة' : 'إضافة باقة'}
-                    </Btn>
-                  )
-                }
-              >
-                كل الاشتراكات
-              </SectionTitle>
-            </div>
-            {member?.subscriptions.length === 0 ? (
-              <div className="p-8 text-center text-gray-400">لا توجد اشتراكات</div>
-            ) : (
-              <div className="divide-y divide-dark-border">
-                {member?.subscriptions.map(sub => (
-                  <div key={sub.id} className="p-4 hover:bg-dark/50 transition-colors">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-3">
-                        <span className="font-bold text-white">{sub.plan.nameAr || sub.plan.name}</span>
-                        {getStatusBadge(sub.status)}
-                      </div>
-                      <span className="text-sm text-gray-400">
-                        {arDate(sub.startDate)} - {arDate(sub.endDate)}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-400">
-                        المدفوعات: {sub.payments.length} • الإجمالي: {formatPrice(sub.payments.reduce((s, p) => s + p.amountPiasters, 0))}
-                      </span>
-                      <span className="text-primary font-bold">{formatPrice(sub.plan.pricePiasters)}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+        <SubscriptionsPanel
+          memberId={member.id}
+          openNewSignal={newSubSignal}
+          renewSignal={renewSignal}
+          renewSubscriptionId={activeSubscription?.id}
+          onChanged={fetchMember}
+        />
       )}
 
       {/* Attendance Tab */}
@@ -571,13 +556,9 @@ function MemberDetailPage() {
                     </div>
                   </div>
                   <div className="text-left">
-                    <span className={`px-2 py-1 rounded text-xs ${
-                      att.method === 'QR_CODE' ? 'bg-purple-500/20 text-purple-400' :
-                      att.method === 'BARCODE' ? 'bg-primary/20 text-primary' :
-                      'bg-gray-500/20 text-gray-400'
-                    }`}>
+                    <Badge tone={att.method === 'QR_CODE' ? 'gold' : att.method === 'BARCODE' ? 'amber' : 'gray'}>
                       {att.method === 'QR_CODE' ? 'QR' : att.method === 'BARCODE' ? 'باركود' : 'يدوي'}
-                    </span>
+                    </Badge>
                     {att.checkOutTime && (
                       <p className="text-xs text-gray-400 mt-1">
                         خروج: {new Date(att.checkOutTime).toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' })}
@@ -622,7 +603,7 @@ function MemberDetailPage() {
         onConfirm={handleDelete}
         onCancel={() => setConfirmOpen(false)}
       />
-    </div>
+    </Stagger>
   );
 }
 

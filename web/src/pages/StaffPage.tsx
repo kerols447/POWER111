@@ -4,6 +4,7 @@ import {
   PageHeader, SectionTitle, StatTile, Badge, Btn, Segmented, Picker, Field,
   LABEL, FIELD, EmptyState, Loading, Modal, CARD, TONE
 } from '../components/ui';
+import { Stagger } from '../components/Motion';
 import { useAuth } from '../contexts/AuthContext';
 import {
   drawMembershipCard,
@@ -203,8 +204,9 @@ export default function StaffPage() {
   const [payError, setPayError] = useState('');
   const [payBusy, setPayBusy] = useState(false);
 
-  const canSeePayroll = hasPermission('VIEW_EXPENSES');
-  const canPayPayroll = hasPermission('CREATE_EXPENSES');
+  // Payroll has its own permission: logging an expense at the desk is not reading wages.
+  const canSeePayroll = hasPermission('MANAGE_SALARIES');
+  const canPayPayroll = hasPermission('MANAGE_SALARIES') && hasPermission('CREATE_EXPENSES');
 
   useEffect(() => {
     fetch('/api/branches', { credentials: 'include' })
@@ -484,7 +486,7 @@ export default function StaffPage() {
   }
 
   return (
-    <div className="space-y-5 sm:space-y-7" dir="rtl">
+    <Stagger className="space-y-5 sm:space-y-7" dir="rtl">
       {/* Header */}
       <PageHeader
         icon="staff"
@@ -961,7 +963,7 @@ export default function StaffPage() {
                         {p.notes ? ` • ${p.notes}` : ''}
                       </p>
                     </div>
-                    {hasPermission('DELETE_EXPENSES') && (
+                    {hasPermission('MANAGE_SALARIES') && hasPermission('DELETE_EXPENSES') && (
                       <Btn
                         variant="danger"
                         onClick={() => cancelPayment(p.id)}
@@ -1022,6 +1024,6 @@ export default function StaffPage() {
           <p className="text-[11px] text-gray-500">اطبع الكارت وعلّقه للموظف، أو ابعتلهوله على الواتساب. نفس الكارت اللي بيمسحه العضو.</p>
         </Modal>
       )}
-    </div>
+    </Stagger>
   );
 }

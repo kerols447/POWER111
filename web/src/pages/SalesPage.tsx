@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { useAuth } from '../contexts/AuthContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
@@ -11,6 +12,7 @@ import {
   PageHeader, Badge, Btn, Segmented, Picker, Field, FIELD,
   TableShell, Th, Td, Row, ListCard, EmptyState, Loading, UiIcon, CARD, TONE, OfflineBanner
 } from '../components/ui';
+import { Stagger } from '../components/Motion';
 
 /* ─── Local line icons the kit has no equivalent for (same 24 grid, 1.6 stroke, round caps) ─── */
 const IconMinus = ({ className = "w-4 h-4" }: { className?: string }) => (
@@ -646,7 +648,7 @@ export default function SalesPage() {
   ];
 
   return (
-    <div className="space-y-5 sm:space-y-7" dir="rtl">
+    <Stagger className="space-y-5 sm:space-y-7" dir="rtl">
 
       {/* ══════ Offline Banner ══════ */}
       {!isOnline && <OfflineBanner hint="يمكنك إجراء عمليات البيع وسيتم تزامنها تلقائياً عند عودة الاتصال" />}
@@ -1143,7 +1145,7 @@ export default function SalesPage() {
       )}
 
       {/* ══════ Scan / result toast ══════ */}
-      {toast && (
+      {toast && createPortal(
         <div
           className={`${CARD} fixed bottom-24 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 w-[min(92vw,380px)] p-4 shadow-2xl shadow-black/60`}
           style={{ borderColor: `${toast.kind === 'ok' ? TONE.revenue : TONE.expenses}4D` }}
@@ -1170,8 +1172,9 @@ export default function SalesPage() {
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
-    </div>
+    </Stagger>
   );
 }

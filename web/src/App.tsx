@@ -17,7 +17,6 @@ const PortalPage = lazy(() => import('./pages/PortalPage'));
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const MembersPage = lazy(() => import('./pages/MembersPage'));
 const MemberDetailPage = lazy(() => import('./pages/MemberDetailPage'));
-const SubscriptionsPage = lazy(() => import('./pages/SubscriptionsPage'));
 const AttendancePage = lazy(() => import('./pages/AttendancePage'));
 const StaffPage = lazy(() => import('./pages/StaffPage'));
 const ProductsPage = lazy(() => import('./pages/ProductsPage'));
@@ -29,6 +28,7 @@ const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const BranchesPage = lazy(() => import('./pages/BranchesPage'));
 const UsersPage = lazy(() => import('./pages/UsersPage'));
 const OffersPage = lazy(() => import('./pages/OffersPage'));
+const PhysioPage = lazy(() => import('./pages/PhysioPage'));
 
 function PageFallback() {
   return (
@@ -93,12 +93,14 @@ function App() {
               <Route path="users" element={<UsersPage />} />
               <Route path="members" element={<MembersPage />} />
               <Route path="members/:id" element={<MemberDetailPage />} />
-              <Route path="subscriptions" element={<SubscriptionsPage />} />
+              {/* Subscriptions live inside الأعضاء now; old links and shortcuts still land. */}
+              <Route path="subscriptions" element={<Navigate to="/admin/members?tab=subscriptions" replace />} />
               <Route path="attendance" element={<AttendancePage />} />
               <Route path="staff" element={<StaffPage />} />
               <Route path="products" element={<ProductsPage />} />
               <Route path="sales" element={<SalesPage />} />
               <Route path="expenses" element={<ExpensesPage />} />
+              <Route path="physio" element={<PhysioPage />} />
               <Route path="reports" element={<ReportsPage />} />
               <Route path="whatsapp" element={<WhatsAppPage />} />
               <Route path="settings" element={<SettingsPage />} />

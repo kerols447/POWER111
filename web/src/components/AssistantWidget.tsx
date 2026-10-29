@@ -35,7 +35,9 @@ const TOOL_LABELS: Record<string, string> = {
   stock_check: 'جرد البضاعة',
   sales_check: 'تقرير المبيعات',
   find_member: 'البحث عن عضو',
-  staff_shifts: 'مناوبات الموظفين'
+  staff_shifts: 'مناوبات الموظفين',
+  physio_sessions: 'جلسات العلاج الطبيعي',
+  calculate: 'الحاسبة'
 };
 
 const SUGGESTIONS = [
@@ -43,7 +45,8 @@ const SUGGESTIONS = [
   'كسبنا كام الشهر دا؟',
   'قارنلي شهر ٩ بشهر ١٠',
   'إيه حالة الجيم النهارده؟',
-  'الاشتراكات اللي هتخلص خلال أسبوع'
+  '12500 + 8300 - 4700',
+  'اكتبلي رسالة تذكير للأعضاء اللي اشتراكهم خلص'
 ];
 
 function timeLabel(value: string) {
@@ -228,7 +231,7 @@ export default function AssistantWidget({ hidden = false }: { hidden?: boolean }
             <img src="/power-logo.jpg" alt="POWER 111" className="w-8 h-8 rounded-lg object-cover ring-1 ring-yellow-500/30 shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-[13px] font-extrabold text-white leading-none">مساعد POWER 111</p>
-              <p className="text-[10px] text-gray-600 mt-1 leading-none">الأرقام من تقارير النظام — مفيش رقم متخيل</p>
+              <p className="text-[10px] text-gray-600 mt-1 leading-none">أسئلة عادية وحسابات، وأرقام الجيم من تقارير النظام</p>
             </div>
             {messages.length > 0 && (
               <button
@@ -252,7 +255,7 @@ export default function AssistantWidget({ hidden = false }: { hidden?: boolean }
             {messages.length === 0 && !sending && (
               <div className="pt-1.5">
                 <p className="text-[13px] text-gray-400 leading-relaxed">
-                  اسألني بالعامية عن أي حاجة في الجيم وأنا هقراها من التقارير نفسها.
+                  اسألني بالعامية عن أي حاجة — تقرير من النظام، عملية حسابية، أو حتى رأي في صياغة رسالة.
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {SUGGESTIONS.map(item => (
@@ -294,7 +297,7 @@ export default function AssistantWidget({ hidden = false }: { hidden?: boolean }
                 <div className="rounded-2xl px-3.5 py-2.5 bg-primary/10 border border-primary/30 flex items-center gap-2.5">
                   <UiIcon name="reports" className="w-4 h-4 text-primary animate-pulse" />
                   <span className="text-[12px] font-semibold text-primary">
-                    بيقرأ من تقارير النظام{waited > 3 ? ` • ${waited} ثانية` : ''}
+                    {waited > 3 ? `بيقرأ من تقارير النظام • ${waited} ثانية` : 'بجهّز ردك'}
                   </span>
                 </div>
               </div>

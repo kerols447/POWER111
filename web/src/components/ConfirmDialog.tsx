@@ -1,4 +1,6 @@
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { usePrefersReducedMotion } from './Motion';
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -21,6 +23,8 @@ export default function ConfirmDialog({
   onConfirm,
   onCancel
 }: ConfirmDialogProps) {
+  const reduced = usePrefersReducedMotion();
+
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -32,19 +36,19 @@ export default function ConfirmDialog({
 
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      className={`fixed inset-0 bg-black/75 backdrop-blur-[2px] flex items-center justify-center z-50 p-4 ${reduced ? '' : 'animate-fade-in'}`}
       onClick={() => !busy && onCancel()}
       role="dialog"
       aria-modal="true"
       aria-label={title}
     >
       <div
-        className="relative overflow-hidden bg-dark-card border border-dark-border rounded-2xl w-full max-w-sm shadow-2xl shadow-black/50"
+        className={`relative overflow-hidden bg-dark-elevate border border-white/[0.08] rounded-2xl w-full max-w-sm shadow-2xl shadow-black/50 ${reduced ? '' : 'animate-modal-in'}`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-rose-500/70 via-rose-500/20 to-transparent" />
+        <div className="absolute top-0 inset-x-0 h-0.5 bg-rose-500/50" />
 
         <div className="p-5 sm:p-6">
           <div className="flex items-start gap-4">
@@ -86,6 +90,9 @@ export default function ConfirmDialog({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    // Drawn on document.body, like every dialog, so an animating page section cannot
+    // capture its fixed position.
+    document.body
   );
 }

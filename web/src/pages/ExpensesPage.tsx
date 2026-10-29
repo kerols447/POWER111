@@ -10,6 +10,7 @@ import {
   TableShell, Th, Td, Row, ListCard, EmptyState, Loading, Modal, Field,
   UiIcon, CARD, FIELD, TONE, OfflineBanner
 } from '../components/ui';
+import { Stagger } from '../components/Motion';
 
 interface Expense {
   id: string;
@@ -308,7 +309,7 @@ export default function ExpensesPage() {
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amountPiasters, 0);
 
   return (
-    <div className="space-y-5 sm:space-y-7" dir="rtl">
+    <Stagger className="space-y-5 sm:space-y-7" dir="rtl">
       {/* Offline Banner */}
       {!isOnline && <OfflineBanner />}
 
@@ -568,6 +569,6 @@ export default function ExpensesPage() {
         onConfirm={handleDelete}
         onCancel={() => setPendingDelete(null)}
       />
-    </div>
+    </Stagger>
   );
 }

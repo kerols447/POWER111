@@ -8,7 +8,7 @@
     <link rel="icon" type="image/jpeg" href="/power-logo.jpg" />
     <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
 
-    <meta name="theme-color" content="#F59E0B" />
+    <meta name="theme-color" content="#090909" />
     <meta name="description" content="POWER 111 - نظام إدارة الجيم المتكامل" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -24,17 +24,5 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-    <script>
-      if ('serviceWorker' in navigator) {
-        // A returning visitor is served the previously precached build, so the
-        // new one only takes effect after it claims the page. Reload once then.
-        if (navigator.serviceWorker.controller) {
-          navigator.serviceWorker.addEventListener('controllerchange', () => window.location.reload());
-        }
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').catch(() => {});
-        });
-      }
-    </script>
   </body>
 </html>

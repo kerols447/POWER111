@@ -6,6 +6,7 @@ import {
   PageHeader, StatTile, Badge, Btn, Modal, Toggle, TableShell, Th, Td, Row,
   ListCard, EmptyState, Loading, UiIcon, CARD, FIELD, LABEL, TONE, GOLD
 } from '../components/ui';
+import { Stagger } from '../components/Motion';
 
 interface Branch {
   id: string;
@@ -227,7 +228,7 @@ function OffersPage() {
   }
 
   return (
-    <div className="space-y-5 sm:space-y-7" dir="rtl">
+    <Stagger className="space-y-5 sm:space-y-7" dir="rtl">
       {notice && <NoticeBanner kind={notice.kind} text={notice.text} onDismiss={() => setNotice(null)} />}
 
       {/* Header */}
@@ -595,7 +596,7 @@ function OffersPage() {
         onConfirm={handleDelete}
         onCancel={() => setPendingDelete(null)}
       />
-    </div>
+    </Stagger>
   );
 }
 

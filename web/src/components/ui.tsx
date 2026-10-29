@@ -1,37 +1,81 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { usePrefersReducedMotion } from './Motion';
 
 /**
  * One design language for every admin screen, lifted from the dashboard:
  * the same card, the same icon weight, the same type scale, the same gold.
  */
 
-export const GOLD = '#F59E0B';
+// The two brand golds, the two restrained semantic colours, and the two greys that
+// carry everything else. Every screen reads its accent from here so no page drifts
+// into its own palette.
+export const GOLD = '#FFC629';
+export const GOLD_DEEP = '#F5A000';
+export const GOLD_LIGHT = '#FFD95C';
+export const GOLD_SURFACE = 'rgba(255,198,41,0.08)';
+const SUCCESS = '#34D399';
+const DANGER = '#F26D6D';
+const NEUTRAL = '#A3A3A3';
+const MUTED = '#6E6E6E';
 
+// Gold carries the brand and the numbers that matter; green and red only appear where
+// money actually moves in or out; the administrative lists stay neutral.
 export const TONE = {
   gold: GOLD,
-  revenue: '#34D399',
-  expenses: '#FB7185',
+  goldLight: GOLD_LIGHT,
+  deep: GOLD_DEEP,
+  surface: GOLD_SURFACE,
+  revenue: SUCCESS,
+  expenses: DANGER,
   profit: GOLD,
-  outstanding: '#FBBF24',
+  outstanding: GOLD_DEEP,
   members: GOLD,
-  attendance: '#38BDF8',
-  staff: '#818CF8',
-  products: '#22D3EE',
-  sales: '#34D399',
-  reports: '#A78BFA',
-  expiring: '#FBBF24',
-  danger: '#FB7185',
-  neutral: '#9CA3AF'
+  attendance: GOLD,
+  staff: NEUTRAL,
+  products: NEUTRAL,
+  sales: SUCCESS,
+  reports: NEUTRAL,
+  expiring: GOLD_DEEP,
+  danger: DANGER,
+  neutral: NEUTRAL,
+  muted: MUTED
 };
 
 export const CARD = 'bg-dark-card border border-dark-border rounded-2xl';
 
+/** The raised surface — modals, popovers and cards that sit above a card. */
+export const CARD_ELEVATED = 'bg-dark-elevate border border-white/[0.08] rounded-2xl';
+
+// Chart ink, shared by the dashboard and reports so one product draws one kind of
+// chart: gold for money coming in, a quiet grey for money going out, axes dim enough to
+// stay behind the numbers, and a tooltip on the raised surface.
+export const CHART = {
+  gold: GOLD,
+  goldLight: GOLD_LIGHT,
+  goldRich: '#B4700A',
+  deep: GOLD_DEEP,
+  neutral: NEUTRAL,
+  axis: MUTED,
+  grid: '#222222',
+  cursor: 'rgba(255,198,41,0.06)',
+  ramp: ['#FFC629', '#F5A000', '#FFD95C', '#D98A00', '#B4700A'],
+  planRamp: ['#FFC629', '#FFD95C', '#F5A000', '#D98A00', '#FFE9A8', '#A96A08'],
+  tooltip: {
+    backgroundColor: '#0F0F0F',
+    border: '1px solid #282828',
+    borderRadius: '12px',
+    fontSize: '12px',
+    boxShadow: '0 8px 32px rgba(0,0,0,0.4)'
+  }
+};
+
 export const FIELD =
-  'w-full bg-dark border border-dark-border rounded-xl px-4 py-3 sm:py-2.5 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-primary/60 transition-colors min-h-[44px]';
+  'w-full bg-dark border border-dark-border rounded-xl px-4 py-3 sm:py-2.5 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-primary/60 focus:ring-1 focus:ring-primary/25 transition-colors min-h-[44px]';
 
 export const LABEL = 'block text-[11px] sm:text-xs text-gray-500 font-semibold mb-1.5';
 
-type IconName = keyof typeof UI_ICONS;
+export type IconName = keyof typeof UI_ICONS;
 
 // Line icons drawn on the same 24x24 grid as the sidebar so nothing looks heavier or lighter.
 const UI_ICONS = {
@@ -70,7 +114,12 @@ const UI_ICONS = {
   settings: ['M4 8.25h8M16.5 8.25h3.5', 'M4 15.75h3.5M12 15.75h8', 'M14 8.25a2.25 2.25 0 1 0 4.5 0 2.25 2.25 0 0 0-4.5 0Z', 'M6 15.75a2.25 2.25 0 1 0 4.5 0 2.25 2.25 0 0 0-4.5 0Z'],
   offers: ['M4 10.5h16v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-9Z', 'M3 7h18v3.5H3Z', 'M12 7v13.5'],
   home: ['M3 10.75 12 3.25l9 7.5', 'M5.5 9.5V19a1.5 1.5 0 0 0 1.5 1.5h10A1.5 1.5 0 0 0 18.5 19V9.5'],
-  wifiOff: ['M8.3 15a5.25 5.25 0 0 1 7.4 0', 'M5.1 11.86a9.72 9.72 0 0 1 13.8 0', 'M1.92 8.67a14.2 14.2 0 0 1 20.16 0', 'm12 18.25.53.53-.53.53-.53-.53Z', 'm4 4 16 16']
+  physio: ['M12 20.5s-7.5-4.7-7.5-10a4.5 4.5 0 0 1 7.5-3.3 4.5 4.5 0 0 1 7.5 3.3c0 5.3-7.5 10-7.5 10Z', 'M4.5 12.5h3l1.5-2.5 2.5 5 2-2.5h4'],
+  bell: ['M6.25 10a5.75 5.75 0 0 1 11.5 0c0 3.75 1.5 5 1.5 5H4.75s1.5-1.25 1.5-5Z', 'M10 18.25a2.25 2.25 0 0 0 4 0'],
+  wifiOff: ['M8.3 15a5.25 5.25 0 0 1 7.4 0', 'M5.1 11.86a9.72 9.72 0 0 1 13.8 0', 'M1.92 8.67a14.2 14.2 0 0 1 20.16 0', 'm12 18.25.53.53-.53.53-.53-.53Z', 'm4 4 16 16'],
+  weight: ['M5.5 9A3.5 3.5 0 0 1 9 5.5h6A3.5 3.5 0 0 1 18.5 9v6a3.5 3.5 0 0 1-3.5 3.5H9A3.5 3.5 0 0 1 5.5 15Z', 'M8.75 11.5a3.75 3.75 0 0 1 6.5 0', 'M12 11.5l1.4-1.9'],
+  height: ['M9.25 3.5h5.5v17H9.25Z', 'M9.25 7h2.75M9.25 10.5h1.75M9.25 14h2.75M9.25 17.5h1.75'],
+  medal: ['M12 14.5a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Z', 'M8.75 13.25 7.5 20.5l4.5-2.5 4.5 2.5-1.25-7.25']
 } as const;
 
 export function UiIcon({ name, className = 'w-4 h-4' }: { name: IconName; className?: string }) {
@@ -167,7 +216,7 @@ export function StatTile({
     <>
       {badge && <div className="absolute top-3.5 left-3.5">{badge}</div>}
       <span
-        className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center shrink-0 group-hover:scale-[1.03] transition-transform"
+        className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-[1.04]"
         style={{ backgroundColor: `${tone}14`, color: tone }}
       >
         <UiIcon name={icon} className="w-5 h-5 sm:w-6 sm:h-6" />
@@ -177,15 +226,21 @@ export function StatTile({
       {caption && <p className="text-[10px] sm:text-[11px] text-gray-600 mt-1.5 sm:mt-2 leading-snug">{caption}</p>}
     </>
   );
+  // Only a tile you can press lifts — a card that does nothing must not pretend.
   if (onClick) {
     return (
-      <button onClick={onClick} className={`${shell} hover:border-primary/40 transition-colors`}>
+      <button
+        onClick={onClick}
+        className={`${shell} transition-[border-color,transform,box-shadow] duration-200 sm:hover:-translate-y-[2px] sm:hover:border-primary/40 sm:hover:shadow-lg sm:hover:shadow-black/40 active:translate-y-0 active:scale-[.995] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/50`}
+      >
         {inner}
       </button>
     );
   }
-  return <div className={shell}>{inner}</div>;
+  return <div className={`${shell} transition-colors duration-200`}>{inner}</div>;
 }
+
+export type BadgeTone = 'gold' | 'green' | 'red' | 'amber' | 'gray';
 
 export function Badge({
   children,
@@ -193,15 +248,15 @@ export function Badge({
   className = ''
 }: {
   children: React.ReactNode;
-  tone?: 'gold' | 'green' | 'red' | 'amber' | 'blue' | 'gray';
+  tone?: BadgeTone;
   className?: string;
 }) {
   const tones: Record<string, string> = {
     gold: 'bg-primary/10 text-primary',
     green: 'bg-emerald-500/10 text-emerald-400',
     red: 'bg-rose-500/10 text-rose-400',
-    amber: 'bg-amber-500/10 text-amber-400',
-    blue: 'bg-sky-500/10 text-sky-400',
+    // The "needs action today" amber reads as the deeper gold, not a third yellow.
+    amber: 'bg-[#F5A000]/10 text-[#F5A000]',
     gray: 'bg-white/5 text-gray-400'
   };
   return (
@@ -212,13 +267,28 @@ export function Badge({
 }
 
 type BtnVariant = 'primary' | 'ghost' | 'danger' | 'quiet';
+export type { BtnVariant };
 
+// Solid gold on the one action that leads, never a gradient — the gold is the brand.
 const BTN_VARIANTS: Record<BtnVariant, string> = {
-  primary: 'text-black bg-gradient-to-br from-primary-light to-primary hover:from-primary hover:to-primary-dark shadow-lg shadow-primary/10',
-  ghost: 'text-gray-200 bg-dark-card border border-dark-border hover:border-primary/50 hover:text-white',
-  danger: 'text-rose-300 bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20',
-  quiet: 'text-gray-400 hover:text-white hover:bg-white/5'
+  primary: 'text-black bg-primary hover:bg-primary-light active:bg-primary-dark shadow-md shadow-black/25',
+  ghost: 'text-gray-200 bg-dark-card border border-dark-border hover:border-primary/50 hover:text-white active:bg-dark-elevate',
+  danger: 'text-rose-300 bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20 active:bg-rose-500/30',
+  quiet: 'text-gray-400 hover:text-white hover:bg-white/5 active:bg-white/[0.08]'
 };
+
+const BTN_SIZES = {
+  sm: 'min-h-[44px] sm:min-h-[36px] px-3 py-2 text-[12px] rounded-lg',
+  md: 'min-h-[44px] sm:min-h-[42px] px-4 py-2.5 text-[13px] rounded-xl'
+};
+
+/**
+ * The same button skin for the cases that cannot be a <button> — a WhatsApp link or a
+ * tel: link still has to read as the action it is, so they share one class.
+ */
+export function btnClass(variant: BtnVariant = 'ghost', size: 'sm' | 'md' = 'md', className = '') {
+  return `inline-flex items-center justify-center gap-2 font-bold transition-[background-color,border-color,color,transform] duration-150 active:scale-[.98] disabled:opacity-40 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60 ${BTN_SIZES[size]} ${BTN_VARIANTS[variant]} ${className}`;
+}
 
 export function Btn({
   children,
@@ -233,13 +303,10 @@ export function Btn({
   variant?: BtnVariant;
   size?: 'sm' | 'md';
 }) {
-  const sizing = size === 'sm'
-    ? 'min-h-[44px] sm:min-h-[36px] px-3 py-2 text-[12px] rounded-lg'
-    : 'min-h-[44px] sm:min-h-[42px] px-4 py-2.5 text-[13px] rounded-xl';
   return (
     <button
       {...rest}
-      className={`inline-flex items-center justify-center gap-2 font-bold transition-colors disabled:opacity-40 disabled:pointer-events-none ${sizing} ${BTN_VARIANTS[variant]} ${className}`}
+      className={btnClass(variant, size, className)}
     >
       {icon && <UiIcon name={icon} className="w-4 h-4" />}
       {children}
@@ -269,10 +336,9 @@ export function Segmented<T extends string>({
             type="button"
             onClick={() => onChange(option.key)}
             aria-pressed={active}
-            className={`px-3 py-2 rounded-lg text-[13px] font-semibold transition-colors min-h-[44px] sm:min-h-[36px] min-w-[44px] whitespace-nowrap ${
-              active ? 'text-black' : 'text-gray-400 hover:text-white hover:bg-white/5'
+            className={`px-3 py-2 rounded-lg text-[13px] font-semibold transition-[background-color,color,transform] duration-150 min-h-[44px] sm:min-h-[36px] min-w-[44px] whitespace-nowrap active:scale-[.97] ${
+              active ? 'text-black bg-primary shadow-sm shadow-black/25' : 'text-gray-400 hover:text-white hover:bg-white/5'
             }`}
-            style={active ? { background: 'linear-gradient(135deg, #FCD34D, #F59E0B)' } : undefined}
           >
             {option.label}
           </button>
@@ -453,11 +519,62 @@ export function EmptyState({
   );
 }
 
+/**
+ * The loading state every page shares: the dark skeleton of the KPI row and the list
+ * that is about to arrive, so the page fills in instead of jumping. The label stays for
+ * screen readers because the shapes themselves carry no text.
+ */
 export function Loading({ label = 'جاري التحميل...' }: { label?: string }) {
   return (
-    <div className="flex flex-col items-center justify-center h-64 gap-3">
-      <div className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-      <div className="text-gray-400 text-sm">{label}</div>
+    <div className="space-y-5" role="status" aria-busy="true" aria-label={label}>
+      <SkeletonTiles count={4} />
+      <SkeletonRows rows={6} />
+    </div>
+  );
+}
+
+/**
+ * Dark-theme skeleton — the exact shape of what is coming, so the page fills in instead
+ * of jumping. The pulse is decoration, so reduced motion renders it still.
+ */
+export function Skeleton({ className = '' }: { className?: string }) {
+  const reduced = usePrefersReducedMotion();
+  return <div aria-hidden="true" className={`bg-white/[0.05] rounded-lg ${reduced ? '' : 'animate-pulse'} ${className}`} />;
+}
+
+export function SkeletonTile() {
+  return (
+    <div className={`${CARD} p-3.5 sm:p-5`}>
+      <Skeleton className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl" />
+      <Skeleton className="mt-3 sm:mt-2 h-3 w-24" />
+      <Skeleton className="mt-2 h-7 w-20" />
+      <Skeleton className="mt-2.5 h-3 w-28" />
+    </div>
+  );
+}
+
+/** The KPI grid at its real breakpoint widths, so nothing reflows once data lands. */
+export function SkeletonTiles({ count = 4 }: { count?: number }) {
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      {Array.from({ length: count }, (_, i) => <SkeletonTile key={i} />)}
+    </div>
+  );
+}
+
+export function SkeletonCard({ height = 'h-[250px]' }: { height?: string }) {
+  return (
+    <div className={`${CARD} p-5 sm:p-6`}>
+      <Skeleton className="h-4 w-32" />
+      <Skeleton className={`mt-4 w-full ${height}`} />
+    </div>
+  );
+}
+
+export function SkeletonRows({ rows = 6 }: { rows?: number }) {
+  return (
+    <div className={`${CARD} p-4 sm:p-6 space-y-3`}>
+      {Array.from({ length: rows }, (_, i) => <Skeleton key={i} className="h-11 w-full" />)}
     </div>
   );
 }
@@ -489,7 +606,14 @@ export function Modal({
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const stackIdRef = useRef<symbol | null>(null);
+  const reduced = usePrefersReducedMotion();
   if (!stackIdRef.current) stackIdRef.current = Symbol('modal');
+
+  // Every keystroke in a modal form re-renders the page, and callers hand onClose as a brand
+  // new arrow each time. Held in a ref, so only the moment the dialog opens re-runs the effect
+  // below — otherwise each character typed yanks the caret back to the first field.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!open) return;
@@ -498,7 +622,7 @@ export function Modal({
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       if (modalStack[modalStack.length - 1] !== id) return;
-      onClose();
+      onCloseRef.current();
     };
     document.addEventListener('keydown', onKey);
     const first = panelRef.current?.querySelector<HTMLElement>(
@@ -511,13 +635,15 @@ export function Modal({
       const index = modalStack.indexOf(id);
       if (index >= 0) modalStack.splice(index, 1);
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
-  return (
+  // The dialog is drawn on document.body so an animating page section (a transform
+  // ancestor) can never capture its fixed position.
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm overflow-y-auto"
+      className={`fixed inset-0 z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-[2px] overflow-y-auto ${reduced ? '' : 'animate-fade-in'}`}
       onMouseDown={e => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -527,12 +653,13 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`${CARD} w-full ${width} my-auto shadow-2xl shadow-black/60 overflow-hidden`}
+        className={`${CARD_ELEVATED} w-full ${width} my-auto shadow-2xl shadow-black/60 overflow-hidden ${reduced ? '' : 'animate-modal-in'}`}
       >
         <div className="flex items-start justify-between gap-3 p-5 sm:p-6 border-b border-dark-border">
           <div className="min-w-0">
             <h3 className="text-base sm:text-lg font-extrabold text-white leading-tight">{title}</h3>
-            {subtitle && <p className="mt-1.5 text-[12px] text-gray-500 leading-relaxed">{subtitle}</p>}
+            {/* Callers hand the subtitle real nodes (a badge, a field), so it cannot be a <p>. */}
+            {subtitle && <div className="mt-1.5 text-[12px] text-gray-500 leading-relaxed">{subtitle}</div>}
           </div>
           <button
             type="button"
@@ -550,7 +677,8 @@ export function Modal({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

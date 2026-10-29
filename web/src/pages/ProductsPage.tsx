@@ -3,11 +3,13 @@ import { useAuth } from '../contexts/AuthContext';
 import JsBarcode from 'jsbarcode';
 import ConfirmDialog from '../components/ConfirmDialog';
 import NoticeBanner from '../components/NoticeBanner';
+import { elementText, openPrintWindow } from '../utils/printDocument';
 import {
   PageHeader, StatTile, SectionTitle, Badge, Btn, Picker, SearchField, Toggle,
   TableShell, Th, Td, Row, ListCard, EmptyState, Loading, Modal, Field,
   UiIcon, CARD, FIELD, TONE
 } from '../components/ui';
+import { Stagger } from '../components/Motion';
 
 interface Product {
   id: string;
@@ -56,22 +58,27 @@ function BarcodeSvg({ value, height = 50 }: { value: string; height?: number }) 
 
 function BarcodePrintModal({ product, onClose }: { product: Product; onClose: () => void }) {
   const handlePrint = () => {
-    const el = document.getElementById('barcode-print-area');
-    if (!el) return;
-    const win = window.open('', '_blank');
-    if (!win) return;
-    win.document.write(`<html dir="rtl"><head><title>باركود - ${product.nameAr || product.name}</title>
-      <style>body{font-family:Arial,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:20px}
+    const area = document.getElementById('barcode-print-area');
+    if (!area) return;
+    const barcode = area.querySelector('svg');
+
+    openPrintWindow({
+      title: `باركود - ${product.nameAr || product.name}`,
+      css: `body{font-family:Arial,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:20px}
       .label{text-align:center;border:1px dashed #ccc;padding:20px;border-radius:8px;display:inline-block}
       .name{font-size:14px;font-weight:bold;margin-bottom:8px}
       .price{font-size:12px;color:#666;margin-top:8px}
       svg{max-width:250px}
-      @media print{body{padding:0}.label{border:1px dashed #999}.no-print{display:none}}</style></head>
-      <body><div class="label"><div class="name">${product.nameAr || product.name}</div>
-      ${el.innerHTML}<div class="price">${(product.pricePiasters / 100).toFixed(2)} جنيه</div></div>
-      <div class="no-print" style="margin-top:20px"><button onclick="window.print()" style="padding:8px 24px;cursor:pointer;border-radius:6px;border:1px solid #ccc;background:#f5f5f5">طباعة</button></div>
-      </body></html>`);
-    win.document.close();
+      @media print{body{padding:0}.label{border:1px dashed #999}}`,
+      build: (doc) => {
+        const label = doc.createElement('div');
+        label.className = 'label';
+        label.appendChild(elementText(doc, 'div', 'name', product.nameAr || product.name));
+        if (barcode) label.appendChild(doc.importNode(barcode, true));
+        label.appendChild(elementText(doc, 'div', 'price', `${(product.pricePiasters / 100).toFixed(2)} جنيه`));
+        return [label];
+      }
+    })?.print();
   };
 
   return (
@@ -266,7 +273,7 @@ export default function ProductsPage() {
   const activeCount = products.filter(p => p.isActive).length;
 
   return (
-    <div className="space-y-5 sm:space-y-7" dir="rtl">
+    <Stagger className="space-y-5 sm:space-y-7" dir="rtl">
       {notice && <NoticeBanner kind={notice.kind} text={notice.text} onDismiss={() => setNotice(null)} />}
 
       {/* Header */}
@@ -621,6 +628,6 @@ export default function ProductsPage() {
         onConfirm={handleDelete}
         onCancel={() => setPendingDelete(null)}
       />
-    </div>
+    </Stagger>
   );
 }

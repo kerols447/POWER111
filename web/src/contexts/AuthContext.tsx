@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { wipeLocalBusinessData } from '../utils/offlineDb';
 
 interface User {
   id: string;
@@ -39,7 +40,11 @@ window.fetch = async function(input: RequestInfo | URL, init?: RequestInit) {
     const url = typeof input === 'string' ? input : (input instanceof Request ? input.url : input instanceof URL ? input.href : '');
     if (!url.includes('/api/portal')) {
       localStorage.removeItem('user');
-      window.location.href = '/login';
+      // The session is already gone server-side; drop the local copies before the redirect
+      // so the next person on this phone never sees them.
+      void wipeLocalBusinessData().finally(() => {
+        window.location.href = '/login';
+      });
     }
   }
   return res;
@@ -65,6 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (res.status === 401) {
           localStorage.removeItem('user');
           setUser(null);
+          void wipeLocalBusinessData();
           return null;
         }
         return res.ok ? res.json() : null;
@@ -100,6 +106,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     localStorage.removeItem('user');
     setUser(null);
+    // The desk is often one shared phone: whatever was cached for the last shift goes with it.
+    void wipeLocalBusinessData();
   };
 
   return (

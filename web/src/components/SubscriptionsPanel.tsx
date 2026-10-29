@@ -1,16 +1,18 @@
 import { useState, useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import PlansSection from '../components/PlansSection';
+import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { addPendingOperation, getCachedMembersForBranch } from '../utils/offlineDb';
 import { arDate, localDate } from '../utils/dates';
 import { displayPhone } from '../utils/whatsapp';
-import NoticeBanner from '../components/NoticeBanner';
+import NoticeBanner from './NoticeBanner';
+import { openPrintWindow } from '../utils/printDocument';
 import {
-  Badge, Btn, CARD, EmptyState, FIELD, Field, ListCard, Loading, Modal, OfflineBanner, PageHeader, Row,
-  Picker, SearchField, SectionTitle, Segmented, TableShell, Td, Th, TONE, UiIcon
-} from '../components/ui';
+  Badge, Btn, CARD, EmptyState, FIELD, Field, ListCard, Loading, Modal, OfflineBanner, Row,
+  Picker, SearchField, SectionTitle, TableShell, Td, Th, UiIcon
+} from './ui';
+import { Stagger } from './Motion';
 
 interface Subscription {
   id: string;
@@ -31,7 +33,7 @@ interface Subscription {
     memberCode: string;
     person: { id: string; name: string; phone: string };
   };
-  plan: { id: string; name: string; nameAr: string; durationDays: number };
+  plan: { id: string; name: string; nameAr: string; durationDays: number; pricePiasters: number };
   branch: { id: string; name: string; code: string };
 }
 
@@ -48,7 +50,45 @@ interface SubscriptionDetail extends Subscription {
   outstandingPiasters: number;
 }
 
-type Tab = 'subscriptions' | 'plans';
+interface SubscriptionsPanelProps {
+  // On a member's page the list is scoped to him: filters and the member column go away.
+  memberId?: string;
+  // The owning page has the «اشتراك جديد» button; each bump opens the form with memberId preloaded.
+  openNewSignal?: number;
+  // Renewal has exactly one home — the member's own page — so his header button bumps this
+  // signal and the panel opens the renewal form for the subscription it is pointing at.
+  renewSignal?: number;
+  renewSubscriptionId?: string;
+  // Lets the member page refresh its own summary after a create, renewal or payment.
+  onChanged?: () => void;
+}
+
+// What the desk needs to read out loud after a renewal: who, which plan, until when, how much.
+interface WrittenReceipt {
+  kind: 'new' | 'renew';
+  subscriptionId: string;
+  memberName: string;
+  memberCode: string;
+  planName: string;
+  startDate: Date;
+  endDate: Date;
+  pricePiasters: number;
+  paidPiasters: number;
+  paymentMethod: string;
+  // A renewal taken while the internet was down is only staged — it reaches the books on sync.
+  queued: boolean;
+}
+
+// The server renews from the day the running period ends, or from today if it already passed.
+// The form previews that same window so the receptionist quotes real dates before saving.
+function renewalWindow(endDate: string | number | Date, durationDays: number) {
+  const end = new Date(endDate);
+  const now = new Date();
+  const start = end > now ? new Date(end.getTime()) : now;
+  const finish = new Date(start.getTime());
+  finish.setDate(finish.getDate() + durationDays);
+  return { start, finish };
+}
 
 function generateOperationId(): string {
   return `op_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -64,12 +104,11 @@ const IconSnowflake = ({ className = 'w-4 h-4' }: { className?: string }) => (
 
 /* ───────────── Main Component ───────────── */
 
-function SubscriptionsPage() {
+function SubscriptionsPanel({ memberId, openNewSignal, renewSignal, renewSubscriptionId, onChanged }: SubscriptionsPanelProps) {
   const { user, isOwner } = useAuth();
+  const navigate = useNavigate();
   const isOnline = useOnlineStatus();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const presetMemberHandled = useRef(false);
-  const [tab, setTab] = useState<Tab>('subscriptions');
+  const scoped = Boolean(memberId);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -101,6 +140,20 @@ function SubscriptionsPage() {
   const [selectedSub, setSelectedSub] = useState<SubscriptionDetail | null>(null);
   const [showDetail, setShowDetail] = useState(false);
 
+  // Renewal form: the money the desk takes at the counter has to be typed here, because it is
+  // the same figure that lands in the payments, the reports and the dashboard.
+  const [showRenew, setShowRenew] = useState(false);
+  const [renewSub, setRenewSub] = useState<Subscription | null>(null);
+  const [renewDiscount, setRenewDiscount] = useState(0);
+  const [renewPaid, setRenewPaid] = useState(0);
+  const [renewMethod, setRenewMethod] = useState('CASH');
+  const [renewNotes, setRenewNotes] = useState('');
+  const [renewSubmitting, setRenewSubmitting] = useState(false);
+  const [renewError, setRenewError] = useState('');
+
+  // The line the member and the cashier both sign off on.
+  const [written, setWritten] = useState<WrittenReceipt | null>(null);
+
   // Payment modal
   const [showPayment, setShowPayment] = useState(false);
   const [payAmount, setPayAmount] = useState(0);
@@ -117,7 +170,7 @@ function SubscriptionsPage() {
       fetchSubscriptions();
     }
     fetchBranches();
-  }, [page, search, branchFilter, statusFilter, isOnline]);
+  }, [page, search, branchFilter, statusFilter, isOnline, memberId]);
 
   useEffect(() => {
     if (!notice) return;
@@ -129,6 +182,7 @@ function SubscriptionsPage() {
     setLoading(true);
     try {
       const params = new URLSearchParams({ page: page.toString(), pageSize: '20' });
+      if (memberId) params.set('memberId', memberId);
       if (search) params.set('search', search);
       if (branchFilter) params.set('branchId', branchFilter);
       if (statusFilter) params.set('status', statusFilter);
@@ -155,6 +209,12 @@ function SubscriptionsPage() {
     } catch (err) {
       console.error('Error fetching branches:', err);
     }
+  };
+
+  // After any write the list reloads and the owning page re-reads what it shows about this member.
+  const refresh = () => {
+    if (isOnline) fetchSubscriptions();
+    onChanged?.();
   };
 
   const searchMembers = async (q: string) => {
@@ -228,15 +288,16 @@ function SubscriptionsPage() {
     }
   };
 
-  // Arriving from a member's page (/admin/subscriptions?member=…) opens the form with
-  // that member and his branch's plans already loaded, so nobody searches him again.
+  // The owning page asks for a new subscription. On a member's page his record and his
+  // branch's plans load first, so nobody has to search him again.
+  const seenSignal = useRef(0);
   useEffect(() => {
-    const memberId = searchParams.get('member');
-    if (!memberId || presetMemberHandled.current) return;
-    presetMemberHandled.current = true;
+    if (!openNewSignal || openNewSignal === seenSignal.current) return;
+    seenSignal.current = openNewSignal;
 
-    const openForMember = async () => {
+    const openForm = async () => {
       await openNewSubscription();
+      if (!memberId) return;
       try {
         const res = await fetch(`/api/members/${memberId}`, { credentials: 'include' });
         const data = await res.json();
@@ -248,16 +309,32 @@ function SubscriptionsPage() {
       } catch {
         setError('مش قادر يحمّل بيانات العضو — اختاره من البحث');
       }
-      setSearchParams({}, { replace: true });
     };
-    openForMember();
-  }, [searchParams]);
+    openForm();
+  }, [openNewSignal, memberId]);
 
   const handleCreateSubscription = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedMember || !selectedPlan) return;
     setError('');
     setSubmitting(true);
+
+    const stage = (queued: boolean, sub?: { id: string; startDate: string; endDate: string; pricePiasters: number; paidPiasters: number }) => {
+      const finish = new Date(sub ? sub.endDate : renewalWindow(startDate, selectedPlan.durationDays).finish);
+      setWritten({
+        kind: 'new',
+        subscriptionId: sub ? sub.id : '',
+        memberName: selectedMember.person.name,
+        memberCode: selectedMember.memberCode,
+        planName: selectedPlan.nameAr,
+        startDate: new Date(sub ? sub.startDate : startDate),
+        endDate: finish,
+        pricePiasters: sub ? sub.pricePiasters : finalPrice,
+        paidPiasters: sub ? sub.paidPiasters : Math.round(initialPayment * 100),
+        paymentMethod,
+        queued
+      });
+    };
 
     if (!isOnline) {
       try {
@@ -278,7 +355,7 @@ function SubscriptionsPage() {
           userId: user!.id
         });
         setShowNewSub(false);
-        setNotice({ kind: 'ok', text: 'تم حفظ الاشتراك محلياً (سيتم التزامن عند عودة الاتصال)' });
+        stage(true);
       } catch {
         setError('حدث خطأ في الحفظ المحلي');
       } finally {
@@ -310,7 +387,8 @@ function SubscriptionsPage() {
       }
 
       setShowNewSub(false);
-      fetchSubscriptions();
+      stage(false, data.data);
+      refresh();
     } catch (err) {
       try {
         await addPendingOperation({
@@ -330,7 +408,7 @@ function SubscriptionsPage() {
           userId: user!.id
         });
         setShowNewSub(false);
-        setNotice({ kind: 'ok', text: 'تم حفظ الاشتراك محلياً (سيتم التزامن عند عودة الاتصال)' });
+        stage(true);
       } catch {
         setError('حدث خطأ في الاتصال');
       }
@@ -364,43 +442,125 @@ function SubscriptionsPage() {
     }
   };
 
-  const handleRenew = async () => {
-    if (!selectedSub) return;
-    if (!isOnline) {
-      await addPendingOperation({
-        id: generateOperationId(),
-        type: 'RENEW_SUBSCRIPTION',
-        payload: { subscriptionId: selectedSub.id },
-        timestamp: Date.now(),
-        branchId: selectedSub.branchId,
-        userId: user!.id
-      });
-      setShowDetail(false);
-      setNotice({ kind: 'ok', text: 'تم حفظ التجديد محلياً (سيتم التزامن عند عودة الاتصال)' });
+  const openRenew = (sub: Subscription) => {
+    setRenewSub(sub);
+    setRenewDiscount(0);
+    setRenewPaid(sub.plan.pricePiasters / 100);
+    setRenewMethod('CASH');
+    setRenewNotes('');
+    setRenewError('');
+    setShowDetail(false);
+    setShowRenew(true);
+  };
+
+  // His page has the only renewal button in the app, and it points at the period running now.
+  const seenRenew = useRef(0);
+  useEffect(() => {
+    if (!renewSignal || renewSignal === seenRenew.current || !renewSubscriptionId) return;
+    const local = subscriptions.find(s => s.id === renewSubscriptionId);
+    if (!local) {
+      // His subscriptions are not stored on the device, so offline there is no period to
+      // quote. Saying so beats a button that looks like it did nothing.
+      if (!isOnline) {
+        seenRenew.current = renewSignal;
+        setNotice({ kind: 'err', text: 'اشتراكات العضو بتحمّل من السيرفر — التجديد متاح عند عودة الاتصال' });
+        return;
+      }
+      fetch(`/api/subscriptions/${renewSubscriptionId}`, { credentials: 'include' })
+        .then(r => r.json())
+        .then(data => {
+          if (data.success) {
+            seenRenew.current = renewSignal;
+            openRenew(data.data);
+          }
+        })
+        .catch(() => { /* the row is still one tap away in the list below */ });
       return;
     }
+    seenRenew.current = renewSignal;
+    openRenew(local);
+  }, [renewSignal, renewSubscriptionId, subscriptions, isOnline]);
+
+  const renewPayload = () => ({
+    discountPiasters: Math.round(renewDiscount * 100),
+    paidPiasters: Math.round(renewPaid * 100),
+    paymentMethod: renewMethod,
+    notes: renewNotes || undefined
+  });
+
+  const handleRenew = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!renewSub) return;
+    setRenewError('');
+    setRenewSubmitting(true);
+
+    const stage = (queued: boolean, sub?: { id: string; startDate: string; endDate: string; pricePiasters: number; paidPiasters: number }) => {
+      const preview = renewalWindow(renewSub.endDate, renewSub.plan.durationDays);
+      setWritten({
+        kind: 'renew',
+        subscriptionId: sub ? sub.id : '',
+        memberName: renewSub.member.person.name,
+        memberCode: renewSub.member.memberCode,
+        planName: renewSub.plan.nameAr,
+        startDate: new Date(sub ? sub.startDate : preview.start),
+        endDate: new Date(sub ? sub.endDate : preview.finish),
+        pricePiasters: sub ? sub.pricePiasters : renewFinalPrice,
+        paidPiasters: sub ? sub.paidPiasters : Math.round(renewPaid * 100),
+        paymentMethod: renewMethod,
+        queued
+      });
+      setShowRenew(false);
+    };
+
+    if (!isOnline) {
+      try {
+        await addPendingOperation({
+          id: generateOperationId(),
+          type: 'RENEW_SUBSCRIPTION',
+          payload: { subscriptionId: renewSub.id, ...renewPayload() },
+          timestamp: Date.now(),
+          branchId: renewSub.branchId,
+          userId: user!.id
+        });
+        stage(true);
+      } catch {
+        setRenewError('حدث خطأ في الحفظ المحلي');
+      } finally {
+        setRenewSubmitting(false);
+      }
+      return;
+    }
+
     try {
-      const res = await fetch(`/api/subscriptions/${selectedSub.id}/renew`, {
+      const res = await fetch(`/api/subscriptions/${renewSub.id}/renew`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({})
+        body: JSON.stringify(renewPayload())
       });
-      if (res.ok) {
-        setShowDetail(false);
-        fetchSubscriptions();
+      const data = await res.json();
+      if (!res.ok) {
+        setRenewError(data.message || 'حدث خطأ في تجديد الاشتراك');
+        return;
       }
+      stage(false, data.data);
+      refresh();
     } catch (err) {
-      await addPendingOperation({
-        id: generateOperationId(),
-        type: 'RENEW_SUBSCRIPTION',
-        payload: { subscriptionId: selectedSub.id },
-        timestamp: Date.now(),
-        branchId: selectedSub.branchId,
-        userId: user!.id
-      });
-      setShowDetail(false);
-      setNotice({ kind: 'ok', text: 'تم حفظ التجديد محلياً (سيتم التزامن عند عودة الاتصال)' });
+      try {
+        await addPendingOperation({
+          id: generateOperationId(),
+          type: 'RENEW_SUBSCRIPTION',
+          payload: { subscriptionId: renewSub.id, ...renewPayload() },
+          timestamp: Date.now(),
+          branchId: renewSub.branchId,
+          userId: user!.id
+        });
+        stage(true);
+      } catch {
+        setRenewError('حدث خطأ في الاتصال');
+      }
+    } finally {
+      setRenewSubmitting(false);
     }
   };
 
@@ -427,7 +587,7 @@ function SubscriptionsPage() {
       });
       if (res.ok) {
         setShowDetail(false);
-        fetchSubscriptions();
+        refresh();
       }
     } catch (err) {
       await addPendingOperation({
@@ -466,7 +626,7 @@ function SubscriptionsPage() {
       });
       if (res.ok) {
         setShowDetail(false);
-        fetchSubscriptions();
+        refresh();
       }
     } catch (err) {
       await addPendingOperation({
@@ -517,7 +677,7 @@ function SubscriptionsPage() {
       if (res.ok) {
         setShowPayment(false);
         openDetail(selectedSub);
-        fetchSubscriptions();
+        refresh();
       }
     } catch (err) {
       console.error('Error recording payment:', err);
@@ -564,14 +724,29 @@ function SubscriptionsPage() {
     }
   };
 
+  // The desk prints the renewal straight from the confirmation, so the member leaves with
+  // the new period on paper instead of the cashier hunting for the fresh row.
+  const openWrittenReceipt = async () => {
+    if (!written?.subscriptionId) return;
+    try {
+      const res = await fetch(`/api/subscriptions/${written.subscriptionId}`, { credentials: 'include' });
+      const data = await res.json();
+      if (data.success) {
+        setSelectedSub(data.data);
+        setWritten(null);
+        setShowReceipt(true);
+      }
+    } catch (err) {
+      console.error('Error fetching the renewed subscription receipt:', err);
+    }
+  };
+
   const handlePrintReceipt = () => {
     const content = receiptRef.current;
     if (!content) return;
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-    printWindow.document.write(`
-      <html dir="rtl"><head><title>إيصال</title>
-      <style>
+    openPrintWindow({
+      title: 'إيصال',
+      css: `
         body { font-family: 'Cairo', sans-serif; padding: 20px; direction: rtl; }
         .receipt { max-width: 400px; margin: 0 auto; }
         .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 15px; }
@@ -580,12 +755,9 @@ function SubscriptionsPage() {
         table { width: 100%; border-collapse: collapse; margin: 10px 0; }
         th, td { border: 1px solid #ddd; padding: 6px; text-align: right; }
         th { background: #f5f5f5; }
-      </style></head><body>
-      ${content.innerHTML}
-      </body></html>
-    `);
-    printWindow.document.close();
-    printWindow.print();
+      `,
+      build: (doc) => [doc.importNode(content, true)]
+    })?.print();
   };
 
   const formatPrice = (piasters: number) => `${(piasters / 100).toLocaleString('ar-EG-u-nu-latn')} ج.م`;
@@ -621,6 +793,8 @@ function SubscriptionsPage() {
   };
 
   const finalPrice = selectedPlan ? selectedPlan.pricePiasters - Math.round(discount * 100) : 0;
+  const renewFinalPrice = renewSub ? Math.max(0, renewSub.plan.pricePiasters - Math.round(renewDiscount * 100)) : 0;
+  const renewPreview = renewSub ? renewalWindow(renewSub.endDate, renewSub.plan.durationDays) : null;
 
   // Calculate progress percentage for payment
   const getPaymentProgress = (paid: number, total: number) => {
@@ -629,82 +803,57 @@ function SubscriptionsPage() {
   };
 
   return (
-    <div className="space-y-5 sm:space-y-7">
+    <Stagger className="space-y-5 sm:space-y-7">
       {/* Offline Banner */}
       {!isOnline && <OfflineBanner />}
 
       {notice && <NoticeBanner kind={notice.kind} text={notice.text} onDismiss={() => setNotice(null)} />}
 
-      {/* Header */}
-      <PageHeader
-        icon="subscriptions"
-        title="الاشتراكات"
-        caption="إدارة الاشتراكات والمدفوعات"
-        actions={
-          <Btn variant="primary" icon="plus" onClick={openNewSubscription}>
-            اشتراك جديد
-          </Btn>
-        }
-      />
-
-      {/* Tabs */}
-      <Segmented
-        value={tab}
-        onChange={setTab}
-        ariaLabel="أقسام الاشتراكات"
-        options={[
-          { key: 'subscriptions', label: 'الاشتراكات' },
-          { key: 'plans', label: 'الخطط' }
-        ]}
-      />
-
-      {tab === 'plans' && <PlansSection />}
-
-      {tab === 'subscriptions' && (
-        <>
-          {/* Filters */}
-          <div className={`${CARD} p-4 sm:p-5`}>
-            <div className="mb-3 sm:mb-4">
-              <SectionTitle>تصفية النتائج</SectionTitle>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-              <SearchField
-                value={search}
-                onChange={(v) => { setSearch(v); setPage(1); }}
-                placeholder="بحث بالاسم، الهاتف، أو كود العضو..."
-                className="w-full"
-              />
-              {!singleBranchUser && (
-                <Picker
-                  value={branchFilter}
-                  onChange={(v) => { setBranchFilter(v); setPage(1); }}
-                  ariaLabel="تصفية بالفرع"
-                  className="w-full"
-                  options={[
-                    { value: '', label: 'كل الفروع' },
-                    ...branches.map(b => ({ value: b.id, label: b.name }))
-                  ]}
-                />
-              )}
+      {/* Filters — a single member's list is already filtered, so it shows no search box */}
+      {!scoped && (
+        <div className={`${CARD} p-4 sm:p-5`}>
+          <div className="mb-3 sm:mb-4">
+            <SectionTitle>تصفية النتائج</SectionTitle>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+            <SearchField
+              value={search}
+              onChange={(v) => { setSearch(v); setPage(1); }}
+              placeholder="بحث بالاسم، الهاتف، أو كود العضو..."
+              className="w-full"
+            />
+            {!singleBranchUser && (
               <Picker
-                value={statusFilter}
-                onChange={(v) => { setStatusFilter(v); setPage(1); }}
-                ariaLabel="تصفية بالحالة"
+                value={branchFilter}
+                onChange={(v) => { setBranchFilter(v); setPage(1); }}
+                ariaLabel="تصفية بالفرع"
                 className="w-full"
                 options={[
-                  { value: '', label: 'كل الحالات' },
-                  { value: 'ACTIVE', label: 'نشط' },
-                  { value: 'EXPIRED', label: 'منتهي' },
-                  { value: 'FROZEN', label: 'مجمد' },
-                  { value: 'CANCELLED', label: 'ملغي' }
+                  { value: '', label: 'كل الفروع' },
+                  ...branches.map(b => ({ value: b.id, label: b.name }))
                 ]}
               />
-            </div>
+            )}
+            <Picker
+              value={statusFilter}
+              onChange={(v) => { setStatusFilter(v); setPage(1); }}
+              ariaLabel="تصفية بالحالة"
+              className="w-full"
+              options={[
+                { value: '', label: 'كل الحالات' },
+                { value: 'ACTIVE', label: 'نشط' },
+                { value: 'EXPIRED', label: 'منتهي' },
+                { value: 'FROZEN', label: 'مجمد' },
+                { value: 'CANCELLED', label: 'ملغي' }
+              ]}
+            />
           </div>
+        </div>
+      )}
 
-          {/* Table / Cards */}
-          <div className={`${CARD} overflow-hidden`}>
-            {loading ? (
+      {/* Table / Cards */}
+      <div className={`${CARD} overflow-hidden`}>
+        {loading ? (
               <Loading />
             ) : subscriptions.length === 0 ? (
               <EmptyState icon="subscriptions" title="لا توجد اشتراكات" />
@@ -713,10 +862,10 @@ function SubscriptionsPage() {
                 {/* Desktop Table */}
                 <div className="hidden sm:block">
                   <TableShell
-                    minWidth="min-w-[860px]"
+                    minWidth={scoped ? 'min-w-[640px]' : 'min-w-[860px]'}
                     head={
                       <>
-                        <Th>العضو</Th>
+                        {!scoped && <Th>العضو</Th>}
                         <Th>الخطة</Th>
                         <Th>الفرع</Th>
                         <Th className="hidden xl:table-cell">تاريخ البدء</Th>
@@ -731,6 +880,7 @@ function SubscriptionsPage() {
                       const progress = getPaymentProgress(sub.paidPiasters, sub.pricePiasters);
                       return (
                         <Row key={sub.id} onClick={() => openDetail(sub)}>
+                          {!scoped && (
                           <Td>
                             <div className="flex items-center gap-3">
                               <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-primary/10 text-primary">
@@ -742,6 +892,7 @@ function SubscriptionsPage() {
                               </div>
                             </div>
                           </Td>
+                          )}
                           <Td>
                             <span className="text-sm text-gray-200 font-medium">{sub.plan.nameAr}</span>
                           </Td>
@@ -792,17 +943,26 @@ function SubscriptionsPage() {
                       <ListCard key={sub.id} onClick={() => openDetail(sub)}>
                         <div className="flex items-start justify-between gap-3 mb-3">
                           <div className="flex items-center gap-3 min-w-0">
-                            <div className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center bg-primary/10 text-primary">
-                              <UiIcon name="member" className="w-5 h-5" />
-                            </div>
+                            {!scoped && (
+                              <div className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center bg-primary/10 text-primary">
+                                <UiIcon name="member" className="w-5 h-5" />
+                              </div>
+                            )}
                             <div className="min-w-0">
-                              <div className="text-sm font-semibold text-white truncate">{sub.member.person.name}</div>
-                              <div className="text-xs text-primary/70 font-mono">{sub.member.memberCode}</div>
+                              <div className="text-sm font-semibold text-white truncate">
+                                {scoped ? sub.plan.nameAr : sub.member.person.name}
+                              </div>
+                              <div className="text-xs text-primary/70 font-mono">
+                                {scoped
+                                  ? `${arDate(sub.startDate)} - ${arDate(sub.endDate)} • ${sub.branch.code}`
+                                  : sub.member.memberCode}
+                              </div>
                             </div>
                           </div>
                           {getStatusBadge(sub.status)}
                         </div>
 
+                        {!scoped && (
                         <div className="flex flex-wrap items-center gap-2 mb-3 text-xs text-gray-400">
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-dark border border-dark-border rounded-lg">
                             <UiIcon name="products" className="w-3 h-3" />
@@ -813,7 +973,9 @@ function SubscriptionsPage() {
                             {sub.branch.code}
                           </span>
                         </div>
+                        )}
 
+                        {!scoped && (
                         <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
                           <div className="flex items-center gap-1">
                             <UiIcon name="calendar" className="w-3 h-3" />
@@ -825,6 +987,7 @@ function SubscriptionsPage() {
                             {arDate(sub.endDate)}
                           </div>
                         </div>
+                        )}
 
                         <div className="flex items-center justify-between">
                           <div className="flex-1 mr-4">
@@ -866,9 +1029,7 @@ function SubscriptionsPage() {
                 </Btn>
               </div>
             )}
-          </div>
-        </>
-      )}
+      </div>
 
       {/* ──────── New Subscription Modal ──────── */}
       {showNewSub && (
@@ -1062,6 +1223,210 @@ function SubscriptionsPage() {
         </Modal>
       )}
 
+      {/* ──────── Renewal Modal ──────── */}
+      {showRenew && renewSub && renewPreview && (
+        <Modal
+          open
+          title="تجديد الاشتراك"
+          subtitle={<div className="mt-2">{getStatusBadge(renewSub.status)}</div>}
+          onClose={() => setShowRenew(false)}
+          width="max-w-lg"
+          footer={
+            <>
+              <Btn type="button" variant="ghost" onClick={() => setShowRenew(false)}>
+                إلغاء
+              </Btn>
+              <Btn type="submit" form="renew-form" variant="primary" disabled={renewSubmitting}>
+                {renewSubmitting ? (
+                  <span className="inline-flex items-center gap-2">
+                    <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                    جاري التجديد...
+                  </span>
+                ) : !isOnline ? 'حفظ محلياً' : 'تجديد'}
+              </Btn>
+            </>
+          }
+        >
+          {renewError && (
+            <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-sm flex items-center gap-2">
+              <UiIcon name="warning" className="w-4 h-4 flex-shrink-0" />
+              {renewError}
+            </div>
+          )}
+
+          <div className="p-4 bg-dark border border-dark-border rounded-xl space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
+                  <UiIcon name="member" className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-white font-medium text-sm truncate">{renewSub.member.person.name}</div>
+                  <div className="text-xs text-gray-400">{renewSub.member.memberCode} — {renewSub.branch.code}</div>
+                </div>
+              </div>
+            </div>
+            <div className="pt-3 border-t border-dark-border/60 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <div className="text-xs text-gray-500 mb-1">الخطة</div>
+                <div className="text-white text-sm font-semibold">{renewSub.plan.nameAr}</div>
+                <div className="text-xs text-gray-500 mt-0.5">{renewSub.plan.durationDays} يوم</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-500 mb-1 flex items-center gap-1.5">
+                  <UiIcon name="calendar" className="w-3.5 h-3.5" />
+                  الفترة الجديدة
+                </div>
+                <div className="text-primary text-sm font-bold">{arDate(renewPreview.start)}</div>
+                <div className="text-white text-sm">{arDate(renewPreview.finish)}</div>
+              </div>
+            </div>
+          </div>
+
+          <form id="renew-form" onSubmit={handleRenew} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field label="خصم (ج.م)">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={renewDiscount}
+                  onChange={(e) => setRenewDiscount(parseFloat(e.target.value) || 0)}
+                  className={FIELD}
+                />
+              </Field>
+              <Field label="السعر بعد الخصم">
+                <div className="px-4 py-2.5 min-h-[44px] flex items-center bg-primary/10 border border-primary/25 rounded-xl text-primary font-bold text-sm">
+                  {formatPrice(renewFinalPrice)}
+                </div>
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field label="المدفوع (ج.م)">
+                <input
+                  type="number"
+                  min="0"
+                  max={renewFinalPrice / 100}
+                  step="0.01"
+                  value={renewPaid}
+                  onChange={(e) => setRenewPaid(parseFloat(e.target.value) || 0)}
+                  className={FIELD}
+                />
+              </Field>
+              <Field label="طريقة الدفع">
+                <Picker
+                  value={renewMethod}
+                  onChange={setRenewMethod}
+                  ariaLabel="طريقة الدفع"
+                  className="w-full"
+                  options={[
+                    { value: 'CASH', label: 'نقدي' },
+                    { value: 'BANK_TRANSFER', label: 'تحويل بنكي' },
+                    { value: 'CARD', label: 'بطاقة' },
+                    { value: 'OTHER', label: 'أخرى' }
+                  ]}
+                />
+              </Field>
+            </div>
+
+            {Math.round(renewPaid * 100) < renewFinalPrice && (
+              <div className="p-3 bg-primary/10 border border-primary/25 rounded-xl flex items-center gap-2">
+                <UiIcon name="wallet" className="w-4 h-4 text-primary flex-shrink-0" />
+                <span className="text-primary text-sm">
+                  المتبقي: <span className="font-bold">{formatPrice(renewFinalPrice - Math.round(renewPaid * 100))}</span>
+                </span>
+              </div>
+            )}
+
+            <Field label="ملاحظات">
+              <input
+                type="text"
+                value={renewNotes}
+                onChange={(e) => setRenewNotes(e.target.value)}
+                className={FIELD}
+              />
+            </Field>
+          </form>
+        </Modal>
+      )}
+
+      {/* ──────── Saved: the line the desk reads before handing the card back ──────── */}
+      {written && (
+        <Modal
+          open
+          title={written.kind === 'renew' ? 'تم تجديد الاشتراك' : 'تم إنشاء الاشتراك'}
+          onClose={() => setWritten(null)}
+          width="max-w-md"
+          footer={
+            <>
+              {!written.queued && written.subscriptionId && (
+                <Btn type="button" variant="ghost" icon="print" onClick={openWrittenReceipt}>
+                  طباعة الإيصال
+                </Btn>
+              )}
+              <Btn type="button" variant="primary" onClick={() => setWritten(null)}>
+                تم
+              </Btn>
+            </>
+          }
+        >
+          {written.queued && (
+            <div className="p-3 bg-primary/10 border border-primary/25 rounded-xl flex items-start gap-2">
+              <UiIcon name="warning" className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+              <span className="text-primary text-xs sm:text-sm">
+                محفوظ على الجهاز — بينزل في الحسابات أول ما الإنترنت يرجع
+              </span>
+            </div>
+          )}
+
+          <div className="text-center pt-1">
+            <div className="mx-auto w-14 h-14 rounded-full grid place-items-center bg-emerald-500/10 text-emerald-400">
+              <UiIcon name="check" className="w-7 h-7" />
+            </div>
+            <p className="mt-3 text-lg font-extrabold text-white">{written.memberName}</p>
+            <p className="text-xs text-primary/70 font-mono mt-0.5">{written.memberCode}</p>
+          </div>
+
+          <div className="p-4 bg-dark border border-dark-border rounded-xl space-y-2.5">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-gray-400 text-sm">الخطة</span>
+              <span className="text-white text-sm font-semibold">{written.planName}</span>
+            </div>
+            <div className="flex items-center justify-between gap-3 pt-2.5 border-t border-dark-border/60">
+              <span className="text-gray-400 text-sm">الفترة</span>
+              <span className="text-white text-sm font-medium text-left">
+                {arDate(written.startDate)}
+                <span className="block text-[11px] text-gray-500 mt-0.5">إلى {arDate(written.endDate)}</span>
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-3 pt-2.5 border-t border-dark-border/60">
+              <span className="text-gray-400 text-sm">السعر</span>
+              <span className="text-white text-sm font-bold">{formatPrice(written.pricePiasters)}</span>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-gray-400 text-sm flex items-center gap-1.5">
+                <UiIcon name="check" className="w-3.5 h-3.5 text-emerald-400" />
+                المدفوع
+              </span>
+              <span className="text-emerald-400 text-sm font-bold">{formatPrice(written.paidPiasters)}</span>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-gray-400 text-sm">طريقة الدفع</span>
+              <span className="text-gray-300 text-sm">{getMethodLabel(written.paymentMethod)}</span>
+            </div>
+            {written.pricePiasters - written.paidPiasters > 0 && (
+              <div className="flex items-center justify-between gap-3 pt-2.5 border-t border-dark-border/60">
+                <span className="text-gray-400 text-sm font-medium">المتبقي</span>
+                <span className="text-primary text-base font-bold">
+                  {formatPrice(written.pricePiasters - written.paidPiasters)}
+                </span>
+              </div>
+            )}
+          </div>
+        </Modal>
+      )}
+
       {/* ──────── Detail Modal ──────── */}
       {showDetail && selectedSub && (
         <Modal
@@ -1088,9 +1453,16 @@ function SubscriptionsPage() {
                   {!isOnline ? 'إلغاء التجميد (محلياً)' : 'إلغاء التجميد'}
                 </Btn>
               )}
-              <Btn type="button" variant="ghost" icon="refresh" onClick={handleRenew}>
-                {!isOnline ? 'تجديد (محلياً)' : 'تجديد'}
-              </Btn>
+              {/* Renewal lives on the member's own page; from the ledger the desk jumps to him. */}
+              {scoped ? (
+                <Btn type="button" variant="ghost" icon="refresh" onClick={() => openRenew(selectedSub)}>
+                  {!isOnline ? 'تجديد (محلياً)' : 'تجديد'}
+                </Btn>
+              ) : (
+                <Btn type="button" variant="ghost" icon="member" onClick={() => navigate(`/admin/members/${selectedSub.member.id}`)}>
+                  بروفايل العضو
+                </Btn>
+              )}
               <Btn type="button" variant="ghost" icon="print" onClick={openReceipt}>
                 إيصال
               </Btn>
@@ -1311,9 +1683,9 @@ function SubscriptionsPage() {
       )}
 
       {/* ──────── Receipt Modal ──────── */}
-      {showReceipt && selectedSub && (
+      {showReceipt && selectedSub && createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm overflow-y-auto"
+          className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-[2px] overflow-y-auto"
           onMouseDown={e => {
             if (e.target === e.currentTarget) setShowReceipt(false);
           }}
@@ -1322,51 +1694,51 @@ function SubscriptionsPage() {
             <div className="p-5 sm:p-6" ref={receiptRef} dir="rtl">
               <div className="text-center border-b-2 border-dark-border pb-4 mb-4">
                 <h2 className="text-xl font-bold text-gray-800">POWER 111</h2>
-                <p className="text-sm text-gray-600 mt-1">إيصال اشتراك</p>
-                <p className="text-xs text-gray-500 mt-1">{arDate()}</p>
+                <p className="text-sm text-[#4B5563] mt-1">إيصال اشتراك</p>
+                <p className="text-xs text-[#6B7280] mt-1">{arDate()}</p>
               </div>
 
               <div className="space-y-2.5 mb-4">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">العضو:</span>
+                  <span className="text-[#4B5563]">العضو:</span>
                   <span className="font-medium text-gray-800">{selectedSub.member.person.name}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">الكود:</span>
+                  <span className="text-[#4B5563]">الكود:</span>
                   <span className="font-mono text-gray-800">{selectedSub.member.memberCode}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">الهاتف:</span>
+                  <span className="text-[#4B5563]">الهاتف:</span>
                   <span className="text-gray-800">{displayPhone(selectedSub.member.person.phone)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">الخطة:</span>
+                  <span className="text-[#4B5563]">الخطة:</span>
                   <span className="font-medium text-gray-800">{selectedSub.plan.nameAr}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">الفرع:</span>
+                  <span className="text-[#4B5563]">الفرع:</span>
                   <span className="text-gray-800">{selectedSub.branch.name}</span>
                 </div>
               </div>
 
               <div className="border-t border-dashed border-gray-400 pt-3 mb-3">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">من:</span>
+                  <span className="text-[#4B5563]">من:</span>
                   <span className="text-gray-800">{arDate(selectedSub.startDate)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">إلى:</span>
+                  <span className="text-[#4B5563]">إلى:</span>
                   <span className="text-gray-800">{arDate(selectedSub.endDate)}</span>
                 </div>
               </div>
 
               <div className="border-t border-dashed border-gray-400 pt-3 mb-3">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">السعر:</span>
+                  <span className="text-[#4B5563]">السعر:</span>
                   <span className="font-medium text-gray-800">{formatPrice(selectedSub.pricePiasters)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">المدفوع:</span>
+                  <span className="text-[#4B5563]">المدفوع:</span>
                   <span className="font-medium text-emerald-600">{formatPrice(selectedSub.paidPiasters)}</span>
                 </div>
                 <div className="flex justify-between text-sm font-bold">
@@ -1382,17 +1754,17 @@ function SubscriptionsPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-gray-300">
-                        <th className="text-right py-1.5 text-gray-600 font-medium">المبلغ</th>
-                        <th className="text-right py-1.5 text-gray-600 font-medium">الطريقة</th>
-                        <th className="text-right py-1.5 text-gray-600 font-medium">التاريخ</th>
+                        <th className="text-right py-1.5 text-[#4B5563] font-medium">المبلغ</th>
+                        <th className="text-right py-1.5 text-[#4B5563] font-medium">الطريقة</th>
+                        <th className="text-right py-1.5 text-[#4B5563] font-medium">التاريخ</th>
                       </tr>
                     </thead>
                     <tbody>
                       {selectedSub.payments.map(p => (
                         <tr key={p.id} className="border-b border-gray-200">
                           <td className="py-1.5 text-gray-800">{formatPrice(p.amountPiasters)}</td>
-                          <td className="py-1.5 text-gray-600">{getMethodLabel(p.method)}</td>
-                          <td className="py-1.5 text-gray-600">{arDate(p.createdAt)}</td>
+                          <td className="py-1.5 text-[#4B5563]">{getMethodLabel(p.method)}</td>
+                          <td className="py-1.5 text-[#4B5563]">{arDate(p.createdAt)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1400,7 +1772,7 @@ function SubscriptionsPage() {
                 </div>
               )}
 
-              <div className="border-t-2 border-dark-border pt-3 mt-4 text-center text-xs text-gray-500">
+              <div className="border-t-2 border-dark-border pt-3 mt-4 text-center text-xs text-[#6B7280]">
                 شكراً لاشتراككم معنا
               </div>
             </div>
@@ -1416,17 +1788,18 @@ function SubscriptionsPage() {
               <button
                 type="button"
                 onClick={handlePrintReceipt}
-                className="flex-1 inline-flex items-center justify-center gap-2 min-h-[44px] py-2.5 bg-gradient-to-br from-primary-light to-primary hover:from-primary hover:to-primary-dark text-black rounded-xl transition-colors text-sm font-bold"
+                className="flex-1 inline-flex items-center justify-center gap-2 min-h-[44px] py-2.5 bg-primary hover:bg-primary-light active:bg-primary-dark text-black rounded-xl transition-colors text-sm font-bold"
               >
                 <UiIcon name="print" className="w-4 h-4" />
                 طباعة
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
-    </div>
+    </Stagger>
   );
 }
 
-export default SubscriptionsPage;
+export default SubscriptionsPanel;

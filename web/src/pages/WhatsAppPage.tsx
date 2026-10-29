@@ -5,6 +5,7 @@ import {
   PageHeader, SectionTitle, Badge, Btn, Field, Picker, SearchField,
   Loading, EmptyState, Modal, CARD, FIELD, UiIcon
 } from '../components/ui';
+import { Stagger } from '../components/Motion';
 
 interface Member {
   id: string;
@@ -194,7 +195,7 @@ function WhatsAppPage() {
     : 0;
 
   return (
-    <div className="space-y-5 sm:space-y-7">
+    <Stagger className="space-y-5 sm:space-y-7">
       <PageHeader
         icon="whatsapp"
         title="رسائل واتساب"
@@ -450,7 +451,7 @@ function WhatsAppPage() {
           </div>
         )}
       </Modal>
-    </div>
+    </Stagger>
   );
 }
 

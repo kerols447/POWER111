@@ -1,16 +1,42 @@
 import { useState, useEffect, useRef } from 'react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { addPendingOperation, getCachedMember, cacheMembers } from '../utils/offlineDb';
 import {
   PageHeader, Btn, StatTile, Badge, TableShell, Th, Td, Row, ListCard,
-  EmptyState, Loading, Picker, UiIcon, CARD, TONE, LABEL, FIELD
+  EmptyState, Loading, Picker, UiIcon, CARD, GOLD, TONE, LABEL, FIELD
 } from '../components/ui';
+import { Stagger } from '../components/Motion';
+import MemberAvatar from '../components/MemberAvatar';
+import ExpiredCheckinCard, { type ExpiredArrival } from '../components/ExpiredCheckinCard';
 
 const AUTO_CAMERA_KEY = 'power111AutoCamera';
 const BRANCH_KEY = 'power111AttendanceBranch';
 const rememberedBranch = () => localStorage.getItem(BRANCH_KEY) || '';
+
+// Each scan result has its own sound and buzz so reception can tell a live membership from
+// an expired one without looking at the screen.
+type ScanSound = 'ok' | 'expired' | 'warn' | 'bad';
+
+const SCAN_SOUNDS: Record<ScanSound, { f: number; at: number; d: number; type: OscillatorType }[]> = {
+  ok: [{ f: 880, at: 0, d: 0.1, type: 'sine' }, { f: 1320, at: 0.11, d: 0.14, type: 'sine' }],
+  expired: [
+    { f: 660, at: 0, d: 0.14, type: 'triangle' },
+    { f: 440, at: 0.22, d: 0.14, type: 'triangle' },
+    { f: 660, at: 0.44, d: 0.22, type: 'triangle' }
+  ],
+  warn: [{ f: 520, at: 0, d: 0.1, type: 'triangle' }, { f: 520, at: 0.17, d: 0.1, type: 'triangle' }],
+  bad: [{ f: 200, at: 0, d: 0.34, type: 'sawtooth' }]
+};
+
+const SCAN_VIBRATION: Record<ScanSound, number | number[]> = {
+  ok: 120,
+  expired: [120, 60, 120, 60, 220],
+  warn: [100, 60, 100],
+  bad: [220, 90, 220]
+};
 
 interface AttendanceRecord {
   id: string;
@@ -18,6 +44,7 @@ interface AttendanceRecord {
   memberName: string;
   memberCode: string;
   memberPhone: string;
+  memberPhotoPath?: string | null;
   branchId: string;
   branchName: string;
   checkInTime: string;
@@ -91,8 +118,9 @@ const PlayIcon = ({ className = 'w-5 h-5' }: { className?: string }) => (
 /* ─────────────────────── Main Component ─────────────────────── */
 
 export default function AttendancePage() {
-  const { user, isOwner } = useAuth();
+  const { user, isOwner, hasPermission } = useAuth();
   const isOnline = useOnlineStatus();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'scanner' | 'today'>('scanner');
   const [branches, setBranches] = useState<Branch[]>([]);
   const [selectedBranch, setSelectedBranch] = useState<string>('');
@@ -100,7 +128,7 @@ export default function AttendancePage() {
   const [summary, setSummary] = useState({ total: 0, checkedIn: 0, checkedOut: 0, flagged: 0 });
   const [loading, setLoading] = useState(false);
   const [scanning, setScanning] = useState(false);
-  const [lastScan, setLastScan] = useState<{ success: boolean; message: string; memberName?: string; kind?: 'member' | 'staff'; code?: string; type: 'success' | 'error' | 'warning' } | null>(null);
+  const [lastScan, setLastScan] = useState<{ success: boolean; message: string; memberName?: string; photoPath?: string | null; kind?: 'member' | 'staff'; code?: string; sound?: ScanSound; type: 'success' | 'error' | 'warning' } | null>(null);
   const [manualCode, setManualCode] = useState('');
   const [scanMode, setScanMode] = useState<'qr' | 'barcode'>('qr');
   const scannerRef = useRef<Html5Qrcode | null>(null);
@@ -111,6 +139,9 @@ export default function AttendancePage() {
   const lastCodeRef = useRef({ code: '', at: 0 });
   const submitRef = useRef<(code: string) => void>(() => {});
   const audioRef = useRef<AudioContext | null>(null);
+  // Members who came in with no live subscription, newest first. The profile window floats
+  // over the scanner instead of stopping it, so the queue keeps moving behind the stack.
+  const [expiredArrivals, setExpiredArrivals] = useState<ExpiredArrival[]>([]);
 
   const singleBranchUser = !isOwner && (user?.branches?.length || 0) === 1;
 
@@ -141,6 +172,7 @@ export default function AttendancePage() {
             memberCode: m.memberCode,
             name: m.person?.name || m.name,
             phone: m.person?.phone || m.phone,
+            photoPath: m.person?.photoPath || null,
             branchId: m.branchId,
             hasActiveSubscription: m.hasActiveSubscription ?? false,
             cachedAt: Date.now()
@@ -277,21 +309,28 @@ export default function AttendancePage() {
     return true;
   };
 
-  const beep = (kind: 'ok' | 'bad') => {
+  // Reception hears who walked in before reading the screen: one rising chirp for a live
+  // membership, a broken three-note warning when the subscription has run out, a flat
+  // buzz for a scan that was refused.
+  const beep = (kind: ScanSound) => {
     try {
       const Ctor = window.AudioContext || (window as any).webkitAudioContext;
       if (!Ctor) return;
       const ctx = audioRef.current || (audioRef.current = new Ctor());
       if (ctx.state === 'suspended') ctx.resume();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.frequency.value = kind === 'ok' ? 880 : 320;
-      gain.gain.setValueAtTime(0.001, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + 0.01);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.16);
-      osc.connect(gain).connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.18);
+      for (const note of SCAN_SOUNDS[kind]) {
+        const start = ctx.currentTime + note.at;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = note.type;
+        osc.frequency.value = note.f;
+        gain.gain.setValueAtTime(0.001, start);
+        gain.gain.exponentialRampToValueAtTime(0.11, start + 0.012);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + note.d);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(start);
+        osc.stop(start + note.d + 0.02);
+      }
     } catch {
       // No audio is never a reason to lose a check-in.
     }
@@ -302,9 +341,39 @@ export default function AttendancePage() {
   const toastTimerRef = useRef<number | undefined>(undefined);
   const flash = (result: NonNullable<typeof lastScan>) => {
     setLastScan(result);
-    beep(result.type === 'error' ? 'bad' : 'ok');
+    const kind: ScanSound = result.sound
+      || (result.type === 'error' ? 'bad' : result.type === 'warning' ? 'warn' : 'ok');
+    beep(kind);
+    if (navigator.vibrate) navigator.vibrate(SCAN_VIBRATION[kind]);
     window.clearTimeout(toastTimerRef.current);
-    toastTimerRef.current = window.setTimeout(() => setLastScan(null), result.type === 'success' ? 2600 : 3800);
+    toastTimerRef.current = window.setTimeout(() => setLastScan(null), kind === 'ok' ? 2600 : 3800);
+  };
+
+  // One window per member: scanning the same card twice brings his profile back to the
+  // front instead of stacking a duplicate of it.
+  const showExpiredProfile = (arrival: ExpiredArrival) => {
+    setExpiredArrivals(prev => [arrival, ...prev.filter(a => a.key !== arrival.key)].slice(0, 8));
+  };
+
+  const dismissExpiredProfile = (key: string) => {
+    setExpiredArrivals(prev => prev.filter(a => a.key !== key));
+  };
+
+  // Every path that records an expired check-in — online, duplicate scan, offline — ends here.
+  const openExpiredProfile = (raw: any, checkInTime: string, fromCache = false) => {
+    if (!raw || !raw.noActiveSubscription) return;
+    showExpiredProfile({
+      key: raw.memberId || raw.id,
+      memberId: raw.memberId || raw.id,
+      name: raw.memberName || raw.name || 'عضو',
+      code: raw.memberCode || raw.code || '',
+      phone: raw.memberPhone ?? raw.phone ?? null,
+      photoPath: raw.memberPhotoPath ?? raw.photoPath ?? null,
+      branchName: raw.branchName ?? null,
+      checkInTime,
+      fromCache,
+      profile: raw.expiredProfile ?? null
+    });
   };
 
   const onScanSuccess = async (decodedText: string) => {
@@ -332,10 +401,6 @@ export default function AttendancePage() {
       await handleStaffPunch(staffCode);
     } else {
       await handleCheckin(code);
-    }
-
-    if (navigator.vibrate) {
-      navigator.vibrate(200);
     }
   };
 
@@ -370,10 +435,13 @@ export default function AttendancePage() {
           success: true,
           message: data.message || `تم تسجيل حضور ${data.data.memberName}`,
           memberName: data.data.memberName,
+          photoPath: data.data.memberPhotoPath,
           kind: 'member',
           code: data.data.memberCode,
+          sound: data.data.noActiveSubscription ? 'expired' : data.data.flagged ? 'warn' : 'ok',
           type: data.data.flagged ? 'warning' : 'success'
         });
+        openExpiredProfile(data.data, data.data.checkInTime || new Date().toISOString());
         if (activeTab === 'today') {
           fetchTodayAttendance();
         }
@@ -383,6 +451,7 @@ export default function AttendancePage() {
           message: data.message || 'العضو مسجل حضوره بالفعل اليوم',
           type: 'warning'
         });
+        openExpiredProfile(data.member, data.member?.checkInTime || new Date().toISOString());
       } else {
         flash({
           success: false,
@@ -478,18 +547,26 @@ export default function AttendancePage() {
         success: true,
         message: `تم حفظ الحضور محلياً: ${cached.name}`,
         memberName: cached.name,
+        photoPath: cached.photoPath,
+        sound: cached.hasActiveSubscription ? 'warn' : 'expired',
         type: 'warning'
       });
+      if (!cached.hasActiveSubscription) {
+        openExpiredProfile({
+          memberId: cached.id,
+          memberName: cached.name,
+          memberCode: cached.memberCode,
+          memberPhone: cached.phone,
+          memberPhotoPath: cached.photoPath,
+          noActiveSubscription: true
+        }, new Date().toISOString(), true);
+      }
     } else {
       flash({
         success: true,
         message: `تم حفظ الحضور محلياً لكود: ${memberCode}`,
         type: 'warning'
       });
-    }
-
-    if (navigator.vibrate) {
-      navigator.vibrate([100, 50, 100]);
     }
   };
 
@@ -624,7 +701,7 @@ export default function AttendancePage() {
   };
 
   return (
-    <div className="space-y-5 sm:space-y-7">
+    <Stagger className="space-y-5 sm:space-y-7">
       {/* ─── Header ─── */}
       <PageHeader
         icon="attendance"
@@ -710,7 +787,7 @@ export default function AttendancePage() {
                       className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-semibold transition-colors min-h-[44px] sm:min-h-[36px] ${
                         scanMode === 'qr' ? 'text-black' : 'text-gray-400 hover:text-white hover:bg-white/5'
                       }`}
-                      style={scanMode === 'qr' ? { background: 'linear-gradient(135deg, #FCD34D, #F59E0B)' } : undefined}
+                      style={scanMode === 'qr' ? { background: GOLD, boxShadow: '0 1px 10px rgba(0,0,0,.25)' } : undefined}
                     >
                       <QrCodeIcon className="w-3.5 h-3.5" />
                       QR Code
@@ -720,7 +797,7 @@ export default function AttendancePage() {
                       className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-semibold transition-colors min-h-[44px] sm:min-h-[36px] ${
                         scanMode === 'barcode' ? 'text-black' : 'text-gray-400 hover:text-white hover:bg-white/5'
                       }`}
-                      style={scanMode === 'barcode' ? { background: 'linear-gradient(135deg, #FCD34D, #F59E0B)' } : undefined}
+                      style={scanMode === 'barcode' ? { background: GOLD, boxShadow: '0 1px 10px rgba(0,0,0,.25)' } : undefined}
                     >
                       <UiIcon name="barcode" className="w-3.5 h-3.5" />
                       Barcode
@@ -861,26 +938,37 @@ export default function AttendancePage() {
                   {lastScan.type === 'warning' && <UiIcon name="warning" className="w-5 h-5" />}
                   {lastScan.type === 'error' && <UiIcon name="close" className="w-5 h-5" />}
                 </div>
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 flex-1 flex items-start gap-3">
                   {lastScan.memberName && (
-                    <p className={`text-sm font-bold truncate flex items-center gap-2 ${
-                      lastScan.type === 'success' ? 'text-emerald-300' :
-                      lastScan.type === 'warning' ? 'text-primary' : 'text-rose-300'
-                    }`}>
-                      {lastScan.memberName}
-                      {lastScan.kind === 'staff' && (
-                        <span className="flex-shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-gray-300">
-                          وردية موظف{lastScan.code ? ` · ${lastScan.code}` : ''}
-                        </span>
-                      )}
-                    </p>
+                    <MemberAvatar
+                      name={lastScan.memberName}
+                      photoPath={lastScan.photoPath}
+                      tone={lastScan.kind === 'staff' ? TONE.staff : TONE.members}
+                      className="w-10 h-10 rounded-xl"
+                      letterClassName="text-base font-bold"
+                    />
                   )}
-                  <p className={`text-sm mt-0.5 ${
-                    lastScan.type === 'success' ? 'text-emerald-400/70' :
-                    lastScan.type === 'warning' ? 'text-primary/80' : 'text-rose-400/70'
-                  }`}>
-                    {lastScan.message}
-                  </p>
+                  <div className="min-w-0 flex-1">
+                    {lastScan.memberName && (
+                      <p className={`text-sm font-bold truncate flex items-center gap-2 ${
+                        lastScan.type === 'success' ? 'text-emerald-300' :
+                        lastScan.type === 'warning' ? 'text-primary' : 'text-rose-300'
+                      }`}>
+                        {lastScan.memberName}
+                        {lastScan.kind === 'staff' && (
+                          <span className="flex-shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-gray-300">
+                            وردية موظف{lastScan.code ? ` · ${lastScan.code}` : ''}
+                          </span>
+                        )}
+                      </p>
+                    )}
+                    <p className={`text-sm mt-0.5 ${
+                      lastScan.type === 'success' ? 'text-emerald-400/70' :
+                      lastScan.type === 'warning' ? 'text-primary/80' : 'text-rose-400/70'
+                    }`}>
+                      {lastScan.message}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -933,12 +1021,20 @@ export default function AttendancePage() {
                   {todayAttendance.map(record => (
                     <ListCard key={record.id}>
                       <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-semibold text-white truncate">{record.memberName}</p>
-                          <div className="flex items-center gap-1.5 mt-1">
-                            <span className="font-mono text-xs text-primary bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded-lg">{record.memberCode}</span>
-                            <span className="text-xs text-gray-600">•</span>
-                            <p className="text-xs text-gray-500 truncate">{record.memberPhone}</p>
+                        <div className="flex items-start gap-3 min-w-0 flex-1">
+                          <MemberAvatar
+                            name={record.memberName}
+                            photoPath={record.memberPhotoPath}
+                            className="w-11 h-11 rounded-xl"
+                            letterClassName="text-base font-bold"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold text-white truncate">{record.memberName}</p>
+                            <div className="flex items-center gap-1.5 mt-1">
+                              <span className="font-mono text-xs text-primary bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded-lg">{record.memberCode}</span>
+                              <span className="text-xs text-gray-600">•</span>
+                              <p className="text-xs text-gray-500 truncate">{record.memberPhone}</p>
+                            </div>
                           </div>
                         </div>
                         <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
@@ -994,8 +1090,13 @@ export default function AttendancePage() {
                     {todayAttendance.map(record => (
                       <Row key={record.id}>
                         <Td>
-                          <div className="text-sm font-semibold text-white">{record.memberName}</div>
-                          <div className="text-xs text-gray-500 mt-0.5">{record.memberPhone}</div>
+                          <div className="flex items-center gap-3">
+                            <MemberAvatar name={record.memberName} photoPath={record.memberPhotoPath} />
+                            <div className="min-w-0">
+                              <div className="text-sm font-semibold text-white">{record.memberName}</div>
+                              <div className="text-xs text-gray-500 mt-0.5">{record.memberPhone}</div>
+                            </div>
+                          </div>
                         </Td>
                         <Td>
                           <span className="font-mono text-sm text-primary bg-primary/10 border border-primary/20 px-2 py-1 rounded-lg">{record.memberCode}</span>
@@ -1046,6 +1147,16 @@ export default function AttendancePage() {
           </div>
         </div>
       )}
-    </div>
+
+      {/* The expired-subscription window floats over both tabs and never blocks a scan. */}
+      {expiredArrivals.length > 0 && (
+        <ExpiredCheckinCard
+          arrivals={expiredArrivals}
+          canRenew={hasPermission('CREATE_SUBSCRIPTIONS')}
+          onDismiss={dismissExpiredProfile}
+          onRenew={arrival => navigate(`/admin/members/${arrival.memberId}`)}
+        />
+      )}
+    </Stagger>
   );
 }
